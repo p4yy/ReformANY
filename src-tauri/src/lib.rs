@@ -16,6 +16,7 @@ mod subtitles;
 mod spreadsheets;
 mod engine_progress;
 mod file_parts;
+mod pdf_split;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -34,6 +35,7 @@ use subtitles::subtitle_convert;
 use spreadsheets::spreadsheet_convert;
 use engine_progress::{cancel_engine_job, JobRegistry};
 use file_parts::{file_split, file_join};
+use pdf_split::pdf_split;
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -80,6 +82,7 @@ pub fn run() {
             open_manual_updates,
             file_split,
             file_join,
+            pdf_split,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
