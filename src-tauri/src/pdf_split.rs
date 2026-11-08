@@ -168,4 +168,49 @@ mod tests {
         assert!(plan_fixed(5, "parts", 6).is_err());
         assert!(plan_fixed(5, "size", 2).is_err());
     }
+
+    #[test]
+    fn splits_real_pdf_into_verified_independent_documents() {
+        use lopdf::{dictionary, Object, Stream};
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("Sample document.pdf");
+        let mut original = Document::with_version("1.5");
+        let pages_id = original.new_object_id();
+        let mut children: Vec<Object> = Vec::new();
+        for _ in 0..6 {
+            let content = original.add_object(Stream::new(dictionary! {}, Vec::new()));
+            let media_box: Vec<Object> = vec![0.into(), 0.into(), 612.into(), 792.into()];
+            let page_id = original.add_object(dictionary! {
+                "Type" => "Page",
+                "Parent" => pages_id,
+                "MediaBox" => media_box,
+                "Contents" => content
+            });
+            children.push(page_id.into());
+        }
+        original.objects.insert(pages_id, Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => children,
+            "Count" => 6,
+        }));
+        let catalog = original.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+        original.trailer.set("Root", catalog);
+        original.save(&source).unwrap();
+
+        let out = split(source.to_str().unwrap(), None, "parts", 2).unwrap();
+        assert_eq!(out.output_paths.len(), 2);
+        for output in &out.output_paths {
+            assert!(output.ends_with(".pdf"));
+            let pdf = Document::load(output).unwrap();
+            assert_eq!(pdf.get_pages().len(), 3);
+        }
+        assert_eq!(Document::load(&source).unwrap().get_pages().len(), 6);
+
+        let out = split(source.to_str().unwrap(), None, "pages", 2).unwrap();
+        assert_eq!(out.output_paths.len(), 3);
+        for output in &out.output_paths {
+            let pdf = Document::load(output).unwrap();
+            assert_eq!(pdf.get_pages().len(), 2);
+        }
+    }
 }
