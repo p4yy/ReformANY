@@ -1,5 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+// Fail any future release build that would mistakenly open build.devUrl.
+// The feature embeds the production Vite output behind Tauri's app protocol.
+#[cfg(all(not(debug_assertions), not(feature = "custom-protocol")))]
+compile_error!("ReformANY premium setup release requires the custom-protocol feature to embed its frontend");
+
 //! Owner-supplied React installer shell. The embedded Tauri/NSIS installer is the
 //! authoritative installation engine; UI never simulates completion or writes
 //! system registry entries directly.
