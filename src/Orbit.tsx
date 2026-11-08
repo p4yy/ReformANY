@@ -30,6 +30,7 @@ type OrbitFile = {
 type Phase = "ready" | "processing" | "completed" | "failed";
 type Tab = "convert" | "tools" | "actions";
 type EngineStatus = { ffmpeg: boolean; ffprobe: boolean; sevenZip: boolean; winrar: boolean };
+type EngineProgressEvent = { id: string; percent: number | null; phase: string };
 type EventPayload = {
   id: string;
   status: "processing" | "completed" | "failed" | "cancelled" | "batch-finished";
@@ -188,6 +189,7 @@ export default function Orbit() {
     setPhaseState(next);
   };
   const [output, setOutput] = useState<string | null>(null);
+  const [mediaProgress, setMediaProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const requestId = useRef<string | null>(null);
@@ -251,6 +253,11 @@ export default function Orbit() {
       .then(ready => { if (mounted) setCalibreReady(ready); })
       .catch(() => { /* Optional e-book routes stay unavailable. */ });
 
+    const mediaSubscribed = listen<EngineProgressEvent>("reformany:engine-progress", ({ payload }) => {
+      if (payload.id !== requestId.current) return;
+      if (payload.phase === "encoding") setMediaProgress(payload.percent);
+      if (payload.phase === "completed") setMediaProgress(100);
+    });
     const subscribed = listen<EventPayload>("reformany:conversion", ({ payload }) => {
       if (payload.id !== requestId.current) return;
       if (payload.status === "processing") {
@@ -288,6 +295,7 @@ export default function Orbit() {
     return () => {
       mounted = false;
       void subscribed.then(unlisten => unlisten());
+      void mediaSubscribed.then(unlisten => unlisten());
       window.removeEventListener("keydown", onKey);
       window.clearTimeout(activationGuard);
       void focusListener.then(unlisten => unlisten());
@@ -319,6 +327,12 @@ export default function Orbit() {
   }
 
   async function close() {
+    // Orbit is a standalone native process when launched from Explorer;
+    // closing it during a job would kill FFmpeg before the file is published.
+    if (phaseRef.current === "processing") {
+      setNote("Conversion is running. Cancel it before closing Orbit.");
+      return;
+    }
     await getCurrentWindow().close();
   }
 
@@ -331,6 +345,7 @@ export default function Orbit() {
     setOutput(null);
     setError(null);
     setNote(null);
+    setMediaProgress(null);
     try {
       if (kind === "image") {
         batchId.current = await invoke<string>("convert_batch", {
@@ -341,7 +356,7 @@ export default function Orbit() {
       } else if (kind === "video" || kind === "audio") {
         const result = await invoke<string>("media_convert", {
           job: { path: file.path, target: target === "MP4 H.265" ? "mp4_h265" : target.toLowerCase(), destination: await resolvePreferredDestination(),
-            profile: "standard", startSeconds: null, durationSeconds: null },
+            profile: "standard", startSeconds: null, durationSeconds: null, progressId: id },
         });
         setOutput(result);
         setPhase("completed");
@@ -551,10 +566,13 @@ export default function Orbit() {
   }
 
   async function cancel() {
-    if (batchId.current) {
-      try { await invoke("cancel_batch", { batchId: batchId.current }); }
-      catch (reason) { setError(String(reason)); }
-    }
+    try {
+      if (batchId.current) {
+        await invoke("cancel_batch", { batchId: batchId.current });
+      } else if ((kind === "video" || kind === "audio") && requestId.current) {
+        await invoke("cancel_engine_job", { id: requestId.current });
+      }
+    } catch (reason) { setError(String(reason)); }
   }
 
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
@@ -693,8 +711,8 @@ export default function Orbit() {
           </> : phase === "processing" ? <>
             <LoaderCircle size={26} className="orbit-spinner" aria-hidden="true" />
             <strong>{selected} · Working</strong>
-            <span className="orbit-hub-subtitle">Processing locally</span>
-            {kind === "image" && <button className="orbit-hub-close" onClick={() => void cancel()}>Cancel</button>}
+            <span className="orbit-hub-subtitle">{(kind === "audio" || kind === "video") && mediaProgress !== null ? `${mediaProgress}% · Encoding locally` : "Processing locally"}</span>
+            {(kind === "image" || kind === "video" || kind === "audio") && <button className="orbit-hub-close" onClick={() => void cancel()}>Cancel</button>}
           </> : phase === "completed" ? <>
             <CheckCircle2 size={27} className="orbit-done-icon" aria-hidden="true" />
             <strong>Done</strong>
