@@ -36,8 +36,8 @@ type EventPayload = {
   error: string | null;
 };
 const imageFormats = ["PNG", "JPEG", "WebP", "BMP", "GIF", "TIFF", "ICO", "TGA", "QOI", "AVIF"];
-const audioFormats = ["MP3", "WAV", "FLAC", "M4A", "OGG", "Opus"];
-const videoFormats = ["MP4", "WebM", "MKV", "MOV", "AVI"];
+const audioFormats = ["MP3", "M4A", "WAV", "FLAC", "OGG", "Opus", "AIFF", "WMA", "AC3"];
+const videoFormats = ["MP4", "MP4 H.265", "MOV", "MKV", "WebM", "AVI", "WMV", "GIF"];
 type FileKind = "image" | "audio" | "video" | "archive" | "pdf" | "office" | "spreadsheet" | "subtitle" | "ebook" | "shortcut" | "application" | "folder" | "other";
 function getKind(file: OrbitFile | null): FileKind {
   const value = (file?.detected || "").toLowerCase();
@@ -331,7 +331,7 @@ export default function Orbit() {
         });
       } else if (kind === "video" || kind === "audio") {
         const result = await invoke<string>("media_convert", {
-          job: { path: file.path, target: target.toLowerCase(), destination: null,
+          job: { path: file.path, target: target === "MP4 H.265" ? "mp4_h265" : target.toLowerCase(), destination: null,
             profile: "standard", startSeconds: null, durationSeconds: null },
         });
         setOutput(result);
