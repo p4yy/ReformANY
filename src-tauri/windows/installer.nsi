@@ -20,14 +20,17 @@ ManifestDPIAwareness PerMonitorV2
 {{/if}}
 
 !include MUI2.nsh
-; Match native NSIS pages instead of mixing dark artwork with white controls.
-; Installer behavior, progress, rollback and registry integration remain unchanged.
-!define MUI_BGCOLOR "F6F7F9"
-!define MUI_TEXTCOLOR "202B37"
-!define MUI_INSTFILESPAGE_COLORS "202B37 F6F7F9"
+; Uniform graphite palette for every standard MUI page. The NSIS
+; installation and uninstallation logic remains intact.
+!define MUI_BGCOLOR "111216"
+!define MUI_TEXTCOLOR "F3F4F7"
+!define MUI_DIRECTORYPAGE_BGCOLOR "202126"
+!define MUI_STARTMENUPAGE_BGCOLOR "202126"
+!define MUI_INSTFILESPAGE_COLORS "F3F4F7 111216"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "colored"
-!define MUI_INSTALLCOLORS "397DDD F6F7F9"
+!define MUI_INSTALLCOLORS "478AF3 111216"
 !define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH "FitControl"
+!define MUI_CUSTOMFUNCTION_GUIINIT ReformANYDarkGUI
 !include FileFunc.nsh
 !include x64.nsh
 !include WordFunc.nsh
@@ -86,7 +89,7 @@ Var WixMode
 Var OldMainBinaryName
 
 Name "${PRODUCTNAME}"
-BrandingText "ReformANY | Private by design"
+BrandingText "ReformANY"
 OutFile "${OUTFILE}"
 
 ; We don't actually use this value as default install path,
@@ -420,6 +423,7 @@ FunctionEnd
 
 ; 5. Choose install directory page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ReformANYDarkPage
 !insertmacro MUI_PAGE_DIRECTORY
 
 ; 6. Start menu shortcut page
@@ -430,9 +434,11 @@ Var AppStartMenuFolder
 !else
   !define MUI_PAGE_CUSTOMFUNCTION_PRE Skip
 !endif
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ReformANYDarkPage
 !insertmacro MUI_PAGE_STARTMENU Application $AppStartMenuFolder
 
 ; 7. Installation page
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ReformANYDarkPage
 !insertmacro MUI_PAGE_INSTFILES
 
 ; 8. Finish page
@@ -450,6 +456,32 @@ Var AppStartMenuFolder
 !define MUI_FINISHPAGE_RUN_TEXT "Launch ReformANY"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
 !insertmacro MUI_PAGE_FINISH
+
+; Set the native title bar, footer, and page colors when the wizard opens.
+; Classic Windows buttons may still follow the user's OS theme: verify on real Windows 11.
+Function ReformANYDarkGUI
+  ; Windows 10/11 DWM dark title bar. Failures on older versions are harmless.
+  System::Call 'DWMAPI::DwmSetWindowAttribute(p$HWNDPARENT,i20,*i1,i4)i.r0'
+  SetCtlColors $HWNDPARENT F3F4F7 111216
+  GetDlgItem $0 $HWNDPARENT 1
+  SetCtlColors $0 F3F4F7 202126
+  GetDlgItem $0 $HWNDPARENT 2
+  SetCtlColors $0 F3F4F7 202126
+  GetDlgItem $0 $HWNDPARENT 3
+  SetCtlColors $0 F3F4F7 202126
+FunctionEnd
+
+; Standard NSIS pages use a separate inner dialog. Keep its client background
+; consistent with the Welcome and Finish pages and retain accessible contrast.
+Function ReformANYDarkPage
+  FindWindow $0 "#32770" "" $HWNDPARENT
+  StrCmp $0 0 done
+  SetCtlColors $0 F3F4F7 111216
+  GetDlgItem $1 $0 1019
+  StrCmp $1 0 done
+  SetCtlColors $1 F3F4F7 202126
+  done:
+FunctionEnd
 
 Function RunMainBinary
   nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" ""
