@@ -1,5 +1,7 @@
 # ReformANY
 
+**Developed by Acev Dev Co**
+
 **License:** Proprietary — All Rights Reserved. ReformANY's original application code and design assets are not released under an open-source license. Third-party libraries retain their own licenses; see [LICENSE](LICENSE) and [engineering provenance](docs/PROVENANCE.md).
 
 A local-first Windows desktop converter written in **Rust + Tauri 2 + React + TypeScript**.
