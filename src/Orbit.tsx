@@ -10,6 +10,7 @@ import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
 import OrbitNotice from "./OrbitNotice";
+import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
 import {
   Archive, ArrowRightLeft, Bluetooth, Check, CheckCircle2, Clapperboard,
@@ -335,11 +336,11 @@ export default function Orbit() {
         batchId.current = await invoke<string>("convert_batch", {
           files: [{ id, path: file.path, target: target.toLowerCase(),
             quality: 88, matte: "white", options: {} }],
-          destination: null,
+          destination: await resolvePreferredDestination(),
         });
       } else if (kind === "video" || kind === "audio") {
         const result = await invoke<string>("media_convert", {
-          job: { path: file.path, target: target === "MP4 H.265" ? "mp4_h265" : target.toLowerCase(), destination: null,
+          job: { path: file.path, target: target === "MP4 H.265" ? "mp4_h265" : target.toLowerCase(), destination: await resolvePreferredDestination(),
             profile: "standard", startSeconds: null, durationSeconds: null },
         });
         setOutput(result);
@@ -364,9 +365,9 @@ export default function Orbit() {
     try {
       const result = isPdf
         ? await invoke<string>("pdf_to_text_format", {
-            path: file.path, target, destination: null,
+            path: file.path, target, destination: await resolvePreferredDestination(),
           })
-        : await invoke<string>("office_to_pdf", { path: file.path, destination: null });
+        : await invoke<string>("office_to_pdf", { path: file.path, destination: await resolvePreferredDestination() });
       setOutput(result);
       setPhase("completed");
     } catch (reason) {
@@ -384,7 +385,7 @@ export default function Orbit() {
     setNote(null);
     try {
       const result = await invoke<string>(command, {
-        job: { path: file.path, target: target.toLowerCase(), destination: null },
+        job: { path: file.path, target: target.toLowerCase(), destination: await resolvePreferredDestination() },
       });
       setOutput(result);
       setPhase("completed");
@@ -404,13 +405,13 @@ export default function Orbit() {
     try {
       if (action === "extract") {
         const result = await invoke<string>("archive_extract", {
-          job: { path: file.path, destination: null, password: null },
+          job: { path: file.path, destination: await resolvePreferredDestination(), password: null },
         });
         setOutput(result);
       } else {
         const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
         const result = await invoke<{ outputPaths: string[] }>("archive_create", {
-          job: { paths: [file.path], destination: null, name,
+          job: { paths: [file.path], destination: await resolvePreferredDestination(), name,
             format: action, password: null, splitMegabytes: null, level: 5 },
         });
         setOutput(result.outputPaths[0] || null);
@@ -472,7 +473,7 @@ export default function Orbit() {
     try {
       if (kind === "pdf") {
         const result = await invoke<{ outputPaths: string[]; oversizedPages: number[] }>("pdf_split", {
-          path: file.path, destination: null, mode: pdfSplitMode, value,
+          path: file.path, destination: await resolvePreferredDestination(), mode: pdfSplitMode, value,
         });
         if (!result.outputPaths.length) throw new Error("PDF splitter returned no files");
         setOutput(result.outputPaths[0]);
@@ -480,7 +481,7 @@ export default function Orbit() {
           (result.oversizedPages.length ? `; pages ${result.oversizedPages.join(", ")} exceed the target size` : ""));
       } else {
         const result = await invoke<{ manifestPath: string }>("file_split", {
-          path: file.path, destination: null, partMegabytes: value,
+          path: file.path, destination: await resolvePreferredDestination(), partMegabytes: value,
         });
         setOutput(result.manifestPath);
         setNote("Binary part files need ReformANY Join Parts; they are not standalone documents.");
@@ -494,7 +495,7 @@ export default function Orbit() {
     setPhase("processing"); setSelected("Join"); setError(null); setNote(null); setOutput(null);
     try {
       const result = await invoke<string>("file_join", {
-        manifestPath: file.path, destination: null,
+        manifestPath: file.path, destination: await resolvePreferredDestination(),
       });
       setOutput(result); setPhase("completed");
     } catch (reason) { setError(String(reason)); setPhase("failed"); }
@@ -507,7 +508,7 @@ export default function Orbit() {
     try {
       const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
       const result = await invoke<{ outputPaths: string[] }>("archive_create", {
-        job: { paths: [file.path], destination: null, name, format: "zip",
+        job: { paths: [file.path], destination: await resolvePreferredDestination(), name, format: "zip",
           password: archivePassword, splitMegabytes: null, level: 5 },
       });
       setOutput(result.outputPaths[0] || null); setPhase("completed");
