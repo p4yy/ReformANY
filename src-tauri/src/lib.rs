@@ -11,6 +11,7 @@ mod ebooks;
 mod media_tools;
 mod preview;
 mod update;
+mod mouse_gestures;
 mod file_parts;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -25,6 +26,8 @@ use ebooks::{ebook_convert_file, ebook_engine_available};
 use media_tools::media_edit;
 use preview::document_preview;
 use update::open_manual_updates;
+use mouse_gestures::{configure_orbit_gestures, GestureMonitor};
+use orbit::orbit_set_path;
 use file_parts::{file_split, file_join};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -37,6 +40,7 @@ pub fn run() {
         .manage(BatchRegistry::default())
         .manage(OrbitLaunch::new(orbit_path))
         .manage(FloatRegistry::default())
+        .manage(GestureMonitor::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             inspect_files,
@@ -44,6 +48,8 @@ pub fn run() {
             convert_batch,
             cancel_batch,
             orbit_context,
+            orbit_set_path,
+            configure_orbit_gestures,
             orbit_preview,
             image_thumbnail,
             orbit_open_workspace,
