@@ -304,10 +304,17 @@ fn verify_extracted(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn native_zip_container(path: &Path) -> bool {
+    // These formats are ZIP containers. Other archive formats still require 7-Zip.
+    path.extension().and_then(|x| x.to_str()).is_some_and(|ext|
+        matches!(ext.to_ascii_lowercase().as_str(),
+            "zip" | "jar" | "war" | "ear" | "cbz" | "epub"))
+}
+
 fn extract(job: ArchiveExtract) -> Result<String, String> {
     validate_password(&job.password)?;
     let input = PathBuf::from(&job.path);
-    if input.extension().and_then(|x| x.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("zip")) {
+    if native_zip_container(&input) {
         return crate::native_zip::extract_native_zip(
             &job.path, job.destination.as_deref(), job.password.as_deref());
     }
@@ -368,6 +375,35 @@ pub async fn archive_extract(job: ArchiveExtract) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recognizes_java_and_book_zip_containers_without_7zip() {
+        for ext in ["zip", "ZIP", "jar", "WAR", "ear", "cbz", "epub"] {
+            assert!(native_zip_container(Path::new(&format!("package.{ext}"))), "{ext}");
+        }
+        for ext in ["7z", "rar", "tar", "iso", "exe"] {
+            assert!(!native_zip_container(Path::new(&format!("archive.{ext}"))), "{ext}");
+        }
+    }
+
+    #[test]
+    fn extracts_ear_using_native_zip_engine() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("enterprise.ear");
+        let file = File::create(&input).unwrap();
+        let mut writer = zip::ZipWriter::new(file);
+        use std::io::Write;
+        writer.start_file("META-INF/application.xml", zip::write::SimpleFileOptions::default()).unwrap();
+        writer.write_all(b"<application/>").unwrap();
+        writer.finish().unwrap();
+        let extracted = extract(ArchiveExtract {
+            path: input.to_string_lossy().into_owned(), destination: None, password: None,
+        }).unwrap();
+        assert_eq!(
+            fs::read(Path::new(&extracted).join("META-INF/application.xml")).unwrap(),
+            b"<application/>"
+        );
+    }
 
     fn sample(format: &str) -> ArchiveCreate {
         ArchiveCreate { paths: vec!["C:\\example\\doc.txt".into()],
