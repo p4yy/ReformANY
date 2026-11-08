@@ -44,12 +44,16 @@ try {
   foreach ($file in @($ffmpeg, $ffprobe, $license)) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Pinned archive missing required file: $file" }
   }
-  & $ffmpeg -version | Select-Object -First 1
-  if ($LASTEXITCODE -ne 0) { throw 'Bundled FFmpeg failed execution test' }
-  & $ffprobe -version | Select-Object -First 1
-  if ($LASTEXITCODE -ne 0) { throw 'Bundled FFprobe failed execution test' }
-  $encoders = & $ffmpeg -hide_banner -encoders
-  if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect bundled encoder support' }
+  # Start-Process provides a reliable explicit exit code under StrictMode;
+  # $LASTEXITCODE is not guaranteed to be initialized after a piped native call.
+  $ffmpegCheck = Start-Process -FilePath $ffmpeg -ArgumentList @('-version') -Wait -PassThru -NoNewWindow
+  if ($ffmpegCheck.ExitCode -ne 0) { throw 'Bundled FFmpeg failed execution test' }
+  $ffprobeCheck = Start-Process -FilePath $ffprobe -ArgumentList @('-version') -Wait -PassThru -NoNewWindow
+  if ($ffprobeCheck.ExitCode -ne 0) { throw 'Bundled FFprobe failed execution test' }
+  $encoderList = Join-Path $workspace 'encoders.txt'
+  $encoderCheck = Start-Process -FilePath $ffmpeg -ArgumentList @('-hide_banner','-encoders') -Wait -PassThru -NoNewWindow -RedirectStandardOutput $encoderList
+  if ($encoderCheck.ExitCode -ne 0) { throw 'Cannot inspect bundled encoder support' }
+  $encoders = Get-Content -LiteralPath $encoderList
   foreach ($encoder in @('libx264','libx265','libvpx-vp9','libopus','libmp3lame','aac')) {
     if (-not ($encoders | Select-String -Pattern ("\b" + [regex]::Escape($encoder) + "\b") -Quiet)) {
       throw "Pinned FFmpeg build lacks required encoder: $encoder"
