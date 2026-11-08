@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
@@ -127,6 +128,22 @@ export default function Orbit() {
   const kind = getKind(file);
   const isFolder = file?.detected === "Folder";
   const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
+
+  useEffect(() => {
+    // WebView2 screen dimensions are in CSS/logical pixels. Native Tauri
+    // window sizes use the same units through LogicalSize.
+    // Keep the entire circle, section tabs and status visible above the taskbar.
+    const availableWidth = Math.max(320, window.screen.availWidth - 32);
+    const availableHeight = Math.max(350, window.screen.availHeight - 32);
+    const factor = Math.min(1, availableWidth / 580, availableHeight / 622);
+    document.documentElement.style.setProperty("--orbit-fit", String(factor));
+    if (factor < 0.999) {
+      void getCurrentWindow().setSize(new LogicalSize(
+        Math.round(580 * factor), Math.round(622 * factor),
+      )).catch(() => { /* The original window remains usable if resizing is denied. */ });
+    }
+    return () => document.documentElement.style.removeProperty("--orbit-fit");
+  }, []);
 
   useEffect(() => {
     let mounted = true;
