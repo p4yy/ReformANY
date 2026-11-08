@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
+import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal, Copy, Pin } from "lucide-react";
 
 type OrbitFile = {
@@ -41,7 +42,8 @@ function formatSize(bytes: number): string {
 
 export default function Orbit() {
   const [file, setFile] = useState<OrbitFile | null>(null);
-  const [tab, setTab] = useState<Tab>("convert");
+  const [mousePreferences] = useState(readOrbitMousePreferences);
+  const [tab, setTab] = useState<Tab>(() => readOrbitMousePreferences().firstSection);
   const [engines, setEngines] = useState<EngineStatus | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -54,6 +56,9 @@ export default function Orbit() {
   const [selected, setSelected] = useState<string | null>(null);
   const requestId = useRef<string | null>(null);
   const batchId = useRef<string | null>(null);
+  const wheelSum = useRef(0);
+  const lastWheelAction = useRef(0);
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const kind = getKind(file);
   const isFolder = file?.detected === "Folder";
   const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
@@ -109,6 +114,32 @@ export default function Orbit() {
     // React pointerover bubbles when entering icons/spans inside the same button.
     if (event.relatedTarget instanceof Node && button.contains(event.relatedTarget)) return;
     playOrbitHover();
+  }
+
+  function handleWheel(event: ReactWheelEvent<HTMLElement>) {
+    // Rotate among the existing three sections. This deliberately never
+    // captures global mouse input or changes Explorer's drag and drop.
+    if (!mousePreferences.scrollSections || phase === "processing" || renaming) return;
+    if (!Number.isFinite(event.deltaY)) return;
+    const now = performance.now();
+    if (now - lastWheelAction.current < 240) return;
+    const amount = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * 100 : event.deltaY;
+    if (Math.sign(wheelSum.current) !== Math.sign(amount)) wheelSum.current = 0;
+    wheelSum.current += amount;
+    if (Math.abs(wheelSum.current) < 42) return;
+    const direction = wheelSum.current > 0 ? 1 : -1;
+    wheelSum.current = 0;
+    lastWheelAction.current = now;
+    const sections: Tab[] = ["convert", "tools", "actions"];
+    setTab(previous => sections[(sections.indexOf(previous) + direction + sections.length) % sections.length]);
+    setError(null);
+    setNote(null);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLElement>) {
+    if (!mousePreferences.pointerSpinner || event.pointerType !== "mouse") return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCursor({ x: event.clientX - rect.left, y: event.clientY - rect.top });
   }
 
   async function close() {
@@ -245,7 +276,9 @@ export default function Orbit() {
   return (
     <div className="orbit-frame">
       <section className="orbit-disc" aria-label="ReformANY Orbit quick converter"
-        onPointerOver={handleOrbitHover} onPointerDownCapture={unlockOrbitAudio}>
+        onPointerOver={handleOrbitHover} onPointerMove={handlePointerMove}
+        onPointerLeave={() => setCursor(null)}
+        onWheel={handleWheel} onPointerDownCapture={unlockOrbitAudio}>
         <button type="button" className="orbit-close" aria-label="Close Orbit" onClick={() => void close()}>
           <X size={16} strokeWidth={2} />
         </button>
@@ -338,6 +371,9 @@ export default function Orbit() {
             </button>)}
         </nav>
 
+        {phase === "processing" && mousePreferences.pointerSpinner && cursor && <span
+          aria-hidden="true" className="orbit-pointer-spinner"
+          style={{ left: cursor.x + 14, top: cursor.y + 11 }} />}
         <footer className="orbit-footer">
           <span className="orbit-footnote">{t(getLanguage(), "localNoUploads")}</span>
           <button type="button" className="orbit-open-app" onClick={() => void openWorkspace()}>
