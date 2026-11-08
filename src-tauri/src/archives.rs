@@ -131,6 +131,13 @@ fn creation_args(job: &ArchiveCreate, output: &Path) -> Result<(PathBuf, Vec<OsS
 
 fn create(job: ArchiveCreate) -> Result<ArchiveCreated, String> {
     let format = archive_format(&job.format)?;
+    if job.format == "zip" && job.split_megabytes.is_none() {
+        validate_archive_name(&job.name)?;
+        validate_password(&job.password)?;
+        let zip = crate::native_zip::create_native_zip(
+            &job.paths, &job.name, job.destination.as_deref(), job.password.as_deref(), job.level)?;
+        return Ok(ArchiveCreated { output_paths: vec![zip], format: "zip".into() });
+    }
     for source in &job.paths { verify_input(Path::new(source), true)?; }
     let first = Path::new(&job.paths[0]);
     let directory = output_dir(first, job.destination.as_deref())?;
@@ -201,7 +208,7 @@ pub async fn archive_create(job: ArchiveCreate) -> Result<ArchiveCreated, String
         .await.map_err(|_| "Archive worker failed".to_owned())?
 }
 
-fn validate_member_name(name: &str) -> Result<(), String> {
+pub(crate) fn validate_member_name(name: &str) -> Result<(), String> {
     let normalized = name.replace('\\', "/");
     if normalized.starts_with('/') || normalized.contains(':') || normalized.contains('\0') {
         return Err("Archive contains an unsafe absolute or alternate-stream path".into());
@@ -299,8 +306,12 @@ fn verify_extracted(dir: &Path) -> Result<(), String> {
 
 fn extract(job: ArchiveExtract) -> Result<String, String> {
     validate_password(&job.password)?;
-    let sevenzip = seven_zip().ok_or("7-Zip is required for this extraction. Install 7-Zip and retry.")?;
     let input = PathBuf::from(&job.path);
+    if input.extension().and_then(|x| x.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("zip")) {
+        return crate::native_zip::extract_native_zip(
+            &job.path, job.destination.as_deref(), job.password.as_deref());
+    }
+    let sevenzip = seven_zip().ok_or("7-Zip is required for this extraction. Install 7-Zip and retry.")?;
     verify_input(&input, false)?;
     let directory = output_dir(&input, job.destination.as_deref())?;
     check_listing(&sevenzip, &input, job.password.as_deref())?;

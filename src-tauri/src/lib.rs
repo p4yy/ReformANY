@@ -5,6 +5,7 @@ mod external;
 mod media;
 mod archives;
 mod actions;
+mod native_zip;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
