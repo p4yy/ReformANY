@@ -28,8 +28,8 @@ enum MediaKind { Audio, Video }
 
 fn output_spec(target: &str) -> Result<(MediaKind, &'static str), String> {
     match target {
-        "mp3" | "m4a" | "wav" | "flac" | "ogg" | "opus" => Ok((MediaKind::Audio, target_extension(target))),
-        "mp4" | "webm" | "mkv" | "mov" | "avi" => Ok((MediaKind::Video, target_extension(target))),
+        "mp3" | "m4a" | "wav" | "flac" | "ogg" | "opus" | "aiff" | "wma" | "ac3" => Ok((MediaKind::Audio, target_extension(target))),
+        "mp4" | "webm" | "mkv" | "mov" | "avi" | "wmv" | "gif" | "mp4_h265" => Ok((MediaKind::Video, target_extension(target))),
         _ => Err("Unsupported media destination format".into()),
     }
 }
@@ -38,7 +38,7 @@ fn target_extension(target: &str) -> &'static str {
     match target {
         "mp3" => "mp3", "m4a" => "m4a", "wav" => "wav",
         "flac" => "flac", "ogg" => "ogg", "opus" => "opus",
-        "mp4" => "mp4", "webm" => "webm", "mkv" => "mkv",
+        "aiff" => "aiff", "wma" => "wma", "ac3" => "ac3", "gif" => "gif", "wmv" => "wmv", "mp4_h265" => "mp4",\n        "mp4" => "mp4", "webm" => "webm", "mkv" => "mkv",
         "mov" => "mov", "avi" => "avi",
         _ => "",
     }
@@ -86,7 +86,7 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 "wav" => "pcm_s16le",
                 "flac" => "flac",
                 "ogg" => "libvorbis",
-                "opus" => "libopus",
+                "opus" => "libopus",\n                "aiff" => "pcm_s16be",\n                "wma" => "wmav2",\n                "ac3" => "ac3",
                 _ => unreachable!(),
             };
             args.extend(["-c:a".into(), codec.into()]);
@@ -105,12 +105,12 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 "-map".into(), "0:a:0?".into(),
             ]);
             let codec = match job.target.as_str() {
-                "webm" => "libvpx-vp9",
+                "webm" => "libvpx-vp9",\n                "mp4_h265" => "libx265",\n                "wmv" => "wmv2",\n                "gif" => "gif",
                 "avi" => "mpeg4",
                 _ => "libx264",
             };
             args.extend(["-c:v".into(), codec.into()]);
-            if job.target == "avi" {
+            if job.target == "gif" {\n                args.extend(["-an".into(), "-vf".into(), "fps=12,scale=640:-1:flags=lanczos".into()]);\n            } else if job.target == "wmv" {\n                args.extend(["-b:v".into(), "2500k".into(), "-c:a".into(), "wmav2".into()]);\n            } else if job.target == "avi" {
                 args.extend(["-q:v".into(), (match job.profile.as_str() {
                     "high" => "3", "small" => "8", _ => "5",
                 }).into()]);
@@ -119,7 +119,7 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 args.extend(["-crf".into(), (match job.profile.as_str() {
                     "small" => "32", "high" => "18", _ => "24",
                 }).into()]);
-                if job.target == "webm" {
+                if job.target == "mp4_h265" {\n                    args.extend(["-preset".into(), "medium".into(), "-tag:v".into(), "hvc1".into(), "-pix_fmt".into(), "yuv420p".into(), "-c:a".into(), "aac".into(), "-movflags".into(), "+faststart".into()]);\n                } else if job.target == "webm" {
                     args.extend(["-b:v".into(), "0".into(), "-row-mt".into(), "1".into(), "-cpu-used".into(), "4".into(), "-c:a".into(), "libopus".into()]);
                 } else {
                     args.extend([
@@ -240,7 +240,7 @@ mod tests {
 
     #[test]
     fn output_profiles_have_explicit_codec_mappings() {
-        for target in ["mp3","m4a","wav","flac","ogg","opus","mp4","webm","mkv","mov","avi"] {
+        for target in ["mp3","m4a","wav","flac","ogg","opus","aiff","wma","ac3","mp4","mp4_h265","webm","mkv","mov","avi","wmv","gif"] {
             assert!(output_spec(target).is_ok(), "{target}");
             let args = media_args(&sample(target), Path::new("source"), Path::new("dest"))
                 .unwrap();
