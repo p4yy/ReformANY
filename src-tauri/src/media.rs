@@ -209,4 +209,28 @@ mod tests {
         job.profile = "custom command".into();
         assert!(validate_job(&job).is_err());
     }
+    #[test]
+    fn real_audio_transcode_when_ffmpeg_is_installed() {
+        let (Some(ffmpeg), Some(_ffprobe)) = (find_binary("ffmpeg"), find_binary("ffprobe")) else {
+            eprintln!("FFmpeg not installed; integration smoke test skipped");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("source.wav");
+        let status = Command::new(ffmpeg)
+            .args(["-nostdin", "-loglevel", "error", "-f", "lavfi",
+                   "-i", "sine=frequency=440:duration=0.2",
+                   "-c:a", "pcm_s16le", "-y"])
+            .arg(&input).status().unwrap();
+        assert!(status.success());
+        let output = convert(MediaJob {
+            path: input.to_string_lossy().into_owned(),
+            target: "mp3".into(),
+            destination: None, profile: "small".into(),
+            start_seconds: None, duration_seconds: None,
+        }).unwrap();
+        assert!(Path::new(&output).is_file());
+        assert!(fs::metadata(&output).unwrap().len() > 0);
+    }
+
 }
