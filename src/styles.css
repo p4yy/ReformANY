@@ -244,3 +244,39 @@ html[dir="rtl"] input[type="number"],html[dir="rtl"] input[type="range"] {direct
 html[dir="rtl"] .orbit-sound-switch.is-on .orbit-switch-thumb {transform:translateX(-18px)}
 @media(prefers-reduced-motion:reduce) {.orbit-switch-track,.orbit-switch-thumb {transition:none}}
 @media(max-width:660px) {.preference-sounds{align-items:flex-start;flex-wrap:wrap;gap:13px}}
+
+/* Consistent focus, high contrast and reduced motion. Keep platform semantics. */
+:where(button,input,select,textarea,a,[role="tab"],[role="switch"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+:where(button,input,select,textarea):disabled { cursor: not-allowed }
+html[dir="rtl"] .file-detail,
+html[dir="rtl"] .engine-source-list,
+html[dir="rtl"] .engine-input,
+html[dir="rtl"] .activity-item {
+  unicode-bidi: plaintext;
+}
+html[dir="rtl"] .nav-button > svg {flex-shrink:0}
+html[dir="rtl"] .import-actions,
+html[dir="rtl"] .engine-action-row,
+html[dir="rtl"] .engine-success {direction:rtl}
+html[dir="rtl"] .file-name,html[dir="rtl"] .file-detail strong {
+  unicode-bidi:plaintext;
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after {
+    animation-duration:0.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:0.01ms!important;
+    scroll-behavior:auto!important;
+  }
+}
+@media(forced-colors:active) {
+  .nav-button.selected,.theme-choice.picked,.orbit-sound-switch.is-on {
+    outline:2px solid Highlight;
+    outline-offset:0;
+  }
+  .dropzone,.engine-card,.file-table {border:1px solid CanvasText}
+  .button:focus-visible,.nav-button:focus-visible {outline:2px solid Highlight}
+}

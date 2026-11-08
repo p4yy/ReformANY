@@ -101,3 +101,16 @@ html[data-mode="orbit"] { color-scheme:dark; }
 .orbit-rename button {border:1px solid rgba(220,230,255,.22);background:#2a4158;color:white;border-radius:8px;padding:6px 12px;font-size:10px;}
 .orbit-working,.orbit-result {min-height:98px;gap:8px;}
 .orbit-working small {font-size:9px;color:#a7b9ca;}
+
+.orbit-disc :is(button,input):focus-visible {outline:2px solid #94bcff;outline-offset:3px}
+@media(prefers-reduced-motion:reduce) {
+  .orbit-disc *, .orbit-disc *::before,.orbit-disc *::after {
+    animation-duration:0.01ms!important;
+    transition-duration:0.01ms!important;
+  }
+}
+@media(forced-colors:active) {
+  .orbit-disc {border:2px solid CanvasText;forced-color-adjust:auto}
+  .orbit-option,.orbit-section-tabs button {border:1px solid ButtonText}
+  .orbit-section-tabs button.is-active {outline:2px solid Highlight}
+}
