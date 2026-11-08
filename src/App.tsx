@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
@@ -11,7 +11,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ArchivePanel, DocumentsPanel, MediaPanel, EnginesPanel } from "./ExtraWorkspaces";
 import EbookPanel from "./EbookPanel";
 import MediaToolsPanel from "./MediaToolsPanel";
-import DocumentPreview from "./DocumentPreview";
+const DocumentPreview = lazy(() => import("./DocumentPreview"));
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
@@ -333,7 +333,9 @@ function App() {
         {page === "mediaTools" && <MediaToolsPanel />}
         {page === "archives" && <ArchivePanel />}
         {page === "documents" && <DocumentsPanel onPreview={showDocument} />}
-        {page === "preview" && <DocumentPreview initialPath={previewPath} />}
+        {page === "preview" && <Suspense fallback={<div className="content page-panel"><h1>Opening Preview…</h1><p>Loading the local document viewer.</p></div>}>
+          <DocumentPreview initialPath={previewPath} />
+        </Suspense>}
         {page === "ebooks" && <EbookPanel />}
         {page === "engines" && <EnginesPanel />}
         {page === "convert" && <div className="content">
