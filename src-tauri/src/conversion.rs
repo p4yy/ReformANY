@@ -41,7 +41,7 @@ pub struct ConversionItem {
     matte: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProgressEvent {
     id: String,
