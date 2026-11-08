@@ -6,6 +6,7 @@ import App from "./App";
 import Orbit from "./Orbit";
 import "./styles.css";
 import "./orbit.css";
+import "./extras.css";
 
 const orbit = isTauri() && getCurrentWindow().label === "orbit";
 document.documentElement.dataset.mode = orbit ? "orbit" : "main";
