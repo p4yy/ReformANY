@@ -269,8 +269,8 @@ export default function Orbit() {
 
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
   const targets = kind === "image" ? imageFormats : kind === "audio" ? audioFormats : kind === "video" ? videoFormats : [];
-  const mediaReady = kind === "image" || Boolean(engines?.ffmpeg && engines?.ffprobe);
-  const description = file?.error ?? (loading ? "Reading file…" : isFolder ? "Open Tools to archive this folder" : "No direct conversion for this type");
+  const mediaReady = kind !== "audio" && kind !== "video" || Boolean(engines?.ffmpeg && engines?.ffprobe);
+  const description = file?.error ?? (loading ? "Reading file…" : isFolder ? "Use Tools to package this folder" : "No quick conversion for this file. Try the full workspace.");
 
   return (
     <div className="orbit-frame">
