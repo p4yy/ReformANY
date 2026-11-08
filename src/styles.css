@@ -205,3 +205,27 @@ h1 {font-weight:700;letter-spacing:-1.1px}
 
 .file-preview {width:100%;height:100%;display:block;object-fit:cover;border-radius:9px}
 .file-icon:has(.file-preview) {padding:0;overflow:hidden;border:1px solid var(--line);background:var(--soft)}
+
+/* System appearance and bidirectional navigation */
+.theme-grid {grid-template-columns:repeat(3,minmax(0,1fr))}
+.theme-choice {min-width:0}
+.system-preview {background:linear-gradient(105deg,#fafafa 0 49%,#1c2736 50% 100%);border:1px solid var(--strong-line)}
+.system-preview i:nth-child(1) {background:linear-gradient(105deg,#e0e2e7 0 49%,#475567 50% 100%)}
+.preference-group h2 svg {vertical-align:middle;margin-inline-end:6px}
+.language-choice select {width:min(100%,340px);padding:13px 16px;background:var(--surface);border:1px solid var(--strong-line);border-radius:12px;color:var(--text);font:inherit}
+.language-hint {font-size:11px;color:var(--muted);margin-top:12px}
+.sr-only {position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+html[dir="rtl"] .shell {flex-direction:row-reverse}
+html[dir="rtl"] .sidebar {text-align:right}
+html[dir="rtl"] .main {text-align:right}
+html[dir="rtl"] .topbar {direction:rtl}
+html[dir="rtl"] .nav-button {text-align:right}
+html[dir="rtl"] .engine-directory {direction:rtl}
+html[dir="rtl"] .file-table {direction:rtl}
+html[dir="rtl"] .file-icon {flex-shrink:0}
+html[dir="rtl"] .breadcrumb {direction:rtl}
+html[dir="rtl"] .action-bar {direction:rtl}
+html[dir="rtl"] .sidebar-bottom {direction:rtl}
+html[dir="rtl"] .file-name,html[dir="rtl"] .engine-input small {unicode-bidi:plaintext}
+html[dir="rtl"] input[type="number"],html[dir="rtl"] input[type="range"] {direction:ltr}
+@media(max-width:900px) {.theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

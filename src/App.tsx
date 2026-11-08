@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
-  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench,
+  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ArchivePanel, DocumentsPanel, MediaPanel, EnginesPanel } from "./ExtraWorkspaces";
+import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
@@ -116,8 +117,13 @@ function App() {
   const [maxDimension, setMaxDimension] = useState<number | null>(null);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
   const [grayscale, setGrayscale] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() =>
-    localStorage.getItem("reformany.theme") === "dark" ? "dark" : "light");
+  const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
+    const stored = localStorage.getItem("reformany.theme");
+    return stored === "dark" || stored === "light" ? stored : "system";
+  });
+  const [systemDark, setSystemDark] = useState(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [language, setLanguage] = useState<LanguageCode>(getLanguage);
   const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "blue");
   const [batchId, setBatchId] = useState<string | null>(null);
   // A very fast batch may finish before its Tauri command promise resolves.
@@ -128,11 +134,22 @@ function App() {
   const desktop = isTauri();
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const changed = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+    query.addEventListener("change", changed);
+    return () => query.removeEventListener("change", changed);
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
     document.documentElement.dataset.accent = accent;
     localStorage.setItem("reformany.theme", theme);
     localStorage.setItem("reformany.accent", accent);
-  }, [theme, accent]);
+  }, [theme, accent, systemDark]);
+  useEffect(() => {
+    setDocumentLanguage(language);
+    localStorage.setItem("reformany.language", language);
+  }, [language]);
+  const tx = (key: LangKey) => t(language, key);
 
   useEffect(() => {
     const records: HistoryEntry[] = rows.filter((row): row is Row & { status: "completed" | "failed" | "cancelled" } =>
@@ -278,21 +295,21 @@ function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark"><Mark size={34}/></span><span>Reform<span className="brand-any">ANY</span></span></div>
-        <div className="nav-label">WORKSPACE</div>
+        <div className="nav-label">{tx("workspace")}</div>
         <nav aria-label="Main navigation">
-          <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> Images</button>
-          <button className={`nav-button ${page === "media" ? "selected" : ""}`} onClick={() => setPage("media")}><Clapperboard size={18}/> Audio & video</button>
-          <button className={`nav-button ${page === "archives" ? "selected" : ""}`} onClick={() => setPage("archives")}><Archive size={18}/> Archives</button>
-          <button className={`nav-button ${page === "documents" ? "selected" : ""}`} onClick={() => setPage("documents")}><FileText size={18}/> Documents</button>
-          <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")}><Clock3 size={18}/> Activity {history.length > 0 && <span className="nav-count">{history.length}</span>}</button>
+          <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> {tx("images")}</button>
+          <button className={`nav-button ${page === "media" ? "selected" : ""}`} onClick={() => setPage("media")}><Clapperboard size={18}/> {tx("media")}</button>
+          <button className={`nav-button ${page === "archives" ? "selected" : ""}`} onClick={() => setPage("archives")}><Archive size={18}/> {tx("archives")}</button>
+          <button className={`nav-button ${page === "documents" ? "selected" : ""}`} onClick={() => setPage("documents")}><FileText size={18}/> {tx("documents")}</button>
+          <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")}><Clock3 size={18}/> {tx("activity")} {history.length > 0 && <span className="nav-count">{history.length}</span>}</button>
         </nav>
-        <div className="nav-label nav-label-spaced">PREFERENCES</div>
+        <div className="nav-label nav-label-spaced">{tx("preferences")}</div>
         <nav aria-label="Preferences">
-          <button className={`nav-button ${page === "appearance" ? "selected" : ""}`} onClick={() => setPage("appearance")}><Palette size={18}/> Appearance</button>
-          <button className={`nav-button ${page === "engines" ? "selected" : ""}`} onClick={() => setPage("engines")}><Wrench size={18}/> Engines</button>
+          <button className={`nav-button ${page === "appearance" ? "selected" : ""}`} onClick={() => setPage("appearance")}><Palette size={18}/> {tx("appearance")}</button>
+          <button className={`nav-button ${page === "engines" ? "selected" : ""}`} onClick={() => setPage("engines")}><Wrench size={18}/> {tx("engines")}</button>
         </nav>
         <div className="sidebar-bottom">
-          <div className="side-note"><span className="status-dot"/> Local processing<br/><span className="side-note-sub">Your files stay on this device.</span></div>
+          <div className="side-note"><span className="status-dot"/> {tx("localProcessing")}<br/><span className="side-note-sub">{tx("onDevice")}</span></div>
           <div className="sidebar-version">ReformANY <span>0.3.0 · Preview</span></div>
         </div>
       </aside>
@@ -307,16 +324,16 @@ function App() {
         {page === "engines" && <EnginesPanel />}
         {page === "convert" && <div className="content">
           <div className="page-intro">
-            <div><div className="eyebrow">YOUR WORKSPACE</div><h1>Make it another format.</h1><p>Simple, reliable conversion. No uploads, no unnecessary steps.</p></div>
+            <div><div className="eyebrow">{tx("workspace").toUpperCase()}</div><h1>{tx("headline")}</h1><p>{tx("tagline")}</p></div>
             <div className="import-actions">
-              <button className="button secondary add-top" onClick={() => void chooseFolder()}><Folder size={17}/> Add folder</button>
-              <button className="button secondary add-top" onClick={() => void chooseFiles()}><Plus size={17}/> Add files</button>
+              <button className="button secondary add-top" onClick={() => void chooseFolder()}><Folder size={17}/> {tx("addFolder")}</button>
+              <button className="button secondary add-top" onClick={() => void chooseFiles()}><Plus size={17}/> {tx("addFiles")}</button>
             </div>
           </div>
 
           <button className={`dropzone ${dragging ? "dragging" : ""}`} onClick={() => void chooseFiles()} aria-label="Choose images to convert">
             <div className="drop-icon"><ArrowDownToLine size={24} strokeWidth={1.7}/></div>
-            <strong>Drop your files here</strong><span>or <u>browse your device</u> to get started</span>
+            <strong>{tx("dropFiles")}</strong><span>or <u>browse your device</u> to get started</span>
             <small>{supported} · Drag individual files or folders · 150 MB per file</small>
           </button>
 
@@ -401,16 +418,27 @@ function App() {
         </div>}
 
         {page === "appearance" && <div className="content page-panel">
-          <div className="eyebrow">PREFERENCES</div><h1>Appearance</h1><p>Make the workspace feel right for you.</p>
-          <div className="preference-group"><h2>Theme</h2><p>Choose the look of your workspace.</p>
-            <div className="theme-grid"><button className={`theme-choice ${theme === "light" ? "picked" : ""}`} onClick={() => setTheme("light")}><span className="theme-preview light-preview"><i/><i/><i/></span><span><Sun size={17}/> Light {theme === "light" && <Check size={16}/>}</span></button>
-              <button className={`theme-choice ${theme === "dark" ? "picked" : ""}`} onClick={() => setTheme("dark")}><span className="theme-preview dark-preview"><i/><i/><i/></span><span><Moon size={17}/> Dark {theme === "dark" && <Check size={16}/>}</span></button></div>
+          <div className="eyebrow">{tx("preferences").toUpperCase()}</div><h1>{tx("appearance")}</h1><p>Make the workspace feel right for you.</p>
+          <div className="preference-group"><h2>{tx("theme")}</h2><p>{tx("themeDescription")}</p>
+            <div className="theme-grid"><button className={`theme-choice ${theme === "light" ? "picked" : ""}`} onClick={() => setTheme("light")}><span className="theme-preview light-preview"><i/><i/><i/></span><span><Sun size={17}/> {tx("light")} {theme === "light" && <Check size={16}/>}</span></button>
+              <button className={`theme-choice ${theme === "dark" ? "picked" : ""}`} onClick={() => setTheme("dark")}><span className="theme-preview dark-preview"><i/><i/><i/></span><span><Moon size={17}/> {tx("dark")} {theme === "dark" && <Check size={16}/>}</span></button>
+              <button className={`theme-choice ${theme === "system" ? "picked" : ""}`} onClick={() => setTheme("system")}><span className="theme-preview system-preview"><i/><i/><i/></span><span><Monitor size={17}/> {tx("system")} {theme === "system" && <Check size={16}/>}</span></button></div>
           </div>
-          <div className="preference-group"><h2>Accent</h2><p>A small touch of color for important actions.</p>
+          <div className="preference-group"><h2><Languages size={18} aria-hidden="true"/> {tx("language")}</h2>
+            <p>{tx("yourLanguage")}</p>
+            <label className="language-choice">
+              <span className="sr-only">{tx("language")}</span>
+              <select value={language} onChange={event=>setLanguage(event.target.value as LanguageCode)}>
+                {LANGUAGE_OPTIONS.map(item=><option key={item.code} value={item.code}>{item.label}</option>)}
+              </select>
+            </label>
+            <p className="language-hint">{tx("autoThemeInfo")}</p>
+          </div>
+          <div className="preference-group"><h2>{tx("accent")}</h2><p>A small touch of color for important actions.</p>
             <div className="accent-grid">{[{key:"blue",color:"#3679e9",name:"Blue"},{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
               <button key={item.key} className={`accent-chip ${accent === item.key ? "picked" : ""}`} onClick={() => setAccent(item.key)} aria-label={item.name} title={item.name} style={{background:item.color}}>{accent === item.key && <Check size={17}/>}</button>)}</div>
           </div>
-          <div className="preference-group"><h2>Privacy</h2><p>Image processing happens locally. ReformANY does not upload your files to a server.</p></div>
+          <div className="preference-group"><h2>{tx("privacy")}</h2><p>Image processing happens locally. ReformANY does not upload your files to a server.</p></div>
         </div>}
       </main>
       {notice && <div className="toast" role="alert"><CircleAlert size={18}/><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={16}/></button></div>}
