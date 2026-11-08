@@ -303,7 +303,7 @@ export function ArchivePanel() {
 
 type DocumentTask = "images" | "text" | "office";
 
-export function DocumentsPanel() {
+export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => void }) {
   const [mode, setMode] = useState<DocumentTask>("images");
   const [sources, setSources] = useState<string[]>([]);
   const [destination, setDestination] = useState<string | null>(null);
@@ -398,6 +398,11 @@ export function DocumentsPanel() {
       </button>
     </div>
     {outputSelector(result, error)}
+    <div className="document-preview-link-row">
+      {onPreview && sources[0]?.toLowerCase().endsWith(".pdf") && <button type="button" className="button secondary" onClick={() => onPreview(sources[0])}><FileText size={15}/> Preview source PDF</button>}
+      {onPreview && result && /\.(pdf|txt|md|markdown)$/i.test(result) && <button type="button" className="button secondary" onClick={() => onPreview(result)}><FileText size={15}/> Preview converted file</button>}
+      <small>Preview shows actual PDF pages, including embedded pictures.</small>
+    </div>
     <p className="engine-footnote">This preview does not recreate editable DOCX from PDF, remove PDF passwords, or perform OCR. Each operation verifies its output before reporting success.</p>
   </div>;
 }
