@@ -175,9 +175,10 @@ export function ArchivePanel() {
 
   async function addFiles() {
     try {
-      const selection = await open({ multiple: mode === "create", directory: false });
-      const paths: string[] = typeof selection === "string" ? [selection]
-        : Array.isArray(selection) ? selection.filter((item): item is string => typeof item === "string") : [];
+      const selection: unknown = await open({ multiple: true, directory: false });
+      const paths: string[] = Array.isArray(selection)
+        ? selection.filter((item): item is string => typeof item === "string")
+        : typeof selection === "string" ? [selection] : [];
       if (paths.length) {
         setSources(previous => mode === "create" ? [...new Set([...previous, ...paths])] : paths.slice(0, 1));
         if (mode === "extract") setName(stem(paths[0]));
