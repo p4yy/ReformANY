@@ -1,0 +1,8 @@
+.formats-category-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:24px}
+.formats-category-tabs button{text-align:start;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:13px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:80px;padding:17px}
+.formats-category-tabs button strong{font-size:12px}
+.formats-category-tabs button small{font-size:10px;color:var(--muted);line-height:1.45}
+.formats-category-tabs button.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.formats-category-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.formats-note{font-size:11px;line-height:1.55;margin-top:17px;color:var(--muted)}
+@media(max-width:900px){.formats-category-tabs{grid-template-columns:1fr}}

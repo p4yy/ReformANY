@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
-  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages, BookOpen, Eye, Volume2,
+  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages, BookOpen, Eye, Volume2, Captions,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -11,13 +11,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ArchivePanel, DocumentsPanel, MediaPanel, EnginesPanel } from "./ExtraWorkspaces";
 import EbookPanel from "./EbookPanel";
 import MediaToolsPanel from "./MediaToolsPanel";
+import FormatsPanel from "./FormatsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
-type Page = "convert" | "media" | "mediaTools" | "archives" | "documents" | "preview" | "ebooks" | "engines" | "activity" | "appearance";
+type Page = "convert" | "formats" | "media" | "mediaTools" | "archives" | "documents" | "preview" | "ebooks" | "engines" | "activity" | "appearance";
 
 type ExpandedInputs = { paths: string[]; truncated: boolean };
 type FileInfo = {
@@ -313,6 +314,7 @@ function App() {
         <div className="nav-label">{tx("workspace")}</div>
         <nav aria-label="Main navigation">
           <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> {tx("images")}</button>
+          <button className={`nav-button ${page === "formats" ? "selected" : ""}`} onClick={() => setPage("formats")}><Captions size={18}/> More formats</button>
           <button className={`nav-button ${page === "media" ? "selected" : ""}`} onClick={() => setPage("media")}><Clapperboard size={18}/> {tx("media")}</button>
           <button className={`nav-button ${page === "mediaTools" ? "selected" : ""}`} onClick={() => setPage("mediaTools")}><Wrench size={18}/> Media tools</button>
           <button className={`nav-button ${page === "archives" ? "selected" : ""}`} onClick={() => setPage("archives")}><Archive size={18}/> {tx("archives")}</button>
@@ -333,9 +335,10 @@ function App() {
       </aside>
       <main className="main">
         <header className="topbar">
-          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? tx("media") : page === "mediaTools" ? "Media tools" : page === "archives" ? "Archives" : page === "documents" ? tx("documents") : page === "preview" ? "Preview" : page === "ebooks" ? "E-books" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
+          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? tx("images") : page === "formats" ? "More formats" : page === "media" ? tx("media") : page === "mediaTools" ? "Media tools" : page === "archives" ? "Archives" : page === "documents" ? tx("documents") : page === "preview" ? "Preview" : page === "ebooks" ? "E-books" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
           <span className="topbar-right"><span className="topbar-dot"/> Image conversion · Preview</span>
         </header>
+        {page === "formats" && <FormatsPanel />}
         {page === "media" && <MediaPanel />}
         {page === "mediaTools" && <MediaToolsPanel />}
         {page === "archives" && <ArchivePanel />}
