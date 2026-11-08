@@ -498,3 +498,66 @@ html[data-mode="orbit"] .orbit-action-panel button:focus-visible {
   html[data-mode="orbit"] .orbit-action-dialog,
   html[data-mode="orbit"] .orbit-action-panel {animation:none;}
 }
+
+
+/* Notification styling taken from the supplied Toast component, scaled for
+   Orbit's separate native window. Actual outcomes, not simulated actions. */
+html[data-mode="orbit"] .orbit-reference-toast {
+  position:absolute;
+  z-index:18;
+  right:17px;
+  top:19px;
+  display:flex;
+  align-items:center;
+  gap:11px;
+  width:272px;
+  max-width:calc(100% - 34px);
+  box-sizing:border-box;
+  padding:14px 12px 14px 15px;
+  border:1px solid var(--ref-stroke);
+  border-radius:11px;
+  background:var(--ref-surface);
+  color:var(--ref-ink);
+  -webkit-backdrop-filter:blur(22px);
+  backdrop-filter:blur(22px);
+  box-shadow:0 9px 32px rgba(0,0,0,.20);
+  animation:orbit-ref-toast-enter 180ms ease-out both;
+}
+@keyframes orbit-ref-toast-enter {
+  from {opacity:0;transform:translateY(-9px);}
+  to {opacity:1;transform:translateY(0);}
+}
+html[data-mode="orbit"] .orbit-reference-toast-icon {
+  width:27px;height:27px;flex:none;
+  display:grid;place-items:center;
+  border-radius:50%;
+  background:color-mix(in srgb,var(--ref-accent) 19%,var(--ref-surface));
+  color:var(--ref-accent);
+}
+html[data-mode="orbit"] .orbit-reference-toast.is-error .orbit-reference-toast-icon {
+  color:#f3978e;
+  background:rgba(243,151,142,.13);
+}
+html[data-mode="orbit"] .orbit-reference-toast-text {
+  min-width:0;
+  flex:1;
+  overflow-wrap:anywhere;
+  font-size:11px;
+  font-weight:560;
+  line-height:1.55;
+}
+html[data-mode="orbit"] .orbit-reference-toast button {
+  flex:none;
+  width:25px;height:25px;
+  display:grid;place-items:center;
+  padding:0;border:0;border-radius:6px;
+  background:transparent;
+  color:var(--ref-muted);
+}
+html[data-mode="orbit"] .orbit-reference-toast button:hover {
+  color:var(--ref-ink);
+  background:color-mix(in srgb,var(--ref-ink) 8%,transparent);
+}
+@media(prefers-reduced-motion:reduce) {
+  html[data-mode="orbit"] .orbit-reference-toast {animation:none;}
+}
