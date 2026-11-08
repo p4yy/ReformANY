@@ -61,6 +61,40 @@ function Mark({ size = 34 }: { size?: number }) {
     alt="" aria-hidden="true" style={{ display: "block", borderRadius: Math.round(size * .2), objectFit: "cover" }} />;
 }
 
+function FileThumbnail({ path }: { path: string }) {
+  const element = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!element.current || typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: "120px" });
+    observer.observe(element.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !isTauri()) return;
+    let stopped = false;
+    invoke<string | null>("image_thumbnail", { path })
+      .then(src => { if (!stopped) setThumbnail(src); })
+      .catch(() => { /* Fall back to the file icon for unsupported or corrupt files. */ });
+    return () => { stopped = true; };
+  }, [visible, path]);
+
+  return <div ref={element} className="file-icon">
+    {thumbnail ? <img src={thumbnail} alt="" className="file-preview"/> : <FileImage size={19}/>}
+  </div>;
+}
+
 function App() {
   const [page, setPage] = useState<Page>("convert");
   const [rows, setRows] = useState<Row[]>([]);
@@ -289,7 +323,7 @@ function App() {
           {rows.length ? <div className="file-table">
             <div className="table-head"><span>FILE</span><span>CONVERT TO</span><span>STATUS</span><span/></div>
             {rows.map(row => <div className="file-row" key={row.id}>
-              <div className="file-cell"><div className="file-icon"><FileImage size={19}/></div>
+              <div className="file-cell"><FileThumbnail path={row.path}/>
                 <div className="file-detail"><strong title={row.name}>{row.name}</strong><small>{row.detected || "Unknown"} {row.bytes > 0 ? `· ${fmtBytes(row.bytes)}` : ""}</small></div>
               </div>
               <div className="target-cell"><select value={row.target} disabled={row.status !== "ready" || !!row.error || busy}

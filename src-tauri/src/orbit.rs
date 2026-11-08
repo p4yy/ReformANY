@@ -5,6 +5,11 @@ use std::ffi::OsString;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tokio::sync::Semaphore;
+
+// A decoded 40MP image can require substantial memory. Generate only one
+// thumbnail at a time, regardless of the number of visible rows.
+static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 
 #[derive(Default)]
 pub struct OrbitLaunch {
@@ -46,7 +51,14 @@ pub async fn orbit_preview(state: State<'_, OrbitLaunch>) -> Result<Option<Strin
         Some(path) => path,
         None => return Ok(None),
     };
-    tauri::async_runtime::spawn_blocking(move || make_preview(&path))
+    image_thumbnail(path.to_string_lossy().into_owned()).await
+}
+
+#[tauri::command]
+pub async fn image_thumbnail(path: String) -> Result<Option<String>, String> {
+    let _permit = THUMBNAIL_POOL.acquire().await
+        .map_err(|_| "Thumbnail worker unavailable".to_owned())?;
+    tauri::async_runtime::spawn_blocking(move || make_preview(Path::new(&path)))
         .await
         .map_err(|_| "Preview worker failed".to_owned())?
 }
