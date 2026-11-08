@@ -263,7 +263,7 @@ export function ArchivePanel() {
 
   async function execute() {
     if (!sources.length || busy || !canRun) return;
-    setBusy(true);setError(null);setResult(null);setSplitOutputs([]);setSplitWarning(null);setExtra([]);
+    setBusy(true);setError(null);setResult(null);setExtra([]);
     try {
       if (mode === "create") {
         const result = await invoke<{ outputPaths: string[] }>("archive_create", {
@@ -433,7 +433,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
 
   async function process() {
     if (!sources.length || busy) return;
-    setBusy(true);setError(null);setResult(null);
+    setBusy(true);setError(null);setResult(null);setSplitOutputs([]);setSplitWarning(null);
     try {
       if (mode === "split") {
         const value = Number(splitValue);
