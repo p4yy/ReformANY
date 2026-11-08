@@ -528,26 +528,11 @@ Function InstallMediaEngines
   ${EndIf}
 
   download_media:
-    InitPluginsDir
-    Delete "$PLUGINSDIR\reformany-ffmpeg.zip"
-    DetailPrint "Downloading verified FFmpeg 9.0.2 + FFprobe (~109 MB)..."
-    NSISdl::download "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip" "$PLUGINSDIR\reformany-ffmpeg.zip"
+    DetailPrint "Downloading and verifying FFmpeg 9.0.2 + FFprobe via Windows HTTPS..."
+    ; PowerShell handles modern TLS, redirects, bounded retries and SHA-256.
+    ; Do not use NSISdl for this large HTTPS download.
+    nsExec::ExecToLog '$"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe$" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $"$INSTDIR\installer\install-media-engines.ps1$" -TargetDir $"$INSTDIR\engines$"'
     Pop $R0
-    ${If} $R0 != "success"
-      DetailPrint "Media download failed: $R0"
-      ; Never display native Win32 dialogs from a silent premium setup.
-      ; Report the error to the supervising Tauri process instead.
-      ${If} ${Silent}
-        SetErrorLevel 5
-        Quit
-      ${EndIf}
-      MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Could not download the media conversion tools. Check your internet connection. Retry or continue installing ReformANY without media conversion." IDRETRY download_media
-      Return
-    ${EndIf}
-    DetailPrint "Checking media engine download and installing..."
-    nsExec::ExecToLog '$"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe$" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $"$INSTDIR\installer\install-media-engines.ps1$" -Archive $"$PLUGINSDIR\reformany-ffmpeg.zip$" -TargetDir $"$INSTDIR\engines$"'
-    Pop $R0
-    Delete "$PLUGINSDIR\reformany-ffmpeg.zip"
     ${If} $R0 != 0
       DetailPrint "FFmpeg setup failed (exit code $R0)."
       ${If} ${Silent}
