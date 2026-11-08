@@ -9,7 +9,7 @@ use zip::{AesMode, CompressionMethod, ZipArchive, ZipWriter};
 const MAX_ENTRIES: usize = 20_000;
 const MAX_EXPANDED: u64 = 4 * 1024 * 1024 * 1024;
 
-fn zip_options<'a>(password: Option<&'a str>, level: u8) -> SimpleFileOptions<'a> {
+fn zip_options<'a>(password: Option<&'a str>, level: u8) -> zip::write::FileOptions<'a, ()> {
     let options = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .compression_level(Some(i64::from(level)));

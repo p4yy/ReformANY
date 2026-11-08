@@ -108,8 +108,15 @@ fn extract_pdf_text(path: &str, destination: Option<&str>) -> Result<String, Str
     let pages = doc.get_pages();
     if pages.len() > 500 { return Err("PDF has too many pages for text extraction".into()); }
     let numbers: Vec<u32> = pages.keys().copied().collect();
-    let text = doc.extract_text_with_limit(&numbers, 4 * 1024 * 1024)
-        .map_err(|e| format!("Cannot extract PDF text: {e}"))?;
+    let mut text = String::new();
+    for number in numbers {
+        let page = doc.extract_text(&[number])
+            .map_err(|e| format!("Cannot extract PDF text: {e}"))?;
+        if text.len().saturating_add(page.len()) > 4 * 1024 * 1024 {
+            return Err("Extracted PDF text exceeds the 4 MB output limit".into());
+        }
+        text.push_str(&page);
+    }
     if text.trim().is_empty() {
         return Err("This PDF has no extractable text. Scanned PDFs need OCR.".into());
     }
