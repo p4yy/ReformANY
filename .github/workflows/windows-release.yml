@@ -115,13 +115,27 @@ jobs:
           $native = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
           if (-not $native) { throw 'No real NSIS engine was built' }
           $env:REFORMANY_NSIS_PAYLOAD = $native.FullName
-          cargo build --release --manifest-path 'installer/setup-shell/src-tauri/Cargo.toml'
+          $frontendHtml = 'installer/setup-shell/frontend/dist/index.html'
+          if (-not (Test-Path -LiteralPath $frontendHtml -PathType Leaf)) {
+            throw 'The premium React frontend was not built. Refusing to compile an empty setup EXE.'
+          }
+          cargo build --release --features custom-protocol --manifest-path 'installer/setup-shell/src-tauri/Cargo.toml'
           if ($LASTEXITCODE -ne 0) { throw 'Premium Tauri setup compilation failed' }
           $premium = 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe'
           if (-not (Test-Path -LiteralPath $premium)) { throw 'Premium setup exe missing' }
           & $premium --verify-payload
           if ($LASTEXITCODE -ne 0) { throw 'Bundled NSIS engine verification failed' }
           Write-Host "Premium installer binary: $premium"
+      # The old setup launched localhost:1421 instead of embedded React because
+      # its cargo release build lacked Tauri's custom-protocol feature. This
+      # startup test is mandatory: no broken UI gets published as an artifact.
+      - name: Verify actual premium EXE opens bundled React UI offline
+        shell: pwsh
+        timeout-minutes: 4
+        run: |
+          $premium = (Resolve-Path 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe').Path
+          node scripts/test-premium-setup-ui.mjs $premium
+          if ($LASTEXITCODE -ne 0) { throw 'Premium setup UI failed startup smoke test' }
       - name: Upload premium frameless setup EXE
         uses: actions/upload-artifact@v4
         with:
