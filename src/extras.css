@@ -45,3 +45,16 @@
 
 .engine-switch-three{max-width:515px}
 .engine-switch-three button{font-size:10.5px}
+
+.engine-dependency-list {margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.engine-dependency {display:flex;gap:14px;align-items:center;padding:20px;border-bottom:1px solid var(--line)}
+.engine-dependency:last-child {border-bottom:0}
+.engine-indicator {display:grid;place-items:center;width:34px;height:34px;border-radius:11px;flex-shrink:0}
+.engine-indicator.is-ready {background:#e6f5ef;color:#33876a}
+.engine-indicator.is-missing {background:var(--soft);color:var(--muted)}
+.engine-dependency-description {min-width:0;flex:1;display:flex;flex-direction:column;gap:6px}
+.engine-dependency-description strong {font-size:13px}
+.engine-dependency-description small {font-size:11px;color:var(--muted)}
+.engine-dependency-status {font-size:10px;color:var(--muted);white-space:nowrap}
+.engine-dependency .button {padding:10px 12px}
+@media(max-width:950px) {.engine-dependency{flex-wrap:wrap}.engine-dependency .button{margin-left:46px}}

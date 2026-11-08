@@ -2,17 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
-  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText,
+  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
-import { ArchivePanel, DocumentsPanel, MediaPanel } from "./ExtraWorkspaces";
+import { ArchivePanel, DocumentsPanel, MediaPanel, EnginesPanel } from "./ExtraWorkspaces";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
-type Page = "convert" | "media" | "archives" | "documents" | "activity" | "appearance";
+type Page = "convert" | "media" | "archives" | "documents" | "engines" | "activity" | "appearance";
 
 type ExpandedInputs = { paths: string[]; truncated: boolean };
 type FileInfo = {
@@ -289,6 +289,7 @@ function App() {
         <div className="nav-label nav-label-spaced">PREFERENCES</div>
         <nav aria-label="Preferences">
           <button className={`nav-button ${page === "appearance" ? "selected" : ""}`} onClick={() => setPage("appearance")}><Palette size={18}/> Appearance</button>
+          <button className={`nav-button ${page === "engines" ? "selected" : ""}`} onClick={() => setPage("engines")}><Wrench size={18}/> Engines</button>
         </nav>
         <div className="sidebar-bottom">
           <div className="side-note"><span className="status-dot"/> Local processing<br/><span className="side-note-sub">Your files stay on this device.</span></div>
@@ -297,12 +298,13 @@ function App() {
       </aside>
       <main className="main">
         <header className="topbar">
-          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? "Audio & video" : page === "archives" ? "Archives" : page === "documents" ? "Documents" : page === "activity" ? "Activity" : "Appearance"}</span>
+          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? "Audio & video" : page === "archives" ? "Archives" : page === "documents" ? "Documents" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
           <span className="topbar-right"><span className="topbar-dot"/> Image conversion · Preview</span>
         </header>
         {page === "media" && <MediaPanel />}
         {page === "archives" && <ArchivePanel />}
         {page === "documents" && <DocumentsPanel />}
+        {page === "engines" && <EnginesPanel />}
         {page === "convert" && <div className="content">
           <div className="page-intro">
             <div><div className="eyebrow">YOUR WORKSPACE</div><h1>Make it another format.</h1><p>Simple, reliable conversion. No uploads, no unnecessary steps.</p></div>

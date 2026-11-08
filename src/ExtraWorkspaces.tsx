@@ -401,3 +401,69 @@ export function DocumentsPanel() {
     <p className="engine-footnote">This preview does not recreate editable DOCX from PDF, remove PDF passwords, or perform OCR. Each operation verifies its output before reporting success.</p>
   </div>;
 }
+
+export function EnginesPanel() {
+  const [engines, setEngines] = useState<Engines | null>(null);
+  const [officeReady, setOfficeReady] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    setError(null);
+    try {
+      const [tools, office] = await Promise.all([
+        invoke<Engines>("engine_status"), invoke<boolean>("office_available"),
+      ]);
+      setEngines(tools);
+      setOfficeReady(office);
+    } catch (cause) { setError(String(cause)); }
+  }
+  useEffect(() => { if (isTauri()) void refresh(); }, []);
+
+  const items = [
+    { name: "Image and PDF tools", ready: true, detail: "Included · six raster types, ZIP, image-to-PDF and PDF text", command: null },
+    { name: "FFmpeg + FFprobe", ready: !!engines?.ffmpeg && !!engines?.ffprobe,
+      detail: "Audio and video conversion, trimming and quality presets", command: "winget install -e --id Gyan.FFmpeg" },
+    { name: "7-Zip", ready: !!engines?.sevenZip,
+      detail: "7z, split volumes and extraction of RAR, ISO, TAR, CAB and many more", command: "winget install -e --id 7zip.7zip" },
+    { name: "WinRAR", ready: !!engines?.winrar,
+      detail: "Optional. Needed only to CREATE RAR archives.", command: "winget install -e --id RARLab.WinRAR" },
+    { name: "LibreOffice", ready: officeReady,
+      detail: "Optional. Converts DOCX, PPTX, XLSX, ODT and other office files to PDF.",
+      command: "winget install -e --id TheDocumentFoundation.LibreOffice" },
+  ];
+
+  async function copy(name: string, command: string) {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(name);
+      setError(null);
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  return <div className="content engine-page">
+    <div className="eyebrow">LOCAL ENGINE STATUS</div><h1>Your tools, connected.</h1>
+    <p>ReformANY keeps processing local. Core image, PDF and ZIP features are built in; larger format engines use software already installed on Windows.</p>
+    <div className="engine-action-row">
+      <div><strong>Engine readiness</strong><small>Refresh after installing any external tool.</small></div>
+      <button className="button secondary" onClick={() => void refresh()}>Refresh status</button>
+    </div>
+    <div className="engine-dependency-list">
+      {items.map(item => <div className="engine-dependency" key={item.name}>
+        <div className={"engine-indicator " + (item.ready ? "is-ready" : "is-missing")}>
+          {item.ready ? <CheckCircle2 size={18}/> : <CircleAlert size={18}/>}
+        </div>
+        <div className="engine-dependency-description">
+          <strong>{item.name}</strong>
+          <small>{item.detail}</small>
+        </div>
+        <span className="engine-dependency-status">{item.ready ? "Ready" : "Not detected"}</span>
+        {!item.ready && item.command && <button className="button secondary" onClick={() => void copy(item.name, item.command as string)}>
+          {copied === item.name ? "Copied" : "Copy install command"}
+        </button>}
+      </div>)}
+    </div>
+    {error && <p className="engine-error">{error}</p>}
+    <p className="engine-footnote">To install a missing engine, copy its command, open Windows Terminal and paste it. You control the installation; ReformANY does not silently download or install third-party programs. Restart ReformANY after changing PATH.</p>
+  </div>;
+}
