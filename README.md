@@ -66,7 +66,7 @@ For details, see [architecture](docs/ARCHITECTURE.md), [QA guidance](docs/DEVELO
 
 © 2026 Acev Dev Co. All rights reserved. ReformANY is source-available, not open source.
 
-[Read the license](LICENSE) · [Reuse and attribution](docs/REUSE_AND_ATTRIBUTION.md)
+[Publisher](https://github.com/p4yy) · [Full license](LICENSE) · [Reuse terms](docs/REUSE_AND_ATTRIBUTION.md)
 
 ---
 
