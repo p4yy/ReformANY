@@ -5,6 +5,7 @@ use image::{ImageFormat, ImageReader};
 use std::ffi::OsString;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tokio::sync::Semaphore;
 
@@ -14,12 +15,12 @@ static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 
 #[derive(Default)]
 pub struct OrbitLaunch {
-    path: Option<PathBuf>,
+    path: Mutex<Option<PathBuf>>,
 }
 
 impl OrbitLaunch {
     pub fn new(path: Option<PathBuf>) -> Self {
-        Self { path }
+        Self { path: Mutex::new(path) }
     }
 }
 
@@ -96,12 +97,23 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
 
 #[tauri::command]
 pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
-    state.path.as_ref().and_then(|path| orbit_file_info(path))
+    state.path.lock().ok()?.as_ref().and_then(|path| orbit_file_info(path))
+}
+
+/// A dropped path is accepted only after the user drops it onto Orbit.
+/// The app never tries to recover an Explorer drag path through mouse hooks.
+#[tauri::command]
+pub fn orbit_set_path(state: State<'_, OrbitLaunch>, path: String) -> Result<OrbitInfo, String> {
+    let selected = PathBuf::from(path);
+    let info = orbit_file_info(&selected).ok_or("No valid file was dropped")?;
+    if let Some(error) = &info.error { return Err(error.clone()); }
+    *state.path.lock().map_err(|_| "Orbit selection is busy")? = Some(selected);
+    Ok(info)
 }
 
 #[tauri::command]
 pub async fn orbit_preview(state: State<'_, OrbitLaunch>) -> Result<Option<String>, String> {
-    let path = match state.path.clone() {
+    let path = match state.path.lock().map_err(|_| "Orbit selection is busy")?.clone() {
         Some(path) => path,
         None => return Ok(None),
     };
