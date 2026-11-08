@@ -59,7 +59,7 @@ export const LANGUAGE_OPTIONS = [
 ] as const;
 export type LanguageCode = typeof LANGUAGE_OPTIONS[number]["code"];
 export const RTL_LANGUAGES = new Set<string>(["ar", "fa", "ur"]);
-export const LANG_KEYS = ["images","media","archives","documents","engines","activity","appearance","workspace","preferences","convert","addFiles","addFolder","chooseFolder","headline","tagline","dropFiles","browseDevice","files","conversionSettings","convertFiles","theme","light","dark","system","language","accent","privacy","localProcessing","onDevice","ready","done","tools","actions","fullApp","quickConvert","localNoUploads","themeDescription","yourLanguage","autoThemeInfo"] as const;
+export const LANG_KEYS = ["images","media","archives","documents","engines","activity","appearance","workspace","preferences","convert","addFiles","addFolder","chooseFolder","headline","tagline","dropFiles","browseDevice","files","conversionSettings","convertFiles","theme","light","dark","system","language","accent","privacy","localProcessing","onDevice","ready","done","tools","actions","fullApp","quickConvert","localNoUploads","themeDescription","yourLanguage","autoThemeInfo","orbitSounds","orbitSoundsDescription","enabled","disabled"] as const;
 export type LangKey = typeof LANG_KEYS[number];
 const messages: Record<LanguageCode, readonly string[]> = {
   "en": [
@@ -101,7 +101,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "Local · No uploads",
     "Choose the look of your workspace.",
     "Your language",
-    "The app follows the device theme automatically."
+    "The app follows the device theme automatically.",
+    "Orbit sounds",
+    "Play a quiet navigation tick when hovering over actions in Orbit.",
+    "On",
+    "Off"
   ],
   "fr": [
     "Images",
@@ -142,7 +146,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "Local · Aucun envoi",
     "Choisissez l’apparence de votre espace.",
     "Votre langue",
-    "L’application suit automatiquement le thème de l’appareil."
+    "L’application suit automatiquement le thème de l’appareil.",
+    "Sons d’Orbit",
+    "Émettre un son discret en survolant les actions d’Orbit.",
+    "Activé",
+    "Désactivé"
   ],
   "es": [
     "Imágenes",
@@ -183,7 +191,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "Local · Sin subidas",
     "Elige el aspecto de tu espacio.",
     "Tu idioma",
-    "La aplicación sigue automáticamente el tema del dispositivo."
+    "La aplicación sigue automáticamente el tema del dispositivo.",
+    "Sonidos de Orbit",
+    "Reproducir un sonido suave al pasar sobre las acciones de Orbit.",
+    "Activado",
+    "Desactivado"
   ],
   "de": [
     "Bilder",
@@ -224,7 +236,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "Lokal · Keine Uploads",
     "Wähle das Aussehen deines Arbeitsbereichs.",
     "Deine Sprache",
-    "Die App folgt automatisch dem Gerätedesign."
+    "Die App folgt automatisch dem Gerätedesign.",
+    "Orbit-Töne",
+    "Bei Mausbewegungen über Orbit-Aktionen einen leisen Ton abspielen.",
+    "Ein",
+    "Aus"
   ],
   "it": [
     "Immagini",
@@ -265,7 +281,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "Locale · Nessun caricamento",
     "Scegli l'aspetto dell'area di lavoro.",
     "La tua lingua",
-    "L'app segue automaticamente il tema del dispositivo."
+    "L'app segue automaticamente il tema del dispositivo.",
+    "Suoni Orbit",
+    "Riproduci un leggero suono passando sulle azioni di Orbit.",
+    "Attivo",
+    "Disattivo"
   ],
   "pt": [
     "Imagens",
@@ -306,7 +326,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "Local · Sem uploads",
     "Escolha a aparência do seu espaço.",
     "Seu idioma",
-    "O app segue automaticamente o tema do dispositivo."
+    "O app segue automaticamente o tema do dispositivo.",
+    "Sons do Orbit",
+    "Tocar um som discreto ao passar o mouse sobre as ações do Orbit.",
+    "Ligado",
+    "Desligado"
   ],
   "ar": [
     "الصور",
@@ -347,7 +371,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "محلي · بدون رفع",
     "اختر مظهر مساحة العمل.",
     "لغتك",
-    "يتبع التطبيق سمة الجهاز تلقائيًا."
+    "يتبع التطبيق سمة الجهاز تلقائيًا.",
+    "أصوات أوربت",
+    "تشغيل نقرة خفيفة عند تمرير المؤشر فوق إجراءات أوربت.",
+    "تشغيل",
+    "إيقاف"
   ],
   "fa": [
     "تصاویر",
@@ -388,7 +416,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "محلی · بدون آپلود",
     "ظاهر محیط کار را انتخاب کنید.",
     "زبان شما",
-    "برنامه به‌طور خودکار از پوسته دستگاه پیروی می‌کند."
+    "برنامه به‌طور خودکار از پوسته دستگاه پیروی می‌کند.",
+    "صدای اوربیت",
+    "هنگام بردن نشانگر روی گزینه‌های اوربیت، صدای ملایمی پخش شود.",
+    "روشن",
+    "خاموش"
   ],
   "ur": [
     "تصاویر",
@@ -429,7 +461,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "مقامی · کوئی اپ لوڈ نہیں",
     "اپنی جگہ کی ظاہری شکل منتخب کریں۔",
     "آپ کی زبان",
-    "ایپ خودکار طور پر ڈیوائس کی تھیم اپناتی ہے۔"
+    "ایپ خودکار طور پر ڈیوائس کی تھیم اپناتی ہے۔",
+    "اوربٹ کی آوازیں",
+    "اوربٹ کے اختیارات پر ماؤس لے جانے سے ہلکی آواز بجائیں۔",
+    "آن",
+    "آف"
   ],
   "tr": [
     "Görseller",
@@ -470,7 +506,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "Yerel · Yükleme yok",
     "Çalışma alanının görünümünü seç.",
     "Dilin",
-    "Uygulama cihaz temasını otomatik izler."
+    "Uygulama cihaz temasını otomatik izler.",
+    "Orbit sesleri",
+    "Orbit işlemlerinin üzerine gelince hafif bir gezinme sesi çal.",
+    "Açık",
+    "Kapalı"
   ],
   "hi": [
     "छवियाँ",
@@ -511,7 +551,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "स्थानीय · कोई अपलोड नहीं",
     "कार्यस्थान का रूप चुनें।",
     "आपकी भाषा",
-    "ऐप अपने आप डिवाइस की थीम अपनाता है।"
+    "ऐप अपने आप डिवाइस की थीम अपनाता है।",
+    "ऑर्बिट ध्वनियाँ",
+    "ऑर्बिट विकल्पों पर माउस ले जाने पर हल्की नेविगेशन ध्वनि बजाएँ।",
+    "चालू",
+    "बंद"
   ],
   "ja": [
     "画像",
@@ -552,7 +596,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "ローカル · アップロードなし",
     "外観を選択します。",
     "言語",
-    "デバイスのテーマに自動で合わせます。"
+    "デバイスのテーマに自動で合わせます。",
+    "Orbitの操作音",
+    "Orbitの操作にマウスを合わせたときに小さな音を鳴らします。",
+    "オン",
+    "オフ"
   ],
   "ko": [
     "이미지",
@@ -593,7 +641,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "로컬 · 업로드 없음",
     "작업 공간의 모습을 선택하세요.",
     "언어",
-    "기기의 테마를 자동으로 따릅니다."
+    "기기의 테마를 자동으로 따릅니다.",
+    "Orbit 탐색음",
+    "Orbit 항목 위에 마우스를 올리면 작은 소리를 재생합니다.",
+    "켜짐",
+    "꺼짐"
   ],
   "zh": [
     "图片",
@@ -634,7 +686,11 @@ const messages: Record<LanguageCode, readonly string[]> = {
     "本地 · 无上传",
     "选择工作区外观。",
     "你的语言",
-    "自动跟随设备主题。"
+    "自动跟随设备主题。",
+    "Orbit 操作音",
+    "鼠标悬停在 Orbit 操作上时播放轻柔提示音。",
+    "开启",
+    "关闭"
   ]
 };
 export function getLanguage(): LanguageCode {

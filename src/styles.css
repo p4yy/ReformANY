@@ -229,3 +229,18 @@ html[dir="rtl"] .sidebar-bottom {direction:rtl}
 html[dir="rtl"] .file-name,html[dir="rtl"] .engine-input small {unicode-bidi:plaintext}
 html[dir="rtl"] input[type="number"],html[dir="rtl"] input[type="range"] {direction:ltr}
 @media(max-width:900px) {.theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Orbit sound setting — compact, keyboard-accessible native-style toggle. */
+.preference-sounds {display:flex;align-items:center;justify-content:space-between;gap:22px}
+.preference-sound-copy {min-width:0;flex:1}
+.preference-sound-copy p {max-width:510px}
+.orbit-sound-switch {display:flex;align-items:center;gap:11px;flex-shrink:0;border:0;background:transparent;color:var(--muted);font:inherit;padding:7px 2px;cursor:pointer}
+.orbit-sound-switch:focus-visible {outline:2px solid var(--accent);outline-offset:4px;border-radius:10px}
+.orbit-switch-track {width:44px;height:26px;border-radius:99px;padding:3px;display:flex;align-items:center;background:var(--strong-line);border:1px solid var(--line);transition:background 140ms ease}
+.orbit-switch-thumb {width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.18);transition:transform 140ms ease}
+.orbit-sound-switch.is-on .orbit-switch-track {background:var(--accent);border-color:var(--accent)}
+.orbit-sound-switch.is-on .orbit-switch-thumb {transform:translateX(18px)}
+.orbit-switch-state {min-width:26px;font-size:11px;font-weight:650;color:var(--text)}
+html[dir="rtl"] .orbit-sound-switch.is-on .orbit-switch-thumb {transform:translateX(-18px)}
+@media(prefers-reduced-motion:reduce) {.orbit-switch-track,.orbit-switch-thumb {transition:none}}
+@media(max-width:660px) {.preference-sounds{align-items:flex-start;flex-wrap:wrap;gap:13px}}
