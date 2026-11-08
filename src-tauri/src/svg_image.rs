@@ -1,6 +1,6 @@
 //! Offline SVG rasterizing. External URL/file references and active XML content
 //! are not accepted; output is bounded by the same pixel budget as raster images.
-use image::{DynamicImage, GenericImageView};
+use image::DynamicImage;
 use resvg::{tiny_skia, usvg};
 use std::fs;
 use std::path::Path;
@@ -65,6 +65,7 @@ pub fn rasterize_svg(path: &Path) -> Result<DynamicImage, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::GenericImageView;
     #[test]
     fn local_svg_renders_and_remote_content_is_rejected() {
         let temp = tempfile::tempdir().unwrap();

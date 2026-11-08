@@ -339,7 +339,7 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
         let mut magic = [0u8; 12];
         File::open(temp.path()).and_then(|mut f| f.read_exact(&mut magic))
             .map_err(|e| format!("AVIF output has invalid header: {e}"))?;
-        if &magic[4..8] != b"ftyp" || !matches!(&magic[8..12], b"avif" | b"avis") {
+        if &magic[4..8] != b"ftyp" || (&magic[8..12] != b"avif" && &magic[8..12] != b"avis") {
             return Err("AVIF output has no valid AVIF file brand".into());
         }
     } else {
@@ -577,6 +577,23 @@ mod tests {
     fn rejects_invalid_transformation_options() {
         assert!(TransformOptions { max_dimension: None, rotation: 45, grayscale: false }.validate().is_err());
         assert!(TransformOptions { max_dimension: Some(0), rotation: 0, grayscale: false }.validate().is_err());
+    }
+
+
+    #[test]
+    fn svg_tga_qoi_and_ico_roundtrip_real_pixels() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("simple.svg");
+        std::fs::write(&source, r##"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="24" height="16" fill="#0055cc"/></svg>"##).unwrap();
+        let cancel=AtomicBool::new(false);
+        for fmt in ["png","tga","qoi","ico"] {
+            let job=ConversionItem {id:"extra".into(),path:source.to_string_lossy().into_owned(),
+                target:fmt.into(),quality:90,matte:"white".into(),options:TransformOptions::default()};
+            let output=convert_one(&job,None,&cancel).unwrap();
+            let mut reader=ImageReader::open(&output).unwrap();
+            if fmt=="tga" {reader.set_format(ImageFormat::Tga);} else {reader=reader.with_guessed_format().unwrap();}
+            assert_eq!(reader.into_dimensions().unwrap(),(24,16));
+        }
     }
 
     #[test]

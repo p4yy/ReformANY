@@ -18,7 +18,7 @@ struct Cue { start: u64, end: u64, lines: Vec<String> }
 
 fn parse_time(input: &str) -> Result<u64, String> {
     let value = input.trim();
-    let (time, ms) = value.rsplit_once([',', '.'])
+    let (time, ms) = value.rsplit_once(',').or_else(|| value.rsplit_once('.'))
         .ok_or("Subtitle timestamp must contain milliseconds")?;
     if ms.len() != 3 || !ms.bytes().all(|c| c.is_ascii_digit()) {
         return Err("Subtitle milliseconds must contain exactly three digits".into());
