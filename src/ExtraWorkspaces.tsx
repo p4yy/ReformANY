@@ -263,7 +263,7 @@ export function ArchivePanel() {
 
   async function execute() {
     if (!sources.length || busy || !canRun) return;
-    setBusy(true);setError(null);setResult(null);setExtra([]);
+    setBusy(true);setError(null);setResult(null);setSplitOutputs([]);setSplitWarning(null);setExtra([]);
     try {
       if (mode === "create") {
         const result = await invoke<{ outputPaths: string[] }>("archive_create", {
@@ -378,13 +378,17 @@ export function ArchivePanel() {
   </div>;
 }
 
-type DocumentTask = "images" | "text" | "office";
+type DocumentTask = "images" | "text" | "office" | "split";
 
 export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => void }) {
   const [mode, setMode] = useState<DocumentTask>("images");
   const [sources, setSources] = useState<string[]>([]);
   const [destination, setDestination] = useState<string | null>(null);
   const [office, setOffice] = useState(false);
+  const [splitMode, setSplitMode] = useState<"size" | "parts" | "pages">("size");
+  const [splitValue, setSplitValue] = useState("5");
+  const [splitOutputs, setSplitOutputs] = useState<string[]>([]);
+  const [splitWarning, setSplitWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -398,6 +402,8 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     setMode(next);
     setSources([]);
     setResult(null);
+    setSplitOutputs([]);
+    setSplitWarning(null);
     setError(null);
   }
 
@@ -405,7 +411,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     try {
       const type = mode === "images"
         ? [{ name: "Raster images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }]
-        : mode === "text" ? [{ name: "PDF documents", extensions: ["pdf"] }]
+        : mode === "text" || mode === "split" ? [{ name: "PDF documents", extensions: ["pdf"] }]
         : [{ name: "Office documents", extensions: ["docx", "doc", "rtf", "odt", "pptx", "ppt", "odp", "xlsx", "xls", "ods", "txt", "html", "htm"] }];
       const response: unknown = await open({ multiple: mode === "images", directory: false, filters: type });
       const paths: string[] = Array.isArray(response) ? response.filter((p): p is string => typeof p === "string")
@@ -429,12 +435,28 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     if (!sources.length || busy) return;
     setBusy(true);setError(null);setResult(null);
     try {
-      const path = mode === "images"
-        ? await invoke<string>("images_to_pdf", { paths: sources, destination })
-        : mode === "text"
-          ? await invoke<string>("pdf_to_text", { path: sources[0], destination })
-          : await invoke<string>("office_to_pdf", { path: sources[0], destination });
-      setResult(path);
+      if (mode === "split") {
+        const value = Number(splitValue);
+        if (!Number.isInteger(value) || value < (splitMode === "parts" ? 2 : 1) || value > 4096) {
+          throw new Error("Enter a valid size, number of parts, or pages per part.");
+        }
+        const files = await invoke<{ outputPaths: string[]; oversizedPages: number[] }>("pdf_split", {
+          path: sources[0], destination, mode: splitMode, value,
+        });
+        if (!files.outputPaths.length) throw new Error("PDF splitter produced no files");
+        setSplitOutputs(files.outputPaths);
+        setResult(files.outputPaths[0]);
+        if (files.oversizedPages.length) {
+          setSplitWarning("These individual pages exceed the target size: " + files.oversizedPages.join(", "));
+        }
+      } else {
+        const path = mode === "images"
+          ? await invoke<string>("images_to_pdf", { paths: sources, destination })
+          : mode === "text"
+            ? await invoke<string>("pdf_to_text", { path: sources[0], destination })
+            : await invoke<string>("office_to_pdf", { path: sources[0], destination });
+        setResult(path);
+      }
     } catch (cause) { setError(String(cause)); }
     finally { setBusy(false); }
   }
@@ -446,6 +468,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
       <button className={mode === "images" ? "selected" : ""} onClick={() => changeMode("images")}>Images → PDF</button>
       <button className={mode === "text" ? "selected" : ""} onClick={() => changeMode("text")}>PDF → Text</button>
       <button className={mode === "office" ? "selected" : ""} onClick={() => changeMode("office")}>Office → PDF</button>
+      <button className={mode === "split" ? "selected" : ""} onClick={() => changeMode("split")}>Split PDF</button>
     </div>
     <div className="engine-card">
       <div className="engine-card-title"><FileText size={18}/><h2>Selected source</h2></div>
@@ -462,19 +485,34 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
         <button className="button secondary" disabled={busy} onClick={() => void folder()}><Folder size={16}/> Choose folder</button>
       </div>
     </div>
+    {mode === "split" && <div className="engine-card">
+      <div className="engine-directory"><div><strong>Split method</strong><small>Create individual, readable PDF files—not binary volumes or ZIP archives.</small></div>
+      <select aria-label="PDF splitting method" value={splitMode} onChange={event => {
+        const next = event.target.value as "size" | "parts" | "pages";
+        setSplitMode(next); setSplitValue(next === "parts" ? "2" : next === "pages" ? "1" : "5");
+      }}>
+        <option value="size">Approximate MB per PDF</option>
+        <option value="parts">Number of output PDFs</option>
+        <option value="pages">Pages per PDF</option>
+      </select></div>
+      <div className="engine-directory"><label htmlFor="document-split-value">{splitMode === "size" ? "Approximate size (MB)" : splitMode === "parts" ? "Number of PDF files" : "Pages per PDF"}</label>
+      <input id="document-split-value" type="number" min={splitMode === "parts" ? 2 : 1} max={4096} step={1} value={splitValue} onChange={event => setSplitValue(event.target.value)}/></div>
+    </div>}
     <div className="engine-action-row">
       <div><strong>{mode === "office" ? office ? "LibreOffice available" : "LibreOffice is required" : "Local PDF tools"}</strong>
         <small>{mode === "text" ? "Extract selectable PDF text. Scans require separate OCR."
           : mode === "images" ? "One page per image · A4 layout"
+          : mode === "split" ? "Each part is a valid PDF. Size splitting respects page boundaries."
           : "Document layout fidelity depends on LibreOffice."}</small>
       </div>
       <button className="button primary" disabled={!sources.length || busy || (mode === "office" && !office)}
         onClick={() => void process()}>
         {busy ? <><LoaderCircle size={17} className="engine-spin"/> Processing…</>
-          : <>Convert <ArrowRight size={16}/></>}
+          : <>{mode === "split" ? "Split PDF" : "Convert"} <ArrowRight size={16}/></>}
       </button>
     </div>
     {outputSelector(result, error)}
+    {splitOutputs.length > 0 && <div className="engine-card"><strong>Created {splitOutputs.length} standalone PDFs</strong>{splitOutputs.map(path => <button type="button" key={path} className="text-action" onClick={() => void invoke("reveal_output", { path })}>{fileName(path)}</button>)}{splitWarning && <p role="status">{splitWarning}</p>}</div>}
     <div className="document-preview-link-row">
       {onPreview && sources[0]?.toLowerCase().endsWith(".pdf") && <button type="button" className="button secondary" onClick={() => onPreview(sources[0])}><FileText size={15}/> Preview source PDF</button>}
       {onPreview && result && /\.(pdf|txt|md|markdown)$/i.test(result) && <button type="button" className="button secondary" onClick={() => onPreview(result)}><FileText size={15}/> Preview converted file</button>}
