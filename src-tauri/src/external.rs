@@ -33,6 +33,12 @@ pub fn find_binary(name: &str) -> Option<PathBuf> {
             r"C:\Program Files (x86)\7-Zip\7z.exe",
         ],
         "7zz" => &[],
+        "ebook-convert" => &[
+            r"C:\Program Files\Calibre2\ebook-convert.exe",
+            r"C:\Program Files (x86)\Calibre2\ebook-convert.exe",
+        ],
+        "rembg" => &[],
+        "whisper-cli" => &[],
         "rar" => &[
             r"C:\Program Files\WinRAR\Rar.exe",
             r"C:\Program Files (x86)\WinRAR\Rar.exe",
