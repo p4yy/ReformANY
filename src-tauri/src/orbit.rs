@@ -345,7 +345,9 @@ mod tests {
         assert_eq!(classify_file(Path::new("tool.LNK")), "Shortcut");
         assert_eq!(classify_file(Path::new("website.url")), "Shortcut");
         assert_eq!(classify_file(Path::new("installer.MSI")), "Application");
-        assert_eq!(classify_file(Path::new("notes.txt")), "File");
+        assert_eq!(classify_file(Path::new("notes.txt")), "Office");
+        assert_eq!(classify_file(Path::new("notes.html")), "Office");
+        assert_eq!(classify_file(Path::new("unknown.xyz")), "File");
     }
 
 }
