@@ -116,3 +116,7 @@ h2{font-size:15px;letter-spacing:-.3px;font-weight:680;margin:0}.button{display:
   .sidebar nav{margin-bottom:18px}.content{padding:32px 25px}.topbar{padding:0 25px}.topbar-right{display:none}
   .table-head,.file-row{grid-template-columns:minmax(145px,1fr) 100px 88px 24px;gap:8px;padding-left:10px;padding-right:10px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Fix inherited text contrast in dark mode; no dark-on-dark headings. */
+body { color: var(--text); }
+:root[data-theme="dark"] { color: var(--text); }

@@ -50,7 +50,7 @@ struct ProgressEvent {
     error: Option<String>,
 }
 
-fn describe(path: &Path) -> Result<(u64, ImageFormat), String> {
+pub(crate) fn describe(path: &Path) -> Result<(u64, ImageFormat), String> {
     let metadata = std::fs::metadata(path).map_err(|_| "File could not be opened".to_owned())?;
     if !metadata.is_file() {
         return Err("This path is not a regular file".into());
