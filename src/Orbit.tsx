@@ -61,7 +61,7 @@ function formatSize(bytes: number): string {
 }
 
 
-type OrbitAction = { label: string; run: () => void };
+type OrbitAction = { label: string; run: () => void; unavailable?: string };
 function OrbitRing({ items, inner, outer, label }: {
   items: OrbitAction[]; inner: number; outer: number; label: string;
 }) {
@@ -75,16 +75,19 @@ function OrbitRing({ items, inner, outer, label }: {
         words.slice(0, Math.ceil(words.length / 2)).join(" "),
         words.slice(Math.ceil(words.length / 2)).join(" "),
       ] : [item.label];
-      return <g key={item.label} className="orbit-segment" role="button" tabIndex={0}
-        aria-label={item.label} onClick={item.run}
-        onPointerEnter={() => playOrbitHover()}
+      return <g key={item.label} className={`orbit-segment ${item.unavailable ? "is-unavailable" : ""}`}
+        role="button" tabIndex={item.unavailable ? -1 : 0}
+        aria-disabled={Boolean(item.unavailable)}
+        aria-label={item.unavailable ? `${item.label} — ${item.unavailable}` : item.label}
+        onClick={item.unavailable ? undefined : item.run}
+        onPointerEnter={() => { if (!item.unavailable) playOrbitHover(); }}
         onKeyDown={event => {
-          if (event.key === "Enter" || event.key === " ") {
+          if (!item.unavailable && (event.key === "Enter" || event.key === " ")) {
             event.preventDefault();
             item.run();
           }
         }}>
-        <title>{item.label}</title>
+        <title>{item.unavailable ? `${item.label} — ${item.unavailable}` : item.label}</title>
         <path d={roundedOrbitSlice(inner, outer, start, end)} />
         <text x={midpoint.x} y={midpoint.y} textAnchor="middle" dominantBaseline="middle">
           {halves.map((part, position) =>
@@ -468,36 +471,63 @@ export default function Orbit() {
   }
 
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
-  const allTargets = kind === "image" ? imageFormats
-    : kind === "audio" ? audioFormats
-    : kind === "video" ? videoFormats : [];
+  const ext = (file?.name.split(".").at(-1) || "").toLowerCase();
   const detectedFormat = (file?.detected || "").toLowerCase();
-  const targets = allTargets.filter(format => format.toLowerCase() !== detectedFormat);
-  const mediaReady = (kind !== "audio" && kind !== "video") || Boolean(engines?.ffmpeg && engines?.ffprobe);
+  const mediaReady = Boolean(engines?.ffmpeg && engines?.ffprobe);
+  const imageTargets = imageFormats.filter(format => format.toLowerCase() !== detectedFormat);
+  const mediaTargets = (kind === "video" ? [...videoFormats, ...audioFormats] : audioFormats)
+    .filter(format => format.toLowerCase() !== ext);
+  const spreadsheetTargets = ["CSV", "TSV", "JSON", "XLSX"].filter(v => v.toLowerCase() !== ext);
+  const subtitleTargets = ["SRT", "VTT"].filter(v => v.toLowerCase() !== ext);
+  const ebookTargets = ["EPUB", "MOBI", "FB2", "AZW3", "DOCX", "PDF", "TXT", "RTF", "HTMLZ"]
+    .filter(v => v.toLowerCase() !== ext);
+
+  // A visible conversion choice always routes to a real Rust command. Media
+  // formats remain visible but explicitly unavailable until FFmpeg is installed.
+  const convertActions: OrbitAction[] = !canConvert ? [] :
+    kind === "image" ? imageTargets.map(label => ({
+      label, run: () => void convert(label),
+    })) :
+    kind === "video" || kind === "audio" ? mediaTargets.map(label => ({
+      label, unavailable: mediaReady ? undefined : "Install FFmpeg and FFprobe",
+      run: () => void convert(label),
+    })) :
+    kind === "pdf" ? [
+      ...(["TXT", "MD", "HTML"] as const).map(label => ({
+        label, run: () => void convertDocument(label.toLowerCase() as "txt" | "md" | "html"),
+      })),
+      ...(calibreReady ? ebookTargets.filter(label => !["TXT", "PDF"].includes(label)).map(label => ({
+        label, run: () => void convertOther(label, "ebook_convert_file"),
+      })) : []),
+    ] :
+    kind === "office" ? [
+      ...(officeReady ? [{ label: "PDF", run: () => void convertDocument("pdf") }] : []),
+      ...(calibreReady && ["docx", "odt", "rtf"].includes(ext)
+        ? ebookTargets.filter(label => label !== "PDF").map(label => ({
+            label, run: () => void convertOther(label, "ebook_convert_file"),
+          })) : []),
+    ] :
+    kind === "spreadsheet" ? spreadsheetTargets.map(label => ({
+      label, run: () => void convertOther(label, "spreadsheet_convert"),
+    })) :
+    kind === "subtitle" ? subtitleTargets.map(label => ({
+      label, run: () => void convertOther(label, "subtitle_convert"),
+    })) :
+    kind === "ebook" && calibreReady ? ebookTargets.map(label => ({
+      label, run: () => void convertOther(label, "ebook_convert_file"),
+    })) : [];
+
   const description = file?.error ?? (loading ? "Reading file…"
-    : kind === "pdf" ? "PDF · Choose TXT, Markdown or HTML"
-    : kind === "office" ? officeReady ? "Office · Convert to PDF" : "PDF export requires LibreOffice"
-    : kind === "shortcut" ? "Shortcut · Use Actions to manage it"
-    : kind === "application" ? "Application · Use Actions to manage it"
-    : kind === "archive" ? "Archive · Use Tools to extract"
-    : isFolder ? "Folder · Use Tools to package it"
+    : kind === "pdf" ? "PDF · Text export"
+    : kind === "office" && !officeReady && !calibreReady ? "LibreOffice or Calibre required"
+    : kind === "ebook" && !calibreReady ? "Calibre required"
+    : (kind === "video" || kind === "audio") && !mediaReady ? "FFmpeg and FFprobe required"
+    : kind === "shortcut" || kind === "application" ? "Use Actions"
+    : kind === "archive" ? "Use Tools to extract"
+    : isFolder ? "Use Tools to archive the folder"
     : "No direct conversion for this file type");
-
-  // Show only actions with implemented local command handlers for this file type.
-  // No dummy PDF-to-DOCX or unsupported shortcut conversions are advertised.
-  const documentFormats: OrbitAction[] = kind === "pdf" && canConvert ? [
-    { label: "TXT", run: () => void convertDocument("txt") },
-    { label: "Markdown", run: () => void convertDocument("md") },
-    { label: "HTML", run: () => void convertDocument("html") },
-  ] : kind === "office" && canConvert && officeReady ? [
-    { label: "PDF", run: () => void convertDocument("pdf") },
-  ] : [];
-
   const innerActions: OrbitAction[] = tab === "convert"
-    ? documentFormats.length ? documentFormats
-      : (canConvert && mediaReady ? targets.slice(0, 5).map(target => ({
-          label: target, run: () => void convert(target),
-        })) : [])
+    ? convertActions.slice(0, 5)
     : tab === "tools" ? [
         ...(kind === "archive"
           ? ((isNativeZip || engines?.sevenZip) && canConvert
@@ -514,14 +544,12 @@ export default function Orbit() {
           ? [{ label: "Float", run: () => void act("float") }] : []),
       ] : [];
   const outerActions: OrbitAction[] = tab === "convert"
-    ? (canConvert && mediaReady ? targets.slice(5).map(target => ({
-        label: target, run: () => void convert(target),
-      })) : [])
+    ? convertActions.slice(5)
     : tab === "tools" ? [
         { label: kind === "pdf" || kind === "office" ? "Document tools" : "More tools", run: () => void openWorkspace() },
         ...(file && !file.error ? [{ label: isFolder ? "Open folder" : "Show file", run: () => void act("folder") }] : []),
         ...(file && !file.error && !isFolder && kind !== "shortcut" && kind !== "application" ? [{
-          label: "Split into parts", run: () => setSplitting(true),
+          label: "Split file", run: () => setSplitting(true),
         }] : []),
         ...(file?.name.toLowerCase().endsWith(".reformany.parts.json") ? [{
           label: "Join parts", run: () => void joinParts(),
@@ -540,9 +568,9 @@ export default function Orbit() {
         ] : []),
       ] : [];
 
-  const message = error || note || (phase === "ready" && tab === "convert" && innerActions.length === 0
-    ? (canConvert && !mediaReady ? "FFmpeg and FFprobe are required for media conversion." : description)
-    : null);
+  const message = error || note || (phase === "ready" && tab === "convert" &&
+    (convertActions.length === 0 || convertActions.every(a => Boolean(a.unavailable)))
+    ? description : null);
   const ringVisible = (phase === "ready" || phase === "failed") && !renaming && !splitting && !passwording;
 
   return (
