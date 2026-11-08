@@ -14,7 +14,7 @@ import MediaToolsPanel from "./MediaToolsPanel";
 import DataToolsPanel from "./DataToolsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
-import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
+import { getOrbitSoundsEnabled, setOrbitSoundsEnabled, getOrbitVolume, setOrbitVolume, previewOrbitSound } from "./orbitAudio";
 import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePreferences } from "./orbitMousePreferences";
 import DesktopChrome, { isWorkspacePage as isWorkspaceSection, isPreferencesPage as isPreferencesSection, type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
@@ -141,6 +141,7 @@ function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [language, setLanguage] = useState<LanguageCode>(getLanguage);
   const [orbitSounds, setOrbitSounds] = useState(getOrbitSoundsEnabled);
+  const [orbitVolume, setSavedOrbitVolume] = useState(getOrbitVolume);
   const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
   function updateOrbitMouse(changes: Partial<OrbitMousePreferences>) {
     setOrbitMouse(current => {
@@ -148,6 +149,10 @@ function App() {
       saveOrbitMousePreferences(next);
       return next;
     });
+  }
+  function updateOrbitVolume(value: number) {
+    setSavedOrbitVolume(value);
+    setOrbitVolume(value);
   }
   function toggleOrbitSounds() {
     const next = !orbitSounds;
@@ -466,6 +471,17 @@ function App() {
               <span className="orbit-switch-track" aria-hidden="true"><span className="orbit-switch-thumb"/></span>
               <span className="orbit-switch-state">{tx(orbitSounds ? "enabled" : "disabled")}</span>
             </button>
+            <div className="orbit-volume-control">
+              <label htmlFor="orbit-volume">Volume <output htmlFor="orbit-volume">{orbitVolume}%</output></label>
+              <div className="orbit-volume-row">
+                <input id="orbit-volume" type="range" min="0" max="100" step="5"
+                  value={orbitVolume} disabled={!orbitSounds}
+                  onChange={event => updateOrbitVolume(Number(event.target.value))}
+                  aria-label="Orbit sound volume" />
+                <button type="button" className="button secondary" disabled={!orbitSounds || orbitVolume === 0}
+                  onClick={previewOrbitSound}>Test sound</button>
+              </div>
+            </div>
           </div>
           <div className="preference-group">
             <h2>Orbit mouse control</h2>
