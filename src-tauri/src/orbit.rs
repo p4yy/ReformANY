@@ -56,7 +56,7 @@ fn classify_file(path: &Path) -> &'static str {
         "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aiff"|"aif"|"wma"|"aac"|"ac3"|"mka"|"caf"|"m4b"|"amr"|"au"|"dts" => "Audio",
         "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
         "pdf" => "PDF",
-        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp" => "Office",
+        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp"|"txt"|"html"|"htm" => "Office",
         "csv"|"tsv"|"json"|"xls"|"xlsx"|"ods" => "Spreadsheet",
         "srt"|"vtt" => "Subtitle",
         "epub"|"mobi"|"fb2"|"fbz"|"azw"|"azw3"|"cbz"|"cbr"|"cb7"|"htmlz" => "Ebook",
