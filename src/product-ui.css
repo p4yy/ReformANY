@@ -582,3 +582,11 @@ html[data-mode="main"] .guide-footer span{
   .welcome-orbit{transform:scale(.86);}
   .welcome-orbit-tabs{margin-top:-25px;}
 }
+
+
+/* Logical monitor-fit scaling; JS also resizes the native transparent window.
+   Transforming the entire menu keeps geometry and hit targets in sync. */
+html[data-mode="orbit"] .orbit-frame {
+  transform:scale(var(--orbit-fit,1));
+  transform-origin:top left;
+}
