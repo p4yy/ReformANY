@@ -483,12 +483,12 @@ Function MediaEnginePageCreate
   ${NSD_CreateLabel} 0 0 100% 30u "ReformANY uses FFmpeg and FFprobe to convert MP4, MKV, MOV, WebM, MP3, WAV, FLAC, and other supported formats."
   Pop $1
   SetCtlColors $1 e8eee4 171f19
-  ${NSD_CreateCheckbox} 0 43u 100% 24u "Download and install media conversion tools (about 109 MB)"
+  ${NSD_CreateCheckbox} 0 43u 100% 24u "Install built-in offline media conversion engine"
   Pop $MediaEngineCheckbox
   ${If} $MediaEngineOptIn == 1
     ${NSD_Check} $MediaEngineCheckbox
   ${EndIf}
-  ${NSD_CreateLabel} 0 77u 100% 60u "Recommended. Uses FFmpeg 9.0.2 from Gyan's reviewed Windows release. The download is checksum-verified and installed only inside ReformANY. An internet connection is required. You can skip this, but media conversions will not work unless both tools are available."
+  ${NSD_CreateLabel} 0 77u 100% 60u "Included with ReformANY. Verified FFmpeg and FFprobe run privately and offline. No separate download or setup required."
   Pop $1
   SetCtlColors $1 9eaf9f 171f19
   nsDialogs::Show
@@ -502,47 +502,23 @@ FunctionEnd
 ; Verify/extract via the PowerShell script bundled with ReformANY. Failed
 ; downloads never silently enable the conversion UI.
 Function InstallMediaEngines
-  ${If} $MediaEngineOptIn != 1
-    DetailPrint "Media engine component skipped by installer preference."
-    Return
-  ${EndIf}
-  IfFileExists "$INSTDIR\engines\ffmpeg.exe" 0 download_media
-  IfFileExists "$INSTDIR\engines\ffprobe.exe" media_installed download_media
-  media_installed:
-    DetailPrint "Existing private FFmpeg and FFprobe binaries detected."
-    Return
-
-  ; Reuse existing system-installed FFmpeg/FFprobe when both are present.
-  ; Query PATH without running binaries; the application performs its normal checks.
-  nsExec::ExecToStack '"$SYSDIR\where.exe" ffmpeg.exe'
-  Pop $R0
-  Pop $R1
-  ${If} $R0 == 0
-    nsExec::ExecToStack '"$SYSDIR\where.exe" ffprobe.exe'
-    Pop $R0
-    Pop $R1
-    ${If} $R0 == 0
-      DetailPrint "FFmpeg and FFprobe already present on PATH. No download required."
-      Return
-    ${EndIf}
-  ${EndIf}
-
-  download_media:
-    DetailPrint "Downloading and verifying FFmpeg 9.0.2 + FFprobe via Windows HTTPS..."
-    ; PowerShell handles modern TLS, redirects, bounded retries and SHA-256.
-    ; Do not use NSISdl for this large HTTPS download.
-    nsExec::ExecToLog '$"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe$" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $"$INSTDIR\installer\install-media-engines.ps1$" -TargetDir $"$INSTDIR\engines$" -LogPath $"$TEMP\reformany-media-install.log$"'
-    Pop $R0
-    ${If} $R0 != 0
-      DetailPrint "FFmpeg setup failed (exit code $R0)."
-      ${If} ${Silent}
-        SetErrorLevel 6
-        Quit
-      ${EndIf}
-      MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Media engine installation failed verification or extraction. Retry or continue without media conversion. See installation details for the error." IDRETRY download_media
-      Return
-    ${EndIf}
-    DetailPrint "FFmpeg and FFprobe are ready. Media conversion will work offline."
+  ; FFmpeg is bundled in the signed installer payload. Never contact the
+  ; network during installation; no PATH modification or system dependencies.
+  IfFileExists "$INSTDIR\installer\media-bundle\ffmpeg.exe" 0 media_bundle_missing
+  IfFileExists "$INSTDIR\installer\media-bundle\ffprobe.exe" 0 media_bundle_missing
+  CreateDirectory "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\ffmpeg.exe" "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\ffprobe.exe" "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\LICENSE" "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\SOURCE.txt" "$INSTDIR\engines"
+  IfFileExists "$INSTDIR\engines\ffmpeg.exe" 0 media_bundle_missing
+  IfFileExists "$INSTDIR\engines\ffprobe.exe" 0 media_bundle_missing
+  DetailPrint "Offline FFmpeg and FFprobe engine installed."
+  Return
+  media_bundle_missing:
+    DetailPrint "Bundled media engine missing; installation cannot proceed."
+    SetErrorLevel 6
+    Quit
 FunctionEnd
 
 Function ReformANYDarkGUI
