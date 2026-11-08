@@ -13,7 +13,7 @@ import OrbitNotice from "./OrbitNotice";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
 import {
   Archive, ArrowRightLeft, Bluetooth, Check, CheckCircle2, Clapperboard,
-  Copy, FileArchive, FileImage, FileSpreadsheet, FileText, FolderOpen,
+  Copy, FileImage, FileSpreadsheet, FileText, FolderOpen,
   Layers3, LoaderCircle, LockKeyhole, Music2, Package, PanelsTopLeft,
   Pencil, Scissors, ShieldCheck, Smartphone, SquareTerminal, Wrench, Zap,
   type LucideIcon,
