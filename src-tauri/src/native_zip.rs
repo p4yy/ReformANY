@@ -1,6 +1,7 @@
 use crate::external::{output_dir, publish, verify_input};
+use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
@@ -36,6 +37,7 @@ pub fn create_native_zip(
     let mut writer = ZipWriter::new(File::create(&archive_path).map_err(|e| e.to_string())?);
     let mut entry_count = 0usize;
     let mut total_bytes = 0u64;
+    let mut seen = HashSet::new();
     for source in paths {
         let path = Path::new(source);
         let base = path.file_name().and_then(|s| s.to_str()).ok_or("Invalid input name")?;
@@ -65,10 +67,19 @@ pub fn create_native_zip(
                 base.to_owned()
             };
             super::archives::validate_member_name(&name)?;
+            if !seen.insert(name.to_lowercase()) {
+                return Err(format!("Duplicate archive entry name: {name}"));
+            }
             writer.start_file(name, zip_options(password, level))
                 .map_err(|e| format!("Cannot add file to ZIP: {e}"))?;
-            std::io::copy(&mut File::open(&item).map_err(|e| e.to_string())?, &mut writer)
-                .map_err(|e| format!("Cannot compress file: {e}"))?;
+            let copied = std::io::copy(
+                &mut File::open(&item).map_err(|e| e.to_string())?
+                    .take(metadata.len().saturating_add(1)),
+                &mut writer,
+            ).map_err(|e| format!("Cannot compress file: {e}"))?;
+            if copied != metadata.len() {
+                return Err("A source file changed while creating the ZIP".into());
+            }
         }
     }
     if entry_count == 0 { return Err("No regular files were found to archive".into()); }
@@ -89,6 +100,7 @@ pub fn extract_native_zip(
     let stage = tempfile::Builder::new().prefix(".reformany-native-extract-")
         .tempdir_in(&folder).map_err(|e| e.to_string())?;
     let mut bytes = 0u64;
+    let mut seen = HashSet::new();
     for index in 0..zip.len() {
         let mut member = if let Some(password) = password {
             zip.by_index_decrypt(index, password.as_bytes())
@@ -97,6 +109,9 @@ pub fn extract_native_zip(
         }.map_err(|e| format!("Cannot read ZIP entry (password may be wrong): {e}"))?;
         let entry = member.enclosed_name().ok_or("Unsafe path in ZIP")?.to_path_buf();
         super::archives::validate_member_name(&entry.to_string_lossy())?;
+        if !seen.insert(entry.to_string_lossy().replace('\\', "/").trim_end_matches('/').to_lowercase()) {
+            return Err("ZIP contains duplicate paths which may overwrite each other".into());
+        }
         if member.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000) {
             return Err("Symbolic links in ZIP archives are blocked".into());
         }
@@ -159,6 +174,37 @@ mod tests {
         let extracted = extract_native_zip(&path, Some(&dir.path().to_string_lossy()), Some("CorrectHorseBattery")).unwrap();
         assert_eq!(fs::read(Path::new(&extracted).join("hello.txt")).unwrap(), b"Some important content");
         assert_eq!(fs::read(input).unwrap(), b"Some important content");
+    }
+
+    #[test]
+    fn refuses_two_sources_with_the_same_archive_name() {
+        let folder = tempfile::tempdir().unwrap();
+        let first = folder.path().join("first");
+        let second = folder.path().join("second");
+        fs::create_dir(&first).unwrap();
+        fs::create_dir(&second).unwrap();
+        fs::write(first.join("report.txt"), b"one").unwrap();
+        fs::write(second.join("report.txt"), b"two").unwrap();
+        let inputs = vec![
+            first.join("report.txt").to_string_lossy().into_owned(),
+            second.join("report.txt").to_string_lossy().into_owned(),
+        ];
+        let result = create_native_zip(&inputs, "Reports", Some(&folder.path().to_string_lossy()), None, 5);
+        assert!(result.is_err());
+        assert!(!folder.path().join("Reports.zip").exists());
+    }
+
+    #[test]
+    fn refuses_duplicate_names_inside_a_zip() {
+        let folder = tempfile::tempdir().unwrap();
+        let source = folder.path().join("duplicate.zip");
+        let mut writer = ZipWriter::new(File::create(&source).unwrap());
+        for data in [b"first" as &[u8], b"second"] {
+            writer.start_file("duplicate.txt", SimpleFileOptions::default()).unwrap();
+            writer.write_all(data).unwrap();
+        }
+        writer.finish().unwrap();
+        assert!(extract_native_zip(&source.to_string_lossy(), None, None).is_err());
     }
 
     #[test]
