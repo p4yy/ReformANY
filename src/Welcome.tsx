@@ -1,8 +1,5 @@
 import { useRef, useState } from "react";
-import {
-  ArrowRight, Archive, Check, Copy, FileImage, FolderOpen, LockKeyhole,
-  MousePointer2, Pencil, ShieldCheck, Terminal, WandSparkles,
-} from "lucide-react";
+import { ArrowRight, LockKeyhole, MousePointer2, ShieldCheck } from "lucide-react";
 import { appIcon } from "./brand";
 import "./welcome.css";
 
@@ -25,23 +22,50 @@ const orbitTabs: { id: OrbitTab; label: string }[] = [
   { id: "actions", label: "Actions" },
 ];
 
-const demoItems: Record<OrbitTab, { label: string; icon: typeof FileImage }[]> = {
-  convert: [
-    { label: "WebP", icon: FileImage },
-    { label: "JPEG", icon: FileImage },
-    { label: "PNG", icon: FileImage },
-  ],
-  tools: [
-    { label: "Create ZIP", icon: Archive },
-    { label: "Show file", icon: FolderOpen },
-    { label: "More", icon: ArrowRight },
-  ],
-  actions: [
-    { label: "Rename", icon: Pencil },
-    { label: "Copy path", icon: Copy },
-    { label: "Terminal", icon: Terminal },
-  ],
+type DemoSegments = { inner: string[]; outer: string[] };
+const demoRings: Record<OrbitTab, DemoSegments> = {
+  convert: { inner: ["PNG", "JPEG", "WebP", "BMP"], outer: ["GIF", "TIFF"] },
+  tools: { inner: ["ZIP", "7z"], outer: ["Split file", "Password ZIP", "More tools"] },
+  actions: {
+    inner: ["Rename", "Copy path", "Terminal", "Float"],
+    outer: ["Show file", "Copy file", "Bluetooth"],
+  },
 };
+
+// Geometry mirrors the real Orbit: annular wedges, a separated hub and two tiers.
+// The illustration does not run file operations; it previews their layout.
+function demoPoint(radius: number, degrees: number) {
+  const radians = (degrees - 90) * Math.PI / 180;
+  return { x: 280 + Math.cos(radians) * radius, y: 280 + Math.sin(radians) * radius };
+}
+function demoSector(inner: number, outer: number, start: number, end: number) {
+  const a = demoPoint(outer, start), b = demoPoint(outer, end);
+  const c = demoPoint(inner, end), d = demoPoint(inner, start);
+  return `M ${a.x} ${a.y} A ${outer} ${outer} 0 ${end - start > 180 ? 1 : 0} 1 ${b.x} ${b.y} L ${c.x} ${c.y} A ${inner} ${inner} 0 ${end - start > 180 ? 1 : 0} 0 ${d.x} ${d.y} Z`;
+}
+function DemoRing({ labels, inner, outer }: { labels: string[]; inner: number; outer: number }) {
+  return <g>
+    {labels.map((label, index) => {
+      const step = 360 / labels.length;
+      const start = labels.length === 1 ? -68 : index * step + 1.2;
+      const end = labels.length === 1 ? 68 : (index + 1) * step - 1.2;
+      const position = demoPoint((inner + outer) / 2, (start + end) / 2);
+      const words = label.split(" ");
+      const lines = label.length > 10 && words.length > 1
+        ? [words.slice(0, Math.ceil(words.length / 2)).join(" "),
+          words.slice(Math.ceil(words.length / 2)).join(" ")] : [label];
+      return <g key={label} className="welcome-radial-sector">
+        <path d={demoSector(inner, outer, start, end)} />
+        <text x={position.x} y={position.y} textAnchor="middle" dominantBaseline="middle">
+          {lines.map((line, lineIndex) => (
+            <tspan key={line} x={position.x}
+              dy={lineIndex === 0 ? (lines.length === 2 ? -6 : 0) : 15}>{line}</tspan>
+          ))}
+        </text>
+      </g>;
+    })}
+  </g>;
+}
 
 export default function Welcome({ onFinish }: { onFinish: () => void }) {
   const [tab, setTab] = useState<OrbitTab>("convert");
@@ -94,40 +118,31 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
             <span>THREE QUICK SECTIONS</span>
           </div>
           <div className="welcome-orbit-stage">
-            <div className="welcome-orbit-halo" aria-hidden="true"/>
-            <div className="welcome-orbit" ref={orbitRef} tabIndex={-1} aria-label="Orbit three-section interactive preview">
-              <div className="welcome-orbit-brand"><img src={appIcon} alt="" width="24" height="24"/> ReformANY <span>Orbit</span></div>
-              <div className="welcome-orbit-file">
-                <div className="welcome-orbit-file-icon"><FileImage size={27} strokeWidth={1.35}/></div>
-                <strong>sample.png</strong>
-                <small>IMAGE · PREVIEW</small>
+            <div className="welcome-orbit" ref={orbitRef} tabIndex={-1}
+              id="welcome-orbit-panel" role="tabpanel" aria-labelledby={`welcome-orbit-tab-${tab}`}>
+              <svg className="welcome-radial-rings" viewBox="0 0 560 560"
+                role="img" aria-label="Illustration of the two-ring Orbit menu">
+                <DemoRing labels={demoRings[tab].outer} inner={187} outer={264} />
+                <DemoRing labels={demoRings[tab].inner} inner={106} outer={179} />
+                <circle className="welcome-radial-hub-outline" cx={280} cy={280} r={99}/>
+              </svg>
+              <div className="welcome-radial-hub">
+                <img src={appIcon} alt="" width={28} height={28}/>
+                <strong>{tab === "convert" ? "Convert" : tab === "tools" ? "Tools" : "Actions"}</strong>
+                <small>sample.png</small>
+                <span>Esc · close</span>
               </div>
-              <div className="welcome-orbit-tabs" role="tablist" aria-label="Orbit preview sections">
-                {orbitTabs.map(item => (
-                  <button
-                    type="button"
-                    key={item.id}
-                    role="tab"
-                    aria-selected={tab === item.id}
-                    aria-controls="welcome-orbit-panel"
-                    className={tab === item.id ? "active" : ""}
-                    onClick={() => setTab(item.id)}
-                  >{item.label}</button>
-                ))}
-              </div>
-              <div className="welcome-orbit-panel" id="welcome-orbit-panel" role="tabpanel">
-                <div className="welcome-orbit-hint">{tab === "convert" ? "QUICK CONVERT" : tab === "tools" ? "FILE TOOLS" : "FILE ACTIONS"}</div>
-                <div className="welcome-orbit-buttons">
-                  {demoItems[tab].map(item => {
-                    const Icon = item.icon;
-                    return <span key={item.label}><Icon size={13}/>{item.label}</span>;
-                  })}
-                </div>
-              </div>
-              <div className="welcome-orbit-bottom"><span><Check size={12}/> LOCAL</span><span>Open ReformANY <ArrowRight size={11}/></span></div>
+            </div>
+            <div className="welcome-orbit-tabs" role="tablist" aria-label="Orbit preview sections">
+              {orbitTabs.map(item => (
+                <button type="button" key={item.id} id={`welcome-orbit-tab-${item.id}`}
+                  role="tab" aria-selected={tab === item.id}
+                  aria-controls="welcome-orbit-panel" className={tab === item.id ? "active" : ""}
+                  onClick={() => setTab(item.id)}>{item.label}</button>
+              ))}
             </div>
           </div>
-          <p className="welcome-demo-caption"><WandSparkles size={14}/> Orbit preview. Right-click a file in Explorer to open it.</p>
+          <p className="welcome-demo-caption"><WandSparkles size={14}/> Preview of Orbit. Available actions depend on the file and installed engines.</p>
         </section>
       </div>
 
