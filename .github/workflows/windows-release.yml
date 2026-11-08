@@ -32,6 +32,12 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build frontend
         run: npm run build
+      # Stage the real FFmpeg and FFprobe executables BEFORE any Tauri/Rust build.
+      # The user-facing setup EXE and runtime operate entirely offline.
+      - name: Prepare verified bundled FFmpeg and FFprobe
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/prepare-media-bundle.ps1
       # Tauri's Windows unit test EXEs lack Common Controls v6 by default.
       # Compile, embed the test-only manifest, then run the actual tests.
       - name: Compile Windows Rust tests
