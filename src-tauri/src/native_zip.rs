@@ -215,5 +215,7 @@ mod tests {
         let output = create_native_zip(&[input.to_string_lossy().to_string()],
             "Private", Some(&dir.path().to_string_lossy()), Some("GoodPassword"), 5).unwrap();
         assert!(extract_native_zip(&output, None, None).is_err());
+        assert!(extract_native_zip(&output, None, Some("IncorrectPassword")).is_err());
+        assert!(extract_native_zip(&output, None, Some("GoodPassword")).is_ok());
     }
 }
