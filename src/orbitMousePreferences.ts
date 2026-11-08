@@ -7,6 +7,8 @@ export type OrbitMousePreferences = {
   firstSection: OrbitSection;
   scrollSections: boolean;
   pointerSpinner: boolean;
+  gestureShake: boolean;
+  gestureScroll: boolean;
 };
 
 const KEY = "reformany.orbit.mouse.v1";
@@ -14,6 +16,8 @@ const DEFAULTS: OrbitMousePreferences = {
   firstSection: "convert",
   scrollSections: true,
   pointerSpinner: true,
+  gestureShake: false,
+  gestureScroll: false,
 };
 
 export function readOrbitMousePreferences(): OrbitMousePreferences {
@@ -26,6 +30,8 @@ export function readOrbitMousePreferences(): OrbitMousePreferences {
         ? data.firstSection as OrbitSection : DEFAULTS.firstSection,
       scrollSections: typeof data.scrollSections === "boolean" ? data.scrollSections : DEFAULTS.scrollSections,
       pointerSpinner: typeof data.pointerSpinner === "boolean" ? data.pointerSpinner : DEFAULTS.pointerSpinner,
+      gestureShake: data.gestureShake === true,
+      gestureScroll: data.gestureScroll === true,
     };
   } catch {
     return { ...DEFAULTS };
