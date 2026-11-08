@@ -256,6 +256,7 @@ export default function Orbit() {
             <strong>{selected} · Working…</strong>
             <div className="orbit-indeterminate"><span/></div>
             <small>Processing locally</small>
+            {kind === "image" && <button className="orbit-cancel" onClick={() => void cancel()}>Cancel</button>}
           </div> : <>
             {tab === "convert" && <div className="orbit-controls">
               <span className="orbit-legend">QUICK CONVERT</span>

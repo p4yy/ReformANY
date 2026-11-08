@@ -164,16 +164,18 @@ pub async fn orbit_open_workspace(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn reveal_output(path: String) -> Result<(), String> {
     let file = Path::new(&path);
-    if !file.is_file() {
-        return Err("Converted file no longer exists".into());
+    if !file.is_file() && !file.is_dir() {
+        return Err("Selected output no longer exists".into());
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("explorer.exe")
-            .arg("/select,")
-            .arg(file)
-            .spawn()
-            .map_err(|_| "Could not open File Explorer".to_owned())?;
+        let mut explorer = std::process::Command::new("explorer.exe");
+        if file.is_file() {
+            explorer.arg("/select,").arg(file);
+        } else {
+            explorer.arg(file);
+        }
+        explorer.spawn().map_err(|_| "Could not open File Explorer".to_owned())?;
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]
