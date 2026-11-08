@@ -14,7 +14,23 @@ pub struct EngineStatus {
     pub winrar: bool,
 }
 
+/// Prefer audited executables shipped alongside the installed application.
+/// No network lookup or download is performed at runtime.
+fn bundled_binary(name: &str) -> Option<PathBuf> {
+    if !matches!(name, "ffmpeg" | "ffprobe") { return None; }
+    let executable = if cfg!(windows) { format!("{name}.exe") } else { name.to_owned() };
+    let app_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    for path in [
+        app_dir.join("engines").join(&executable),
+        app_dir.join(&executable),
+    ] {
+        if path.is_file() { return Some(path); }
+    }
+    None
+}
+
 pub fn find_binary(name: &str) -> Option<PathBuf> {
+    if let Some(binary) = bundled_binary(name) { return Some(binary); }
     // Windows installers commonly use these locations. PATH resolution is
     // supported but no untrusted file name becomes an executable command.
     let locations: &[&str] = match name {
