@@ -20,7 +20,7 @@ The **NSIS installer** registers the classic Explorer verb `ReformANY Orbit` for
 
 ## Conversion behavior
 
-- JPEG, PNG, WebP, BMP only in this release.
+- Quick-choice buttons: JPEG, PNG, WebP and BMP. The full workspace additionally supports static GIF and single-page TIFF.
 - Uses the same verified Rust `convert_batch` pipeline as the main app.
 - Source is never overwritten; conversion outputs are saved alongside originals with collision suffixes.
 - Clicking a format starts conversion; hover merely highlights it.

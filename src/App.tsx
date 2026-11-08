@@ -247,7 +247,7 @@ function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="side-note"><span className="status-dot"/> Local processing<br/><span className="side-note-sub">Your files stay on this device.</span></div>
-          <div className="sidebar-version">ReformANY <span>0.2.0 · Preview</span></div>
+          <div className="sidebar-version">ReformANY <span>0.3.0 · Preview</span></div>
         </div>
       </aside>
       <main className="main">

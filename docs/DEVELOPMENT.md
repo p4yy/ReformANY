@@ -22,12 +22,12 @@ Note: `npm run tauri build` is configured to produce a Windows NSIS installer. A
 
 ## Manual QA checklist
 
-- [ ] Import each supported raster type.
+- [ ] Import each supported raster type (PNG, JPEG, WebP, BMP, static GIF, single-page TIFF).
 - [ ] Convert each input type into each available output type, then open output in another viewer.
 - [ ] Verify alpha compositing to selected matte when encoding JPEG/BMP.
 - [ ] Verify original is not modified when output format matches input format.
 - [ ] Convert duplicate basenames without overwriting earlier output.
-- [ ] Test corrupt image, permission failures, nonexistent output directory, and 150 MB limit.
+- [ ] Test corrupt images, animated GIF/WebP/APNG rejection, multipage TIFF rejection, folder scanning cap, permission failures, nonexistent output directory, and 150 MB limit.
 - [ ] Run multiple conversions and cancel while queued.
 - [ ] Inspect DPI scaling, keyboard interactions, dark theme and focus states.
 

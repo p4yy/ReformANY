@@ -28,3 +28,11 @@ If a step fails, the temporary file is cleaned up. A retry can add the same file
 ## Unfinished production work
 
 Implement restart-safe history, better resource accounting, metadata/ICC handling, orientation policies, Windows Installer artifacts, security review, accessibility testing, and richer format adapters. The app is a functional first slice, not a universal converter yet.
+
+## 0.3.0 additions
+
+- `scan.rs`: bounded directory walk for image import; no traversal of symlinks, 300-file / 20,000-entry cap, run on a blocking worker.
+- `conversion.rs`: six-format image registry, explicit animation/multipage rejection, optional downscaling / rotation / grayscale, decoded-output verification, and asynchronous bounded queue scheduling.
+- `App.tsx`: optional user-selected transforms and on-device last-100 activity records with a clear-history control. The history uses WebView localStorage and is not remotely synced.
+
+Orbit continues to use the same engine with original-size options; its four quick-choice buttons are intentionally a small subset of the full image conversion selector.
