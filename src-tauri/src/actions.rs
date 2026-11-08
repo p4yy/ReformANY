@@ -1,4 +1,6 @@
 use serde::Serialize;
+use std::sync::Mutex;
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -84,6 +86,71 @@ pub fn send_bluetooth(path: String) -> Result<String, String> {
         let _ = file;
         Err("Bluetooth transfer integration is available on Windows".into())
     }
+}
+
+/// At most one floating preview. Never expose file paths in a window URL.
+#[derive(Default)]
+pub struct FloatRegistry(pub Mutex<Option<String>>);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FloatInfo {
+    path: String,
+    name: String,
+    bytes: u64,
+}
+
+#[tauri::command]
+pub fn float_file_context(state: State<'_, FloatRegistry>) -> Result<Option<FloatInfo>, String> {
+    let path = state.0.lock().map_err(|_| "Preview state is unavailable")?
+        .clone();
+    let Some(path) = path else { return Ok(None); };
+    let file = Path::new(&path);
+    let metadata = fs::metadata(file).map_err(|_| "Floating file no longer exists".to_owned())?;
+    Ok(Some(FloatInfo {
+        name: file.file_name().map(|v| v.to_string_lossy().into_owned())
+            .unwrap_or("Selected file".into()),
+        path, bytes: metadata.len(),
+    }))
+}
+
+#[tauri::command]
+pub fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: String) -> Result<(), String> {
+    let input = Path::new(&path);
+    crate::external::verify_input(input, false)?;
+    {
+        let mut current = state.0.lock().map_err(|_| "Preview state is unavailable")?;
+        *current = Some(path);
+    }
+    if let Some(existing) = app.get_webview_window("float") {
+        existing.close().map_err(|e| e.to_string())?;
+    }
+    WebviewWindowBuilder::new(&app, "float", WebviewUrl::App("index.html".into()))
+        .title("ReformANY Float")
+        .inner_size(365.0, 410.0)
+        .min_inner_size(290.0, 310.0)
+        .resizable(true)
+        .always_on_top(true)
+        .center()
+        .focused(true)
+        .build()
+        .map_err(|e| format!("Cannot open floating preview: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn copy_file_to(path: String, destination: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let input = Path::new(&path);
+        crate::external::verify_input(input, false)?;
+        let folder = Path::new(&destination);
+        if !folder.is_dir() { return Err("Choose an existing destination folder".into()); }
+        let stem = input.file_stem().and_then(|s| s.to_str())
+            .ok_or("Filename cannot be copied")?;
+        let extension = input.extension().and_then(|s| s.to_str()).unwrap_or("copy");
+        crate::external::publish(input, folder, stem, extension)
+            .map(|v| v.to_string_lossy().into_owned())
+    }).await.map_err(|_| "File copy worker failed".to_owned())?
 }
 
 #[cfg(test)]
