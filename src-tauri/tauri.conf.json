@@ -35,6 +35,9 @@
       "webviewInstallMode": {
         "type": "offlineInstaller"
       }
+    },
+    "resources": {
+      "installer/install-media-engines.ps1": "installer/install-media-engines.ps1"
     }
   }
 }
