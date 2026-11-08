@@ -140,3 +140,9 @@ body { color: var(--text); }
 .check-field small {font-size:10px;color:var(--muted)}
 .options-note {font-size:10px;line-height:1.6;padding-top:3px}
 @media(max-width:950px) {.advanced-grid {grid-template-columns:1fr} .row-actions {gap:9px}}
+
+.activity-heading {display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;gap:18px;}
+.activity-heading h1 {margin-bottom:7px;}
+.activity-heading .text-action {padding-top:8px}
+.activity-item > .text-action {white-space:nowrap;flex-shrink:0}
+@media(max-width:860px){.activity-heading{align-items:center}.activity-item{flex-wrap:wrap}}

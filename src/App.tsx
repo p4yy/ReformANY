@@ -26,6 +26,15 @@ type Row = FileInfo & {
   status: Status;
   outputPath: string | null;
 };
+type HistoryEntry = {
+  id: string;
+  name: string;
+  target: Target;
+  outputPath: string | null;
+  error: string | null;
+  status: "completed" | "failed" | "cancelled";
+  timestamp: number;
+};
 type ConversionEvent = {
   id: string;
   status: Status | "batch-finished";
@@ -54,6 +63,17 @@ function Mark({ size = 34 }: { size?: number }) {
 function App() {
   const [page, setPage] = useState<Page>("convert");
   const [rows, setRows] = useState<Row[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => {
+    try {
+      const value: unknown = JSON.parse(localStorage.getItem("reformany.history") || "[]");
+      if (!Array.isArray(value)) return [];
+      return value.filter((entry): entry is HistoryEntry =>
+        typeof entry === "object" && entry !== null &&
+        typeof entry.id === "string" && typeof entry.name === "string" &&
+        typeof entry.timestamp === "number" && ["completed", "failed", "cancelled"].includes(entry.status)
+      ).slice(0, 100);
+    } catch { return []; }
+  });
   const [destination, setDestination] = useState<string | null>(null);
   const [quality, setQuality] = useState(86);
   const [matte, setMatte] = useState<"white" | "black">("white");
@@ -75,6 +95,25 @@ function App() {
     localStorage.setItem("reformany.theme", theme);
     localStorage.setItem("reformany.accent", accent);
   }, [theme, accent]);
+
+  useEffect(() => {
+    const records: HistoryEntry[] = rows.filter((row): row is Row & { status: "completed" | "failed" | "cancelled" } =>
+      row.status === "completed" || row.status === "failed" || row.status === "cancelled"
+    ).map(row => ({
+      id: row.id, name: row.name, target: row.target, outputPath: row.outputPath,
+      error: row.error, status: row.status, timestamp: Date.now(),
+    }));
+    if (!records.length) return;
+    setHistory(previous => {
+      const ids = new Set(previous.map(entry => entry.id));
+      const additions = records.filter(entry => !ids.has(entry.id));
+      return additions.length ? [...additions, ...previous].slice(0, 100) : previous;
+    });
+  }, [rows]);
+
+  useEffect(() => {
+    try { localStorage.setItem("reformany.history", JSON.stringify(history)); } catch { /* Storage is optional. */ }
+  }, [history]);
 
   const addPaths = useCallback(async (paths: string[]) => {
     if (!paths.length) return;
@@ -186,7 +225,7 @@ function App() {
         <div className="nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
           <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> Convert</button>
-          <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")}><Clock3 size={18}/> Activity {processed > 0 && <span className="nav-count">{processed}</span>}</button>
+          <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")}><Clock3 size={18}/> Activity {history.length > 0 && <span className="nav-count">{history.length}</span>}</button>
         </nav>
         <div className="nav-label nav-label-spaced">PREFERENCES</div>
         <nav aria-label="Preferences">
@@ -279,12 +318,19 @@ function App() {
         </div>}
 
         {page === "activity" && <div className="content page-panel">
-          <div className="eyebrow">THIS SESSION</div><h1>Activity</h1><p>Conversion results from your current workspace.</p>
-          {rows.filter(row => row.status === "completed" || row.status === "failed" || row.status === "cancelled").length ?
-            <div className="activity-list">{rows.filter(row => row.status === "completed" || row.status === "failed" || row.status === "cancelled").map(row =>
-              <div className="activity-item" key={row.id}><div className={`activity-symbol ${row.status}`}>{row.status === "completed" ? <Check size={18}/> : <CircleAlert size={18}/>}</div>
-                <div><strong>{row.name}</strong><small>{row.outputPath || row.error || row.status}</small></div><span>{row.status}</span></div>)}</div> :
-            <div className="blank-state"><Clock3 size={25}/><strong>No activity yet</strong><p>Converted files and any errors will show here.</p><button className="button secondary" onClick={() => setPage("convert")}>Go to converter</button></div>}
+          <div className="eyebrow">LOCAL HISTORY</div>
+          <div className="activity-heading"><div><h1>Activity</h1><p>Recent conversions, saved on this device.</p></div>
+            {history.length > 0 && <button className="text-action" onClick={() => setHistory([])}><Trash2 size={15}/> Clear history</button>}
+          </div>
+          {history.length > 0 ?
+            <div className="activity-list">{history.map(item =>
+              <div className="activity-item" key={item.id}><div className={`activity-symbol ${item.status}`}>{item.status === "completed" ? <Check size={18}/> : <CircleAlert size={18}/>}</div>
+                <div><strong>{item.name}</strong><small>{item.outputPath || item.error || item.status}</small>
+                  <small>{new Date(item.timestamp).toLocaleString()} · {item.target.toUpperCase()}</small></div>
+                {item.outputPath && <button className="text-action" aria-label={`Reveal ${item.name}`} onClick={() => void invoke("reveal_output", { path: item.outputPath }).catch(error => setNotice(String(error)))}><Folder size={15}/> Show</button>}
+                <span>{item.status}</span>
+              </div>)}</div> :
+            <div className="blank-state"><Clock3 size={25}/><strong>No activity yet</strong><p>Converted files and any errors will show here, including after restarting the app.</p><button className="button secondary" onClick={() => setPage("convert")}>Go to converter</button></div>}
         </div>}
 
         {page === "appearance" && <div className="content page-panel">
