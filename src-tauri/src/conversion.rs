@@ -78,7 +78,10 @@ impl TransformOptions {
             _ => image,
         };
         if let Some(edge) = self.max_dimension {
-            image = image.thumbnail(edge, edge);
+            // thumbnail() can enlarge a smaller image; explicitly avoid upscaling.
+            if image.width() > edge || image.height() > edge {
+                image = image.thumbnail(edge, edge);
+            }
         }
         if self.grayscale {
             image = image.grayscale();
