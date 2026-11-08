@@ -152,7 +152,8 @@ export default function Orbit() {
     // Keep the entire circle, section tabs and status visible above the taskbar.
     const availableWidth = Math.max(320, window.screen.availWidth - 32);
     const availableHeight = Math.max(350, window.screen.availHeight - 32);
-    const factor = Math.min(1, availableWidth / 560, availableHeight / 560);
+    // Compact 440px Orbit: preserve the 560-unit sector geometry and scale the whole UI.
+    const factor = Math.min(440 / 560, availableWidth / 560, availableHeight / 560);
     document.documentElement.style.setProperty("--orbit-fit", String(factor));
     if (factor < 0.999) {
       void getCurrentWindow().setSize(new LogicalSize(
