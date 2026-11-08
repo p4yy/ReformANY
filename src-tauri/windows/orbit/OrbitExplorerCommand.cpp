@@ -6,6 +6,7 @@
 #define _UNICODE
 #include <windows.h>
 #include <shobjidl.h>
+#include <shlobj.h>
 #include <shlwapi.h>
 #include <atomic>
 #include <new>
@@ -69,7 +70,7 @@ class OrbitCommand final : public IExplorerCommand {
 
 public:
     OrbitCommand() { ++g_instances; }
-    ~OrbitCommand() override { --g_instances; }
+    ~OrbitCommand() { --g_instances; }
 
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** object) override {
         if (!object) return E_POINTER;
@@ -128,6 +129,7 @@ public:
         result = item->GetDisplayName(SIGDN_FILESYSPATH, &raw_path);
         item->Release();
         if (FAILED(result)) return result;
+        if (!raw_path) return E_FAIL;
         const std::wstring selected_path(raw_path);
         CoTaskMemFree(raw_path);
 
@@ -167,7 +169,7 @@ class OrbitFactory final : public IClassFactory {
     std::atomic<ULONG> references_{1};
 public:
     OrbitFactory() { ++g_instances; }
-    ~OrbitFactory() override { --g_instances; }
+    ~OrbitFactory() { --g_instances; }
 
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** object) override {
         if (!object) return E_POINTER;
