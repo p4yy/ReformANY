@@ -37,7 +37,8 @@
       }
     },
     "resources": {
-      "installer/install-media-engines.ps1": "installer/install-media-engines.ps1"
+      "installer/install-media-engines.ps1": "installer/install-media-engines.ps1",
+      "installer/media-bundle/": "installer/media-bundle/"
     }
   }
 }
