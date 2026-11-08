@@ -209,6 +209,7 @@ fn convert_with_monitor(job: MediaJob, cancellation: Option<Arc<AtomicBool>>,
     Ok(output)
 }
 
+#[cfg(test)]
 fn convert(job: MediaJob) -> Result<String, String> {
     convert_with_monitor(job,None,None)
 }
