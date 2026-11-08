@@ -172,7 +172,8 @@ export default function Orbit() {
   const [renaming, setRenaming] = useState(false);
   const [renameBusy, setRenameBusy] = useState(false);
   const [splitting, setSplitting] = useState(false);
-  const [partSize, setPartSize] = useState("100");
+  const [partSize, setPartSize] = useState("5");
+  const [pdfSplitMode, setPdfSplitMode] = useState<"size" | "parts" | "pages">("size");
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
   const [newName, setNewName] = useState("");
@@ -460,18 +461,31 @@ export default function Orbit() {
 
   async function splitFile() {
     if (!file || isFolder) return;
-    const size = Number(partSize);
-    if (!Number.isInteger(size) || size < 1 || size > 4096) {
-      setError("Part size must be between 1 and 4096 MB");
+    const value = Number(partSize);
+    const min = kind === "pdf" && pdfSplitMode === "parts" ? 2 : 1;
+    if (!Number.isInteger(value) || value < min || value > 4096) {
+      setError("Choose a valid PDF split setting or binary volume size");
       return;
     }
-    setSplitting(false); setPhase("processing"); setSelected("Split");
+    setSplitting(false); setPhase("processing"); setSelected(kind === "pdf" ? "Split PDF" : "Split binary file");
     setError(null); setNote(null); setOutput(null);
     try {
-      const result = await invoke<{ manifestPath: string }>("file_split", {
-        path: file.path, destination: null, partMegabytes: size,
-      });
-      setOutput(result.manifestPath); setPhase("completed");
+      if (kind === "pdf") {
+        const result = await invoke<{ outputPaths: string[]; oversizedPages: number[] }>("pdf_split", {
+          path: file.path, destination: null, mode: pdfSplitMode, value,
+        });
+        if (!result.outputPaths.length) throw new Error("PDF splitter returned no files");
+        setOutput(result.outputPaths[0]);
+        setNote(`Created ${result.outputPaths.length} standalone PDFs` +
+          (result.oversizedPages.length ? `; pages ${result.oversizedPages.join(", ")} exceed the target size` : ""));
+      } else {
+        const result = await invoke<{ manifestPath: string }>("file_split", {
+          path: file.path, destination: null, partMegabytes: value,
+        });
+        setOutput(result.manifestPath);
+        setNote("Binary part files need ReformANY Join Parts; they are not standalone documents.");
+      }
+      setPhase("completed");
     } catch (reason) { setError(String(reason)); setPhase("failed"); }
   }
 
@@ -621,7 +635,7 @@ export default function Orbit() {
         { label: kind === "pdf" || kind === "office" ? "Document tools" : "More tools", run: () => void openWorkspace() },
         ...(file && !file.error ? [{ label: isFolder ? "Open folder" : "Show file", run: () => void act("folder") }] : []),
         ...(file && !file.error && !isFolder && kind !== "shortcut" && kind !== "application" ? [{
-          label: "Split file", run: () => setSplitting(true),
+          label: kind === "pdf" ? "Split PDF" : "Split binary file", run: () => setSplitting(true),
         }] : []),
         ...(file?.name.toLowerCase().endsWith(".reformany.parts.json") ? [{
           label: "Join parts", run: () => void joinParts(),
@@ -674,7 +688,7 @@ export default function Orbit() {
         <div className="orbit-hub">
           {(splitting || passwording || renaming) ? <>
             <img className="orbit-logo" src={appIcon} alt="ReformANY"/>
-            <strong>{renaming ? "Rename" : splitting ? "Split file" : "Password ZIP"}</strong>
+            <strong>{renaming ? "Rename" : splitting ? (kind === "pdf" ? "Split PDF" : "Split binary file") : "Password ZIP"}</strong>
           </> : phase === "processing" ? <>
             <LoaderCircle size={26} className="orbit-spinner" aria-hidden="true" />
             <strong>{selected} · Working</strong>
@@ -726,6 +740,7 @@ export default function Orbit() {
         onDismiss={() => { setError(null);setNote(null); }}/>}
       {(renaming || splitting || passwording) && file && <OrbitActionDialog
         kind={renaming ? "rename" : splitting ? "split" : "password"}
+        splitPdf={kind === "pdf"} splitMode={pdfSplitMode} onSplitMode={setPdfSplitMode}
         name={file.name} bytes={formatSize(file.bytes)}
         busy={renaming && renameBusy} error={error || undefined}
         value={renaming ? newName : splitting ? partSize : archivePassword}
