@@ -244,3 +244,15 @@ html[dir="rtl"] input[type="number"],html[dir="rtl"] input[type="range"] {direct
 html[dir="rtl"] .orbit-sound-switch.is-on .orbit-switch-thumb {transform:translateX(-18px)}
 @media(prefers-reduced-motion:reduce) {.orbit-switch-track,.orbit-switch-thumb {transition:none}}
 @media(max-width:660px) {.preference-sounds{align-items:flex-start;flex-wrap:wrap;gap:13px}}
+
+
+/* Orbit mouse controls — match the existing understated preferences UI. */
+.orbit-mouse-preferences {margin-top:20px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.orbit-mouse-setting {display:flex;align-items:center;justify-content:space-between;gap:24px;padding:17px 19px;border-bottom:1px solid var(--line)}
+.orbit-mouse-setting:last-child {border-bottom:0}
+.orbit-mouse-setting>span {display:flex;flex-direction:column;gap:5px;min-width:0}
+.orbit-mouse-setting strong {font-size:12px;font-weight:650;color:var(--text)}
+.orbit-mouse-setting small {font-size:10.5px;line-height:1.55;color:var(--muted)}
+.orbit-mouse-setting select {flex-shrink:0;min-width:120px;background:var(--soft);border:1px solid var(--strong-line);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px}
+.orbit-mouse-setting input[type=checkbox] {flex-shrink:0;width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
+@media(max-width:700px) {.orbit-mouse-setting{align-items:flex-start;gap:12px;flex-wrap:wrap}}

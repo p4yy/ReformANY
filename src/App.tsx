@@ -14,6 +14,7 @@ import MediaToolsPanel from "./MediaToolsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
+import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import Welcome, { shouldShowWelcome } from "./Welcome";
 
@@ -137,6 +138,14 @@ function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [language, setLanguage] = useState<LanguageCode>(getLanguage);
   const [orbitSounds, setOrbitSounds] = useState(getOrbitSoundsEnabled);
+  const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
+  function updateOrbitMouse(changes: Partial<OrbitMousePreferences>) {
+    setOrbitMouse(current => {
+      const next = { ...current, ...changes };
+      saveOrbitMousePreferences(next);
+      return next;
+    });
+  }
   function toggleOrbitSounds() {
     const next = !orbitSounds;
     setOrbitSounds(next);
@@ -474,6 +483,31 @@ function App() {
               <span className="orbit-switch-track" aria-hidden="true"><span className="orbit-switch-thumb"/></span>
               <span className="orbit-switch-state">{tx(orbitSounds ? "enabled" : "disabled")}</span>
             </button>
+          </div>
+          <div className="preference-group">
+            <h2>Orbit mouse control</h2>
+            <p>Customize the compact wheel. These controls work inside Orbit and never intercept Windows Explorer input.</p>
+            <div className="orbit-mouse-preferences">
+              <label className="orbit-mouse-setting">
+                <span><strong>Open on</strong><small>Choose the section Orbit displays first.</small></span>
+                <select aria-label="Starting Orbit section" value={orbitMouse.firstSection}
+                  onChange={event => updateOrbitMouse({ firstSection: event.target.value as OrbitMousePreferences["firstSection"] })}>
+                  <option value="convert">Convert</option>
+                  <option value="tools">Tools</option>
+                  <option value="actions">Actions</option>
+                </select>
+              </label>
+              <label className="orbit-mouse-setting">
+                <span><strong>Scroll between sections</strong><small>Use the mouse wheel over Orbit to move between Convert, Tools and Actions.</small></span>
+                <input type="checkbox" checked={orbitMouse.scrollSections}
+                  onChange={event => updateOrbitMouse({ scrollSections: event.target.checked })}/>
+              </label>
+              <label className="orbit-mouse-setting">
+                <span><strong>Pointer loading ring</strong><small>Show a small progress indicator beside the cursor while Orbit is processing.</small></span>
+                <input type="checkbox" checked={orbitMouse.pointerSpinner}
+                  onChange={event => updateOrbitMouse({ pointerSpinner: event.target.checked })}/>
+              </label>
+            </div>
           </div>
           <div className="preference-group"><h2>{tx("accent")}</h2><p>A small touch of color for important actions.</p>
             <div className="accent-grid">{[{key:"blue",color:"#3679e9",name:"Blue"},{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
