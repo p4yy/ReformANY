@@ -49,4 +49,4 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
 }
 PaintImage 164 314 (Join-Path $out "installer-sidebar.bmp") $true
 PaintImage 150 57 (Join-Path $out "installer-header.bmp") $false
-Write-Host "Generated ReformANY\'s native light NSIS artwork."
+Write-Host "Generated native ReformANY NSIS artwork."
