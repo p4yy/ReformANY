@@ -241,7 +241,7 @@ pub use native::{configure_orbit_gestures, GestureMonitor};
 
 #[cfg(not(target_os = "windows"))]
 #[derive(Default)]
-pub struct GestureMonitor;
+pub struct GestureMonitor { _private: () }
 
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
