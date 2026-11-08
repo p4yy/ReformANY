@@ -64,7 +64,12 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
     if let Some(start) = job.start_seconds {
         args.extend(["-ss".into(), format!("{start:.3}").into()]);
     }
-    args.extend(["-i".into(), input.as_os_str().to_os_string()]);
+    // Only local protocols may appear inside a media file or playlist.
+    // This blocks remote HTTP/HTTPS/UDP/TCP references during demuxing.
+    args.extend([
+        "-protocol_whitelist".into(), "file,pipe,data,crypto".into(),
+        "-i".into(), input.as_os_str().to_os_string(),
+    ]);
     if let Some(duration) = job.duration_seconds {
         args.extend(["-t".into(), format!("{duration:.3}").into()]);
     }
@@ -132,7 +137,8 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
 
 fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String> {
     let output = Command::new(ffprobe)
-        .args(["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
+        .args(["-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
+            "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
         .arg(input)
         .output()
         .map_err(|e| format!("Cannot probe media: {e}"))?;
@@ -195,6 +201,7 @@ mod tests {
             let args = media_args(&sample(target), Path::new("source"), Path::new("dest"))
                 .unwrap();
             assert!(args.iter().any(|a| a == "-c:a"));
+            assert!(args.iter().any(|a| a == "-protocol_whitelist"));
         }
         assert!(output_spec("exe").is_err());
     }

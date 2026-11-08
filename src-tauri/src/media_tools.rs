@@ -41,7 +41,8 @@ fn validate(job: &MediaToolJob) -> Result<(), String> {
 }
 fn has_stream(file: &Path, kind: StreamKind, ffprobe: &Path) -> Result<bool, String> {
     let result = Command::new(ffprobe)
-        .args(["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
+        .args(["-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
+            "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
         .arg(file).output().map_err(|e| format!("FFprobe unavailable: {e}"))?;
     if !result.status.success() { return Err("Cannot inspect source media".into()); }
     let expected = if kind == StreamKind::Audio {"audio"} else {"video"};
@@ -80,6 +81,9 @@ fn media_tool(job: MediaToolJob) -> Result<String, String> {
         "-nostdin".into(), "-n".into(),
     ];
     for input in &inputs {
+        // Prevent referenced network streams within local playlist files.
+        args.push("-protocol_whitelist".into());
+        args.push("file,pipe,data,crypto".into());
         args.push("-i".into());
         args.push(input.as_os_str().to_os_string());
     }
@@ -151,7 +155,8 @@ fn media_tool(job: MediaToolJob) -> Result<String, String> {
         return Err("FFmpeg produced no output".into());
     }
     let verification = Command::new(&ffprobe)
-        .args(["-v", "error", "-show_entries", "format=format_name",
+        .args(["-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
+            "-show_entries", "format=format_name",
             "-of", "default=nw=1"])
         .arg(&temporary).output().map_err(|e| e.to_string())?;
     if !verification.status.success() || verification.stdout.is_empty() {
