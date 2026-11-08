@@ -142,7 +142,7 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
               ))}
             </div>
           </div>
-          <p className="welcome-demo-caption"><WandSparkles size={14}/> Preview of Orbit. Available actions depend on the file and installed engines.</p>
+          <p className="welcome-demo-caption"> Preview of Orbit. Available actions depend on the file and installed engines.</p>
         </section>
       </div>
 
