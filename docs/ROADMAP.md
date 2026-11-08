@@ -4,27 +4,25 @@ This is an engineering plan, not a promise that every listed format works. Every
 
 ## Current release — 0.3.0 preview
 
-**Implemented in code:** Static PNG / JPEG / WebP / BMP / GIF / single-page TIFF, image downscaling, rotation, grayscale, batch conversion, no-overwrite saving, folder import, local history, and Windows right-click Orbit.
+**Implemented in code:** Windows right-click Orbit (classic Explorer context menu), first-run welcome, native image conversions and basic image edits, native ZIP creation/extraction (including encrypted ZIP), native file split/join with SHA-256 verification, subtitle SRT↔WebVTT conversion, spreadsheet CSV/TSV/JSON/XLSX conversions with XLS/ODS import, and FFmpeg-based audio/video conversion when an external FFmpeg installation is available. Other archive, document, PDF and ebook routes have varying external-engine requirements. See [the format support matrix](FORMAT_SUPPORT.md) for exact supported directions, limits and dependencies.
 
-**Validation:** CI covers build, format test matrix and safety cases. Real Windows desktop user acceptance still pending; Orbit layout, shell integration, and media fidelity need real-world QA.
+**Automated validation:** Linux source verification, Rust tests, Windows build and installer smoke tests, including registration and removal of classic Explorer Orbit menu entries, passed on `main`. This does **not** prove real-world Windows GUI behavior, media fidelity, or native Windows 11 top-level menu support. The Windows installer is a preview and is not presented as signed.
 
-## Next format engines, in priority order
+## Remaining format and quality work
 
-| Workstream | Deliverable | Quality / licensing gates |
+| Workstream | Current boundary | Next verification gate |
 |---|---|---|
-| Images II | AVIF, ICO, SVG→raster, TGA, QOI, selected metadata policies | Color profiles, transparency, no silent animation/frame loss, real sample corpus |
-| Archives | ZIP creation/extraction, TAR, 7Z; folder packaging | Zip-slip, symlink policy, decompression-bomb limits, archive entry limits |
-| PDF | PDF→images/text, images→PDF, merge/split, rotation | Font embedding, layout fidelity, encrypted PDFs, security sandbox |
-| Video | MP4/WebM/MKV/MOV with codec-specific presets | FFmpeg capability/license audit, hardware encoding fallback, process isolation, test media |
-| Audio | MP3/WAV/FLAC/Opus/AAC/OGG transcoding and trimming | Codec availability, sample accuracy, loudness tests, metadata |
-| Documents | DOCX/ODT/RTF/HTML/Markdown to PDF/text and supported reverse routes | LibreOffice/other engine isolation, fidelity corpus, preserve originals |
-| Slides | PPTX/ODP to PDF/images; editable import where feasible | Rendering differences and Office dependencies explicitly exposed |
-| Spreadsheets | XLSX/CSV/TSV/ODS/JSON with typed data handling | Formulas, leading zeros, date parsing, encodings, sheets |
-| Subtitles | SRT/VTT/ASS/TXT conversions with timing retention | Timestamp precision, encoding and styling differences |
-| E-books/comics | EPUB/MOBI/CBZ/CBR/XPS, route dependent | DRM restrictions, supported decoder availability, page fidelity |
-| Folders | ZIP/TAR/7Z export, safe restore | Permissions and traversal limits |
+| Images | ICO/TGA/QOI and SVG→raster implemented; AVIF is **output only** | Independent decoder corpus, color profiles, transparency, animation/frame-loss and metadata policies |
+| Archives | Native ZIP and split/join implemented; other routes depend on external tools | TAR/7Z coverage, archive bomb/symlink/traversal testing and independent readers |
+| PDF and documents | Selected routes rely on installed external engines | Fidelity corpus, encrypted documents, font/layout checks and process isolation |
+| Video and audio | External FFmpeg required; progress and cancellation implemented | Real media corpus, codec/license review, timing, metadata and resource limits |
+| Spreadsheets | CSV/TSV/JSON/XLSX and XLS/ODS import implemented with bounded first-sheet value handling | Formulas, multi-sheet fidelity, types, dates, encodings and large-file limits |
+| Subtitles | SRT↔WebVTT implemented | Styling/positioning, alternate formats and timestamp fidelity |
+| E-books and slides | Route-dependent external-engine support | DRM boundaries, renderer availability, page/layout fidelity |
+| Windows shell | Classic Explorer menu installed and smoke-tested | Manual Explorer QA; modern Windows 11 native integration and mouse hooks remain **draft** until desktop QA and signing |
+| Accessibility | Basic app interactions present | Keyboard-only Orbit, screen-reader announcements, focus order, high-contrast and DPI testing |
 
-Implement in vertical slices, only adding a format to the application UI once the engine reports a tested route. Never advertise "100+ formats" until independently verified.
+Implement further formats in tested vertical slices; do not claim universal conversion or archival fidelity until independently verified.
 
 ## Core engineering backlog
 
@@ -32,7 +30,7 @@ Implement in vertical slices, only adding a format to the application UI once th
 - Add in-app auto-update (only after signing and release provenance).
 - Introduce versioned conversion history database with deletion/export controls.
 - Thumbnail previews and per-file settings in batch queue.
-- Actual progress percentages for engines reporting byte/frame progress; keep indeterminate otherwise.
+- Expand measured progress beyond FFmpeg media jobs; keep indeterminate status when an engine cannot report progress.
 - Improve color management and EXIF orientation before claiming archival fidelity.
 - Add per-engine process sandbox/resource policies for untrusted PDF/media documents.
 - Add code-signing, SBOM, dependency vulnerability scans, Windows clean-machine integration tests.
@@ -41,7 +39,7 @@ Implement in vertical slices, only adding a format to the application UI once th
 
 - Green TypeScript and Rust compilation/tests on Windows and Linux
 - Reproducible Windows NSIS output with artifact digest
-- Manual explorer context menu installation/uninstall check
+- Manual Explorer context-menu installation/uninstall and drag-and-drop checks (automated registry smoke test already passes)
 - Correct file outputs verified by independent readers
 - No silent overwrite or invalid-success status
 - Clear capability matrix and visible limitations
