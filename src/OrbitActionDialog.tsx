@@ -127,7 +127,7 @@ export default function OrbitActionDialog({
             autoComplete="new-password" minLength={8} maxLength={256}
             value={confirm} onChange={event => setConfirm(event.target.value)} required/>
           {confirm && value !== confirm && <p className="orbit-dialog-error">Passwords do not match.</p>}
-          <p className="orbit-dialog-hint">At least 8 characters. The password is not saved.</p>
+          <p className="orbit-dialog-hint">AES-256 encryption. Use a compatible ZIP reader such as 7-Zip; Windows Explorer may not support it. Password is not stored.</p>
         </>}
         {error && <p className="orbit-dialog-error" role="alert">{error}</p>}
         <div className="orbit-dialog-footer">
