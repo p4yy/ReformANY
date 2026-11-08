@@ -19,6 +19,7 @@ import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePr
 import DesktopChrome, { isWorkspacePage as isWorkspaceSection, isPreferencesPage as isPreferencesSection, type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
 import ThemePicker from "./ThemePicker";
+import { readOutputPreference, resolvePreferredDestination, saveOutputPreference, type OutputMode } from "./outputLocation";
 import ActivityPage from "./ActivityPage";
 import Welcome, { shouldShowWelcome } from "./Welcome";
 
@@ -137,7 +138,8 @@ function App() {
       ).slice(0, 100);
     } catch { return []; }
   });
-  const [destination, setDestination] = useState<string | null>(null);
+  const [outputMode, setOutputMode] = useState<OutputMode>(() => readOutputPreference().mode);
+  const [destination, setDestination] = useState<string | null>(() => readOutputPreference().folder);
   const [quality, setQuality] = useState(86);
   const [matte, setMatte] = useState<"white" | "black">("white");
   const [maxDimension, setMaxDimension] = useState<number | null>(null);
@@ -319,7 +321,22 @@ function App() {
     if (!desktop) { setNotice("Open the desktop app to choose a folder."); return; }
     try {
       const path = await open({ directory: true, multiple: false });
-      if (typeof path === "string") setDestination(path);
+      if (typeof path === "string") {
+        saveOutputPreference({ mode: "folder", folder: path });
+        setOutputMode("folder");
+        setDestination(path);
+      }
+    } catch (error) { setNotice(String(error)); }
+  }
+  function changeOutputMode(mode: OutputMode) {
+    if (mode === "folder") {
+      void chooseDestination();
+      return;
+    }
+    try {
+      saveOutputPreference({ mode, folder: null });
+      setOutputMode(mode);
+      setDestination(null);
     } catch (error) { setNotice(String(error)); }
   }
   async function runConversion() {
@@ -332,7 +349,7 @@ function App() {
           id: row.id, path: row.path, target: row.target, quality, matte,
           options: { maxDimension, rotation, grayscale },
         })),
-        destination,
+        destination: await resolvePreferredDestination(),
       });
       if (finishedBatchIds.current.delete(id)) {
         setBatchId(null);
@@ -427,9 +444,14 @@ function App() {
             <button className="settings-head" onClick={() => setExpanded(current => !current)} aria-expanded={expanded}>
               <span><Settings2 size={18}/> Conversion settings</span><span className="settings-hint">{expanded ? "Hide options" : "Fine-tune output"} <ChevronDown className={expanded ? "rotate" : ""} size={16}/></span>
             </button>
-            <div className="destination-row"><div><strong>Save converted files</strong><small>{destination || "Alongside the originals · No files are overwritten"}</small></div>
+            <div className="destination-row"><div><strong>Save converted files</strong><small>{outputMode === "desktop" ? "Windows Desktop" : outputMode === "folder" ? destination : "Alongside the originals · No files are overwritten"}</small></div>
+              <label className="select-field"><span>Destination</span><select aria-label="Conversion result destination" value={outputMode} onChange={event => changeOutputMode(event.target.value as OutputMode)}>
+                <option value="alongside">Next to original</option>
+                <option value="desktop">Desktop</option>
+                <option value="folder">Choose folder…</option>
+              </select></label>
               <button className="button subtle" onClick={() => void chooseDestination()}><Folder size={16}/> Choose folder</button>
-              {destination && <button className="icon-button" title="Save alongside originals" aria-label="Reset output folder" onClick={() => setDestination(null)}><X size={16}/></button>}
+              {outputMode !== "alongside" && <button className="icon-button" title="Save alongside originals" aria-label="Reset output folder" onClick={() => changeOutputMode("alongside")}><X size={16}/></button>}
             </div>
             {expanded && <div className="advanced-grid">
               <label className="range-field"><span>JPEG quality <strong>{quality}%</strong></span><input type="range" min="30" max="100" value={quality} onChange={e => setQuality(Number(e.target.value))}/><small>Only affects JPEG output.</small></label>
