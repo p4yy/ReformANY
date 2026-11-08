@@ -9,6 +9,7 @@ mod native_zip;
 mod documents;
 mod ebooks;
 mod media_tools;
+mod preview;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
@@ -20,6 +21,7 @@ use actions::{rename_file, open_terminal, send_bluetooth, float_file, float_file
 use documents::{images_to_pdf, pdf_to_text, pdf_to_text_format, office_to_pdf, office_available};
 use ebooks::{ebook_convert_file, ebook_engine_available};
 use media_tools::media_edit;
+use preview::document_preview;
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -59,7 +61,8 @@ pub fn run() {
             office_available,
             ebook_convert_file,
             ebook_engine_available,
-            media_edit
+            media_edit,
+            document_preview
         ])
         .setup(move |app| {
             if orbit_mode {
