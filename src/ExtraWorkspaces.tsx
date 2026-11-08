@@ -405,17 +405,20 @@ export function DocumentsPanel() {
 export function EnginesPanel() {
   const [engines, setEngines] = useState<Engines | null>(null);
   const [officeReady, setOfficeReady] = useState(false);
+  const [calibreReady, setCalibreReady] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
     setError(null);
     try {
-      const [tools, office] = await Promise.all([
+      const [tools, office, calibre] = await Promise.all([
         invoke<Engines>("engine_status"), invoke<boolean>("office_available"),
+        invoke<boolean>("ebook_engine_available"),
       ]);
       setEngines(tools);
       setOfficeReady(office);
+      setCalibreReady(calibre);
     } catch (cause) { setError(String(cause)); }
   }
   useEffect(() => { if (isTauri()) void refresh(); }, []);
@@ -428,6 +431,9 @@ export function EnginesPanel() {
       detail: "7z, split volumes and extraction of RAR, ISO, TAR, CAB and many more", command: "winget install -e --id 7zip.7zip" },
     { name: "WinRAR", ready: !!engines?.winrar,
       detail: "Optional. Needed only to CREATE RAR archives.", command: "winget install -e --id RARLab.WinRAR" },
+    { name: "Calibre", ready: calibreReady,
+      detail: "Offline EPUB, MOBI, FB2, PDF and DOCX e-book conversions.",
+      command: "winget install -e --id calibre.calibre" },
     { name: "LibreOffice", ready: officeReady,
       detail: "Optional. Converts DOCX, PPTX, XLSX, ODT and other office files to PDF.",
       command: "winget install -e --id TheDocumentFoundation.LibreOffice" },
