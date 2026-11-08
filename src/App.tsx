@@ -184,7 +184,7 @@ function App() {
   }, [language]);
   const tx = (key: LangKey) => t(language, key);
 
-  // Moving between workspaces should never reopen a page at the previous page\'s scroll offset.
+  // Moving between workspaces should never reopen a page at the previous page’s scroll offset.
   useEffect(() => {
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
   }, [page, showWelcome]);
