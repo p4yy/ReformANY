@@ -93,6 +93,9 @@ pub fn run() {
                 .inner_size(400.0, 400.0)
                 .resizable(false)
                 .decorations(false)
+                // Windows 11 draws a square native shadow around transparent, undecorated windows.
+                // Orbit provides its own circular CSS shadow instead.
+                .shadow(false)
                 .transparent(true)
                 .always_on_top(true)
                 .skip_taskbar(true)
