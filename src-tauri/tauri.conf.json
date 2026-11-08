@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && node scripts/prepare-installer.mjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -26,7 +26,14 @@
     ],
     "windows": {
       "nsis": {
-        "installerHooks": "./windows/hooks.nsh"
+        "installerHooks": "./windows/hooks.nsh",
+        "template": "./windows/installer.nsi",
+        "headerImage": "./windows/installer-header.bmp",
+        "sidebarImage": "./windows/installer-sidebar.bmp",
+        "installerIcon": "./icons/icon.ico"
+      },
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
       }
     }
   }
