@@ -13,6 +13,7 @@ mod preview;
 mod update;
 mod subtitles;
 mod spreadsheets;
+mod advanced_images;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
@@ -28,6 +29,7 @@ use preview::document_preview;
 use update::open_manual_updates;
 use subtitles::subtitle_convert;
 use spreadsheets::table_convert;
+use advanced_images::advanced_image_convert;
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -71,7 +73,8 @@ pub fn run() {
             document_preview,
             open_manual_updates,
             subtitle_convert,
-            table_convert
+            table_convert,
+            advanced_image_convert
         ])
         .setup(move |app| {
             if orbit_mode {
