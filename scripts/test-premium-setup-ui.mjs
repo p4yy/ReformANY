@@ -62,9 +62,14 @@ try {
       if (response.ok) {
         const targets = await response.json();
         lastTargets = targets.map(target => ({ type: target.type, url: target.url }));
-        // Select any WebView2 page, even if its URL is unexpected, so that the
-        // explicit origin check below reports the actual regression.
-        page = targets.find(target => target.type === "page");
+        // WebView2 first advertises an about:blank page while Tauri's
+        // production app:// navigation is still loading. Do not treat that
+        // transient initial URL as a failed offline installer. Keep polling
+        // until navigation completes, but reject any final nonblank origin
+        // below unless it is Tauri's embedded app protocol.
+        page = targets.find(target => target.type === "page" &&
+          target.url && target.url !== "about:blank" &&
+          !target.url.startsWith("edge://"));
         if (page) break;
       }
       lastProbeError = "HTTP " + response.status;
