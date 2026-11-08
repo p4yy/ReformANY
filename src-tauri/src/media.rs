@@ -38,7 +38,8 @@ fn target_extension(target: &str) -> &'static str {
     match target {
         "mp3" => "mp3", "m4a" => "m4a", "wav" => "wav",
         "flac" => "flac", "ogg" => "ogg", "opus" => "opus",
-        "aiff" => "aiff", "wma" => "wma", "ac3" => "ac3", "gif" => "gif", "wmv" => "wmv", "mp4_h265" => "mp4",\n        "mp4" => "mp4", "webm" => "webm", "mkv" => "mkv",
+        "aiff" => "aiff", "wma" => "wma", "ac3" => "ac3", "gif" => "gif", "wmv" => "wmv", "mp4_h265" => "mp4",
+        "mp4" => "mp4", "webm" => "webm", "mkv" => "mkv",
         "mov" => "mov", "avi" => "avi",
         _ => "",
     }
@@ -86,7 +87,10 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 "wav" => "pcm_s16le",
                 "flac" => "flac",
                 "ogg" => "libvorbis",
-                "opus" => "libopus",\n                "aiff" => "pcm_s16be",\n                "wma" => "wmav2",\n                "ac3" => "ac3",
+                "opus" => "libopus",
+                "aiff" => "pcm_s16be",
+                "wma" => "wmav2",
+                "ac3" => "ac3",
                 _ => unreachable!(),
             };
             args.extend(["-c:a".into(), codec.into()]);
@@ -105,12 +109,19 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 "-map".into(), "0:a:0?".into(),
             ]);
             let codec = match job.target.as_str() {
-                "webm" => "libvpx-vp9",\n                "mp4_h265" => "libx265",\n                "wmv" => "wmv2",\n                "gif" => "gif",
+                "webm" => "libvpx-vp9",
+                "mp4_h265" => "libx265",
+                "wmv" => "wmv2",
+                "gif" => "gif",
                 "avi" => "mpeg4",
                 _ => "libx264",
             };
             args.extend(["-c:v".into(), codec.into()]);
-            if job.target == "gif" {\n                args.extend(["-an".into(), "-vf".into(), "fps=12,scale=640:-1:flags=lanczos".into()]);\n            } else if job.target == "wmv" {\n                args.extend(["-b:v".into(), "2500k".into(), "-c:a".into(), "wmav2".into()]);\n            } else if job.target == "avi" {
+            if job.target == "gif" {
+                args.extend(["-an".into(), "-vf".into(), "fps=12,scale=640:-1:flags=lanczos".into()]);
+            } else if job.target == "wmv" {
+                args.extend(["-b:v".into(), "2500k".into(), "-c:a".into(), "wmav2".into()]);
+            } else if job.target == "avi" {
                 args.extend(["-q:v".into(), (match job.profile.as_str() {
                     "high" => "3", "small" => "8", _ => "5",
                 }).into()]);
@@ -119,7 +130,9 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 args.extend(["-crf".into(), (match job.profile.as_str() {
                     "small" => "32", "high" => "18", _ => "24",
                 }).into()]);
-                if job.target == "mp4_h265" {\n                    args.extend(["-preset".into(), "medium".into(), "-tag:v".into(), "hvc1".into(), "-pix_fmt".into(), "yuv420p".into(), "-c:a".into(), "aac".into(), "-movflags".into(), "+faststart".into()]);\n                } else if job.target == "webm" {
+                if job.target == "mp4_h265" {
+                    args.extend(["-preset".into(), "medium".into(), "-tag:v".into(), "hvc1".into(), "-pix_fmt".into(), "yuv420p".into(), "-c:a".into(), "aac".into(), "-movflags".into(), "+faststart".into()]);
+                } else if job.target == "webm" {
                     args.extend(["-b:v".into(), "0".into(), "-row-mt".into(), "1".into(), "-cpu-used".into(), "4".into(), "-c:a".into(), "libopus".into()]);
                 } else {
                     args.extend([
