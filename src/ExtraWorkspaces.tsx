@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { resolvePreferredDestination } from "./outputLocation";
 import {
   Archive as ArchiveIcon, ArrowRight, CheckCircle2, CircleAlert,
   FileArchive, FileVideo, FileText, Folder, FolderOpen, LoaderCircle, Lock, Plus, Trash2,
@@ -121,7 +122,7 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
     try {
       const output = await invoke<string>("media_convert", {
         job: {
-          path: input, target, profile, destination,
+          path: input, target, profile, destination: destination ?? await resolvePreferredDestination(),
           startSeconds: start.trim() ? Number(start) : null,
           durationSeconds: duration.trim() ? Number(duration) : null,
           progressId: id,
@@ -265,10 +266,11 @@ export function ArchivePanel() {
     if (!sources.length || busy || !canRun) return;
     setBusy(true);setError(null);setResult(null);setExtra([]);
     try {
+      const outputDestination = destination ?? await resolvePreferredDestination();
       if (mode === "create") {
         const result = await invoke<{ outputPaths: string[] }>("archive_create", {
           job: {
-            paths: sources, destination, name, format,
+            paths: sources, destination: outputDestination, name, format,
             password: password || null, splitMegabytes: Number(split) || null,
             level: Number(level),
           },
@@ -277,17 +279,17 @@ export function ArchivePanel() {
         setExtra(result.outputPaths.slice(1));
       } else if (mode === "extract") {
         const result = await invoke<string>("archive_extract", {
-          job: { path: sources[0], destination, password: password || null },
+          job: { path: sources[0], destination: outputDestination, password: password || null },
         });
         setResult(result);
       } else if (mode === "split") {
         const splitResult = await invoke<{ manifestPath: string; parts: string[] }>("file_split", {
-          path: sources[0], destination, partMegabytes: Number(partSize),
+          path: sources[0], destination: outputDestination, partMegabytes: Number(partSize),
         });
         setResult(splitResult.manifestPath);
         setExtra(splitResult.parts);
       } else {
-        const restored = await invoke<string>("file_join", { manifestPath: sources[0], destination });
+        const restored = await invoke<string>("file_join", { manifestPath: sources[0], destination: outputDestination });
         setResult(restored);
       }
     } catch (cause) {
@@ -435,13 +437,14 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     if (!sources.length || busy) return;
     setBusy(true);setError(null);setResult(null);setSplitOutputs([]);setSplitWarning(null);
     try {
+      const outputDestination = destination ?? await resolvePreferredDestination();
       if (mode === "split") {
         const value = Number(splitValue);
         if (!Number.isInteger(value) || value < (splitMode === "parts" ? 2 : 1) || value > 4096) {
           throw new Error("Enter a valid size, number of parts, or pages per part.");
         }
         const files = await invoke<{ outputPaths: string[]; oversizedPages: number[] }>("pdf_split", {
-          path: sources[0], destination, mode: splitMode, value,
+          path: sources[0], destination: outputDestination, mode: splitMode, value,
         });
         if (!files.outputPaths.length) throw new Error("PDF splitter produced no files");
         setSplitOutputs(files.outputPaths);
@@ -451,10 +454,10 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
         }
       } else {
         const path = mode === "images"
-          ? await invoke<string>("images_to_pdf", { paths: sources, destination })
+          ? await invoke<string>("images_to_pdf", { paths: sources, destination: outputDestination })
           : mode === "text"
-            ? await invoke<string>("pdf_to_text", { path: sources[0], destination })
-            : await invoke<string>("office_to_pdf", { path: sources[0], destination });
+            ? await invoke<string>("pdf_to_text", { path: sources[0], destination: outputDestination })
+            : await invoke<string>("office_to_pdf", { path: sources[0], destination: outputDestination });
         setResult(path);
       }
     } catch (cause) { setError(String(cause)); }
