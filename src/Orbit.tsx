@@ -159,6 +159,7 @@ export default function Orbit() {
       }
     };
     window.addEventListener("keydown", onKey);
+    const activationGuard = window.setTimeout(() => { ignoreInitialFocus.current = false; }, 350);
     // Windows transparency does not make the rectangle click-through.
     // Dismiss when another desktop window takes focus, even if Escape was not pressed.
     // Skip the initial window activation and dialogs opened by an Orbit action.
@@ -175,6 +176,7 @@ export default function Orbit() {
       mounted = false;
       void subscribed.then(unlisten => unlisten());
       window.removeEventListener("keydown", onKey);
+      window.clearTimeout(activationGuard);
       void focusListener.then(unlisten => unlisten());
     };
   }, []);
@@ -390,7 +392,15 @@ export default function Orbit() {
 
   return (
     <div className="orbit-frame" onPointerDown={event => {
-      if (event.target === event.currentTarget) void close();
+      // Transparent corners are part of the native rectangular window.
+      // Dismiss them explicitly without swallowing clicks on the three section tabs.
+      if ((event.target as Element).closest(".orbit-section-tabs")) return;
+      const disc = event.currentTarget.querySelector(".orbit-disc");
+      if (!disc) return;
+      const rect = disc.getBoundingClientRect();
+      const distance = Math.hypot(event.clientX - rect.left - rect.width / 2,
+        event.clientY - rect.top - rect.height / 2);
+      if (distance > rect.width / 2 - 2) void close();
     }}>
       <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
         onWheel={handleWheel} onPointerMove={handlePointerMove}
