@@ -15,9 +15,7 @@ html[data-mode="main"][data-theme="dark"] {
   --muted:#a8b4c3;
   --line:#303a45;
   --strong-line:#43505f;
-  --accent:#87b8ff;
-  --accent-hover:#3c83ed;
-  --accent-soft:#22364d;
+  --accent-soft:color-mix(in srgb,var(--accent) 17%,var(--surface));
   --shadow:none;
 }
 html[data-mode="main"]:not([data-theme="dark"]) {
@@ -30,9 +28,7 @@ html[data-mode="main"]:not([data-theme="dark"]) {
   --muted:#647286;
   --line:#dfe4ea;
   --strong-line:#cbd5e0;
-  --accent:#246ddd;
-  --accent-hover:#1759c5;
-  --accent-soft:#e8f1ff;
+  --accent-soft:color-mix(in srgb,var(--accent) 12%,var(--surface));
   --shadow:none;
 }
 html[data-mode="main"] body {min-width:650px;overflow:hidden;color:var(--text);}
@@ -192,10 +188,9 @@ html[data-mode="main"] .toast {
   html[data-mode="main"] .content,html[data-mode="main"] .engine-page{padding:28px 24px 46px;}
   html[data-mode="main"] .topbar{padding-inline:24px;}
   html[data-mode="main"] .brand{margin:0 9px 28px;}
-  html[data-mode="main"] .brand>span:last-child,
+  html[data-mode="main"] .brand>span:last-child{display:inline;}
   html[data-mode="main"] .nav-label,
-  html[data-mode="main"] .nav-button:not(.selected),
-  html[data-mode="main"] .sidebar-bottom{display:initial;}
+  html[data-mode="main"] .sidebar-bottom{display:block;}
   html[data-mode="main"] .nav-button:not(.selected),
   html[data-mode="main"] .nav-button.selected{display:flex;font-size:12.5px;gap:11px;justify-content:flex-start;}
   html[data-mode="main"] .sidebar nav {margin-bottom:0;}
