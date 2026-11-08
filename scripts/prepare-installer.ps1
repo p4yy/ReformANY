@@ -4,8 +4,8 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path -Parent $PSScriptRoot
 $out = Join-Path $root "src-tauri\windows"
-$ico = Join-Path $root "src-tauri\icons\icon.ico"
-if (!(Test-Path $ico)) { throw "ReformANY brand icon missing: $ico" }
+$mark = Join-Path $root "src-tauri\icons\icon.png"
+if (!(Test-Path $mark)) { throw "ReformANY brand icon missing: $mark" }
 New-Item -ItemType Directory -Force $out | Out-Null
 
 function Color([int]$r, [int]$g, [int]$b) {
@@ -25,8 +25,7 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
   $fontBig = [System.Drawing.Font]::new("Segoe UI",16,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
   $fontSmall = [System.Drawing.Font]::new("Segoe UI",10,[System.Drawing.FontStyle]::Regular,[System.Drawing.GraphicsUnit]::Pixel)
   $fontMicro = [System.Drawing.Font]::new("Segoe UI",9,[System.Drawing.FontStyle]::Regular,[System.Drawing.GraphicsUnit]::Pixel)
-  $icon = [System.Drawing.Icon]::new($ico)
-  $logo = $icon.ToBitmap()
+  $logo = [System.Drawing.Image]::FromFile($mark)
   try {
     if ($sidebar) {
       $g.FillRectangle($accent,23,22,3,22)
@@ -46,7 +45,7 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
     }
     $img.Save($target,[System.Drawing.Imaging.ImageFormat]::Bmp)
   } finally {
-    $logo.Dispose();$icon.Dispose()
+    $logo.Dispose()
     $fontBig.Dispose();$fontSmall.Dispose();$fontMicro.Dispose()
     $line.Dispose();$accent.Dispose();$muted.Dispose();$white.Dispose();$bg.Dispose()
     $g.Dispose();$img.Dispose()
