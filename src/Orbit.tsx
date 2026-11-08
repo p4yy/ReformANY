@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
+import { appIcon } from "./brand";
 import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal, Copy, Pin } from "lucide-react";
 
 type OrbitFile = {
@@ -251,7 +252,7 @@ export default function Orbit() {
         </button>
 
         <header className="orbit-header">
-          <img src="/brand/reformany-mark.jpg" className="orbit-logo" alt="" />
+          <img src={appIcon} className="orbit-logo" alt="" />
           <span>ReformANY</span><span className="orbit-tag">Orbit</span>
         </header>
 
