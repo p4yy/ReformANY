@@ -130,8 +130,11 @@ pub fn float_file_context(state: State<'_, FloatRegistry>) -> Result<Option<Floa
     }))
 }
 
+// A synchronous Tauri command runs on the WebView event loop. Creating a
+// second native WebView from that loop can block the invoke promise and leave
+// an empty white Float window. Run window construction off the UI thread.
 #[tauri::command]
-pub fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: String) -> Result<(), String> {
+pub async fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: String) -> Result<(), String> {
     let input = Path::new(&path);
     crate::external::verify_input(input, false)?;
     // Grant the asset protocol access only to this explicitly selected file.
@@ -142,20 +145,22 @@ pub fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: String)
         let mut current = state.0.lock().map_err(|_| "Preview state is unavailable")?;
         *current = Some(path);
     }
-    if let Some(existing) = app.get_webview_window("float") {
-        existing.close().map_err(|e| e.to_string())?;
-    }
-    WebviewWindowBuilder::new(&app, "float", WebviewUrl::App("index.html".into()))
-        .title("ReformANY Float")
-        .inner_size(390.0, 530.0)
-        .min_inner_size(320.0, 390.0)
-        .resizable(true)
-        .always_on_top(true)
-        .center()
-        .focused(true)
-        .build()
-        .map_err(|e| format!("Cannot open floating preview: {e}"))?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(existing) = app.get_webview_window("float") {
+            existing.close().map_err(|e| e.to_string())?;
+        }
+        WebviewWindowBuilder::new(&app, "float", WebviewUrl::App("index.html".into()))
+            .title("ReformANY Float")
+            .inner_size(390.0, 530.0)
+            .min_inner_size(320.0, 390.0)
+            .resizable(true)
+            .always_on_top(true)
+            .center()
+            .focused(true)
+            .build()
+            .map_err(|e| format!("Cannot open floating preview: {e}"))?;
+        Ok::<(), String>(())
+    }).await.map_err(|e| format!("Float window task failed: {e}"))?
 }
 
 #[tauri::command]
