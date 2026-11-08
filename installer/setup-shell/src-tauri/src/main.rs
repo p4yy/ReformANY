@@ -78,15 +78,10 @@ fn app_ready(path: &Path) -> Result<(), String> {
 }
 
 fn media_ready(path: &Path) -> bool {
+    // Bundled installation MUST contain private executables. A machine PATH
+    // fallback would hide broken packaging and fail on a different computer.
     let directory = path.join("engines");
-    if directory.join("ffmpeg.exe").is_file() && directory.join("ffprobe.exe").is_file() {
-        return true;
-    }
-    // NSIS checks PATH as well and skips installing local copies if both are present.
-    ["ffmpeg.exe", "ffprobe.exe"].iter().all(|bin| {
-        env::split_paths(&env::var_os("PATH").unwrap_or_default())
-            .any(|folder| folder.join(bin).is_file())
-    })
+    directory.join("ffmpeg.exe").is_file() && directory.join("ffprobe.exe").is_file()
 }
 
 fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
@@ -116,7 +111,7 @@ fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     process.arg(format!("/D={}", destination.display()));
-    // Explicit timeout so a stuck network download cannot freeze the setup UI.
+    // Explicit timeout so a hung installer cannot freeze the setup UI.
     let mut child = process.spawn().map_err(|e| format!("Could not launch the Windows installer: {e}"))?;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(600);
     let status = loop {
@@ -124,7 +119,7 @@ fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
         if std::time::Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            return Err("Silent setup exceeded the 10-minute limit. Check the network or retry without media engines.".into());
+            return Err("Silent setup exceeded the 10-minute limit. See the Windows installer logs.".into());
         }
         std::thread::sleep(std::time::Duration::from_millis(250));
     };
@@ -134,7 +129,7 @@ fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
     emit_stage(&app, "Verifying installed application…");
     app_ready(&destination)?;
     if options.media_engines && !media_ready(&destination) {
-        return Err("ReformANY was installed, but the requested FFmpeg/FFprobe tools were not available. Re-run setup with internet access or install verified media tools separately.".into());
+        return Err("ReformANY was installed, but the requested FFmpeg/FFprobe tools were not available. The offline installer payload may be damaged; reinstall using a verified setup executable.".into());
     }
     emit_stage(&app, "ReformANY installation verified");
     Ok(())
