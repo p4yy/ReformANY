@@ -1,5 +1,5 @@
 /*
- * ReformANY desktop finish — understated Windows UI with macOS-like restraint.
+ * ReformANY desktop finish — official premium installer olive/sage palette.
  * Intentional design tokens, not a simulated macOS title bar.
  * Limited to the main window; Orbit and floating windows have their own surfaces.
  */
@@ -12,36 +12,36 @@ html[data-mode="main"] {
   -webkit-font-smoothing: antialiased;
 }
 html[data-mode="main"][data-theme="dark"] {
-  --base: #17181b;
-  --side: #191a1e;
-  --surface: #202126;
-  --soft: #292b30;
-  --text: #f3f4f7;
-  --muted: #aeb0b8;
-  --line: #303238;
-  --strong-line: #41434b;
+  --base: #1a1f14;
+  --side: #1c2419;
+  --surface: #232a1c;
+  --soft: #2d3524;
+  --text: #edf2e5;
+  --muted: #a3b27a;
+  --line: #35412e;
+  --strong-line: #4b5942;
   --accent-soft: color-mix(in srgb, var(--accent) 15%, var(--surface));
   color-scheme: dark;
 }
 html[data-mode="main"][data-theme="light"] {
-  --base: #f6f6f8;
-  --side: #f8f8fa;
+  --base: #f6f8f1;
+  --side: #f2f5ed;
   --surface: #fff;
-  --soft: #f0f1f4;
-  --text: #22242b;
-  --muted: #6e727d;
-  --line: #e4e5e9;
-  --strong-line: #d4d7de;
+  --soft: #eaf0e4;
+  --text: #293329;
+  --muted: #64725b;
+  --line: #dee5d7;
+  --strong-line: #cbd7c1;
   --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--surface));
   color-scheme: light;
 }
 html[data-mode="main"][data-accent="blue"][data-theme="light"] {
-  --accent: #256bd7;
-  --accent-hover: #1c62cf;
+  --accent: #718452;
+  --accent-hover: #5c7441;
 }
 html[data-mode="main"][data-accent="blue"][data-theme="dark"] {
-  --accent: #88b5fb;
-  --accent-hover: #3376e5;
+  --accent: #c8d4a2;
+  --accent-hover: #dce4be;
 }
 html[data-mode="main"] body {
   background: var(--base);
@@ -523,12 +523,12 @@ html[data-mode="main"] .workspace-scroll:hover { background: var(--soft); }
 html[data-mode="main"] .workspace-scroll-prev { left: 2px; }
 html[data-mode="main"] .workspace-scroll-next { right: 2px; }
 html[data-mode="main"] .activity-symbol.completed {
-  color: #75b69b;
-  background: color-mix(in srgb, #75b69b 11%, var(--surface));
+  color: #8cb369;
+  background: color-mix(in srgb, #8cb369 11%, var(--surface));
 }
 html[data-mode="main"] .activity-symbol.failed {
-  color: #e28f85;
-  background: color-mix(in srgb, #e28f85 11%, var(--surface));
+  color: #d88f85;
+  background: color-mix(in srgb, #d88f85 11%, var(--surface));
 }
 @media (max-width: 960px) {
   html[data-mode="main"] .workspace-navigation > nav[aria-label="Workspace tools"] {
