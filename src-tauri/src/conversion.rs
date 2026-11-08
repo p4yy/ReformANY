@@ -1,5 +1,5 @@
 use image::codecs::jpeg::JpegEncoder;
-use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader, Rgb, RgbImage};
+use image::{DynamicImage, ImageFormat, ImageReader, Rgb, RgbImage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -7,7 +7,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
@@ -124,12 +124,8 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
         return Err("cancelled".into());
     }
     let input = Path::new(&item.path);
-    let (_, source_format) = describe(input)?;
+    let _ = describe(input)?;
     let (target_format, ext) = output_format(&item.target)?;
-    if source_format == ImageFormat::WebP && target_format == ImageFormat::Jpeg {
-        // Explicit flattening is handled below; transparency is never silently discarded.
-    }
-
     let directory = match destination {
         Some(path) => PathBuf::from(path),
         None => input.parent().ok_or("Input folder could not be determined")?.to_path_buf(),
@@ -230,8 +226,6 @@ pub async fn convert_batch(
     state.batches.lock().map_err(|_| "Batch state is unavailable")?
         .insert(batch_id.clone(), cancelled.clone());
 
-    let registry = state.inner().batches.lock().map_err(|_| "Batch state is unavailable")?;
-    drop(registry);
     let id_to_remove = batch_id.clone();
     let app_for_job = app.clone();
     let flags = cancelled.clone();
@@ -269,6 +263,9 @@ pub async fn convert_batch(
             }));
         }
         for handle in handles { let _ = handle.await; }
+        if let Ok(mut registry) = app_for_job.state::<BatchRegistry>().batches.lock() {
+            registry.remove(&id_to_remove);
+        }
         emit(&app_for_job, &id_to_remove, "batch-finished", None, None);
     });
     Ok(batch_id)
