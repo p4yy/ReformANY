@@ -90,6 +90,8 @@ Var WixMode
 Var OldMainBinaryName
 Var MediaEngineOptIn
 Var MediaEngineCheckbox
+Var RegisterOrbitContext
+Var SkipDesktopShortcut
 
 Name "${PRODUCTNAME}"
 BrandingText "ReformANY"
@@ -638,6 +640,16 @@ LangString choowHowToInstall 0 ""
 {{/each}}
 
 Function .onInit
+  StrCpy $RegisterOrbitContext 1
+  StrCpy $SkipDesktopShortcut 0
+  ${GetOptions} $CMDLINE "/NO_CONTEXT" $R0
+  ${IfNot} ${Errors}
+    StrCpy $RegisterOrbitContext 0
+  ${EndIf}
+  ${GetOptions} $CMDLINE "/NO_DESKTOP" $R0
+  ${IfNot} ${Errors}
+    StrCpy $SkipDesktopShortcut 1
+  ${EndIf}
   ; Interactive installations recommend media support; silent automation
   ; must opt in explicitly via /MEDIA=1 rather than downloading 109 MB unseen.
   StrCpy $MediaEngineOptIn 1
@@ -1154,6 +1166,10 @@ Function CreateOrUpdateStartMenuShortcut
 FunctionEnd
 
 Function CreateOrUpdateDesktopShortcut
+  ; Explicit opt-out from the premium setup shell. Does not change Start menu.
+  ${If} $SkipDesktopShortcut = 1
+    Return
+  ${EndIf}
   ; We used to use product name as MAINBINARYNAME
   ; migrate old shortcuts to target the new MAINBINARYNAME
   !insertmacro IsShortcutTarget "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\$OldMainBinaryName"
