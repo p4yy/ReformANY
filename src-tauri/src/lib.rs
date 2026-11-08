@@ -11,6 +11,10 @@ mod ebooks;
 mod media_tools;
 mod preview;
 mod update;
+mod svg_image;
+mod subtitles;
+mod spreadsheets;
+mod engine_progress;
 mod file_parts;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -25,6 +29,9 @@ use ebooks::{ebook_convert_file, ebook_engine_available};
 use media_tools::media_edit;
 use preview::document_preview;
 use update::open_manual_updates;
+use subtitles::subtitle_convert;
+use spreadsheets::spreadsheet_convert;
+use engine_progress::{cancel_engine_job, JobRegistry};
 use file_parts::{file_split, file_join};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -35,6 +42,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(BatchRegistry::default())
+        .manage(JobRegistry::default())
         .manage(OrbitLaunch::new(orbit_path))
         .manage(FloatRegistry::default())
         .plugin(tauri_plugin_dialog::init())
@@ -69,7 +77,10 @@ pub fn run() {
             document_preview,
             open_manual_updates,
             file_split,
-            file_join
+            file_join,
+            subtitle_convert,
+            spreadsheet_convert,
+            cancel_engine_job
         ])
         .setup(move |app| {
             if orbit_mode {

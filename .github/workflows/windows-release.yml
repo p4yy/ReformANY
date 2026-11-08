@@ -32,8 +32,13 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build frontend
         run: npm run build
-      - name: Test Rust engine
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+      # Tauri's Windows unit test EXEs lack Common Controls v6 by default.
+      # Compile, embed the test-only manifest, then run the actual tests.
+      - name: Compile Windows Rust tests
+        run: cargo test --no-run --manifest-path src-tauri/Cargo.toml
+      - name: Run Windows Rust tests with Common Controls manifest
+        shell: pwsh
+        run: ./scripts/run-windows-rust-tests.ps1
       - name: Build Windows installer
         run: npm run tauri build
       - name: Verify installed Orbit context-menu entries

@@ -100,9 +100,9 @@ struct ProgressEvent {
 }
 
 pub(crate) fn describe(path: &Path) -> Result<(u64, ImageFormat), String> {
-    let metadata = std::fs::metadata(path).map_err(|_| "File could not be opened".to_owned())?;
-    if !metadata.is_file() {
-        return Err("This path is not a regular file".into());
+    let metadata = std::fs::symlink_metadata(path).map_err(|_| "File could not be opened".to_owned())?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Only regular image files are accepted; links are blocked".into());
     }
     if metadata.len() > MAX_INPUT_BYTES {
         return Err("File exceeds the 150 MB input limit".into());
@@ -110,9 +110,13 @@ pub(crate) fn describe(path: &Path) -> Result<(u64, ImageFormat), String> {
     let mut file = File::open(path).map_err(|_| "File could not be read".to_owned())?;
     let mut header = [0u8; 64];
     let len = file.read(&mut header).map_err(|_| "File could not be read".to_owned())?;
-    let format = image::guess_format(&header[..len])
-        .map_err(|_| "Unrecognized image signature".to_owned())?;
-    if !matches!(format, ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP | ImageFormat::Bmp | ImageFormat::Gif | ImageFormat::Tiff) {
+    let format = match image::guess_format(&header[..len]) {
+        Ok(format) => format,
+        Err(_) if path.extension().and_then(|x| x.to_str())
+            .is_some_and(|x| x.eq_ignore_ascii_case("tga")) => ImageFormat::Tga,
+        Err(_) => return Err("Unrecognized image signature".into()),
+    };
+    if !matches!(format, ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP | ImageFormat::Bmp | ImageFormat::Gif | ImageFormat::Tiff | ImageFormat::Ico | ImageFormat::Tga | ImageFormat::Qoi) {
         return Err("This image format is not supported yet".into());
     }
     reject_multipage_or_animated(path, format)?;
@@ -154,6 +158,15 @@ fn reject_multipage_or_animated(path: &Path, format: ImageFormat) -> Result<(), 
                 return Err("Animated GIF is not supported yet; no frames were discarded".into());
             }
         }
+        ImageFormat::Ico => {
+            let mut header = [0u8; 6];
+            File::open(path).and_then(|mut f| f.read_exact(&mut header))
+                .map_err(|e| format!("Cannot inspect ICO: {e}"))?;
+            let count = u16::from_le_bytes([header[4], header[5]]);
+            if count != 1 {
+                return Err("Multi-resolution ICO is not supported yet; images were not discarded".into());
+            }
+        }
         ImageFormat::Tiff => {
             let reader = BufReader::new(File::open(path).map_err(|e| e.to_string())?);
             let decoder = tiff::decoder::Decoder::new(reader)
@@ -175,6 +188,9 @@ fn format_name(format: ImageFormat) -> &'static str {
         ImageFormat::Bmp => "BMP",
         ImageFormat::Gif => "GIF",
         ImageFormat::Tiff => "TIFF",
+        ImageFormat::Ico => "ICO",
+        ImageFormat::Tga => "TGA",
+        ImageFormat::Qoi => "QOI",
         _ => "Unsupported",
     }
 }
@@ -185,6 +201,13 @@ pub fn inspect_files(paths: Vec<String>) -> Vec<FileInfo> {
         let path = PathBuf::from(&value);
         let name = path.file_name().map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| value.clone());
+        if crate::svg_image::is_svg(&path) {
+            return match crate::svg_image::inspect_svg(&path) {
+                Ok(bytes) => FileInfo { path: value, name, bytes,
+                    detected: Some("SVG".into()), error: None },
+                Err(error) => FileInfo { path: value, name, bytes: 0, detected: None, error: Some(error) },
+            };
+        }
         match describe(&path) {
             Ok((bytes, format)) => FileInfo {
                 path: value, name, bytes, detected: Some(format_name(format).into()), error: None,
@@ -204,6 +227,10 @@ fn output_format(target: &str) -> Result<(ImageFormat, &'static str), String> {
         "bmp" => Ok((ImageFormat::Bmp, "bmp")),
         "gif" => Ok((ImageFormat::Gif, "gif")),
         "tiff" => Ok((ImageFormat::Tiff, "tiff")),
+        "ico" => Ok((ImageFormat::Ico, "ico")),
+        "tga" => Ok((ImageFormat::Tga, "tga")),
+        "qoi" => Ok((ImageFormat::Qoi, "qoi")),
+        "avif" => Ok((ImageFormat::Avif, "avif")),
         _ => Err("Requested output format is not supported".into()),
     }
 }
@@ -226,7 +253,11 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
         return Err("cancelled".into());
     }
     let input = Path::new(&item.path);
-    let _ = describe(input)?;
+    if crate::svg_image::is_svg(input) {
+        crate::svg_image::inspect_svg(input)?;
+    } else {
+        let _ = describe(input)?;
+    }
     let (target_format, ext) = output_format(&item.target)?;
     item.options.validate()?;
     let directory = match destination {
@@ -237,18 +268,41 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
         return Err("Output folder is not accessible".into());
     }
 
-    let (width, height) = ImageReader::open(input)
-        .map_err(|e| format!("Cannot open image: {e}"))?
-        .with_guessed_format().map_err(|e| format!("Cannot inspect image: {e}"))?
-        .into_dimensions().map_err(|e| format!("Cannot read image dimensions: {e}"))?;
+    let (width, height) = if crate::svg_image::is_svg(input) {
+        let svg = crate::svg_image::rasterize_svg(input)?;
+        svg.dimensions()
+    } else {
+        let mut reader = ImageReader::open(input)
+            .map_err(|e| format!("Cannot open image: {e}"))?;
+        if input.extension().and_then(|s| s.to_str())
+            .is_some_and(|s| s.eq_ignore_ascii_case("tga")) {
+            reader.set_format(ImageFormat::Tga);
+        } else {
+            reader = reader.with_guessed_format()
+                .map_err(|e| format!("Cannot inspect image: {e}"))?;
+        }
+        reader.into_dimensions().map_err(|e| format!("Cannot read image dimensions: {e}"))?
+    };
     if width as u64 * height as u64 > MAX_PIXELS {
         return Err("Image exceeds the 40-megapixel processing limit".into());
     }
-    let image = ImageReader::open(input).map_err(|e| e.to_string())?
-        .with_guessed_format().map_err(|e| e.to_string())?
-        .decode().map_err(|e| format!("Unable to decode image: {e}"))?;
+    let image = if crate::svg_image::is_svg(input) {
+        crate::svg_image::rasterize_svg(input)?
+    } else {
+        let mut reader = ImageReader::open(input).map_err(|e| e.to_string())?;
+        if input.extension().and_then(|x| x.to_str())
+            .is_some_and(|x| x.eq_ignore_ascii_case("tga")) {
+            reader.set_format(ImageFormat::Tga);
+        } else {
+            reader = reader.with_guessed_format().map_err(|e| e.to_string())?;
+        }
+        reader.decode().map_err(|e| format!("Unable to decode image: {e}"))?
+    };
     let image = item.options.apply(image);
     let (result_width, result_height) = image.dimensions();
+    if target_format == ImageFormat::Ico && (result_width > 256 || result_height > 256) {
+        return Err("ICO output must be no larger than 256 × 256. Set maximum edge to 256 or smaller.".into());
+    }
     if cancelled.load(Ordering::Relaxed) {
         return Err("cancelled".into());
     }
@@ -278,11 +332,24 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
     if cancelled.load(Ordering::Relaxed) {
         return Err("cancelled".into());
     }
-    let verified = ImageReader::open(temp.path()).map_err(|e| e.to_string())?
-        .with_guessed_format().map_err(|e| e.to_string())?
-        .decode().map_err(|e| format!("Output verification failed: {e}"))?;
-    if verified.dimensions() != (result_width, result_height) {
-        return Err("Output dimensions failed verification".into());
+    if target_format == ImageFormat::Avif {
+        // AVIF encoding is supported without libdav1d; full independent
+        // decoding is not bundled in this preview. Validate ISO BMFF brand
+        // and non-empty payload instead of pretending it was decoded.
+        let mut magic = [0u8; 12];
+        File::open(temp.path()).and_then(|mut f| f.read_exact(&mut magic))
+            .map_err(|e| format!("AVIF output has invalid header: {e}"))?;
+        if &magic[4..8] != b"ftyp" || (&magic[8..12] != b"avif" && &magic[8..12] != b"avis") {
+            return Err("AVIF output has no valid AVIF file brand".into());
+        }
+    } else {
+        // TGA lacks a reliable signature and the staged output has no extension.
+        let mut reader = ImageReader::open(temp.path()).map_err(|e| e.to_string())?;
+        reader.set_format(target_format);
+        let verified = reader.decode().map_err(|e| format!("Output verification failed: {e}"))?;
+        if verified.dimensions() != (result_width, result_height) {
+            return Err("Output dimensions failed verification".into());
+        }
     }
     let stem = input.file_stem().ok_or("Invalid input filename")?.to_string_lossy();
     // 'persist_noclobber' never replaces an existing file, even with concurrent workers.
@@ -510,6 +577,23 @@ mod tests {
     fn rejects_invalid_transformation_options() {
         assert!(TransformOptions { max_dimension: None, rotation: 45, grayscale: false }.validate().is_err());
         assert!(TransformOptions { max_dimension: Some(0), rotation: 0, grayscale: false }.validate().is_err());
+    }
+
+
+    #[test]
+    fn svg_tga_qoi_and_ico_roundtrip_real_pixels() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("simple.svg");
+        std::fs::write(&source, r##"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="24" height="16" fill="#0055cc"/></svg>"##).unwrap();
+        let cancel=AtomicBool::new(false);
+        for fmt in ["png","tga","qoi","ico"] {
+            let job=ConversionItem {id:"extra".into(),path:source.to_string_lossy().into_owned(),
+                target:fmt.into(),quality:90,matte:"white".into(),options:TransformOptions::default()};
+            let output=convert_one(&job,None,&cancel).unwrap();
+            let mut reader=ImageReader::open(&output).unwrap();
+            if fmt=="tga" {reader.set_format(ImageFormat::Tga);} else {reader=reader.with_guessed_format().unwrap();}
+            assert_eq!(reader.into_dimensions().unwrap(),(24,16));
+        }
     }
 
     #[test]
