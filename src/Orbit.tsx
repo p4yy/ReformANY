@@ -62,23 +62,30 @@ function formatSize(bytes: number): string {
 
 
 type OrbitAction = { label: string; run: () => void; unavailable?: string };
+// Ported from better.zip's sector-glass treatment: each rounded wedge is an
+// independently clipped WebView element, so the desktop shows through the gaps.
+// Rendering a single opaque SVG disc would recreate the unwanted black backing.
 function OrbitRing({ items, inner, outer, label }: {
   items: OrbitAction[]; inner: number; outer: number; label: string;
 }) {
-  return <g aria-label={label}>
+  return <>
     {items.map((item, index) => {
       const { start, end } = orbitSectorAngles(items.length, index);
       const midpoint = orbitPoint((inner + outer) / 2, (start + end) / 2);
+      const path = roundedOrbitSlice(inner, outer, start, end);
       const words = item.label.split(" ");
       const split = words.length > 1 && item.label.length > 11;
-      const halves = split ? [
+      const parts = split ? [
         words.slice(0, Math.ceil(words.length / 2)).join(" "),
         words.slice(Math.ceil(words.length / 2)).join(" "),
       ] : [item.label];
-      return <g key={item.label} className={`orbit-segment ${item.unavailable ? "is-unavailable" : ""}`}
+      return <div key={item.label}
+        className={`orbit-segment ${item.unavailable ? "is-unavailable" : ""}`}
         role="button" tabIndex={item.unavailable ? -1 : 0}
         aria-disabled={Boolean(item.unavailable)}
-        aria-label={item.unavailable ? `${item.label} — ${item.unavailable}` : item.label}
+        aria-label={item.unavailable ? `${item.label}, ${item.unavailable}` : item.label}
+        title={item.unavailable ? `${item.label} — ${item.unavailable}` : item.label}
+        style={{ clipPath: `path("${path}")`, animationDelay: `${index * 24}ms` }}
         onClick={item.unavailable ? undefined : item.run}
         onPointerEnter={() => { if (!item.unavailable) playOrbitHover(); }}
         onKeyDown={event => {
@@ -87,16 +94,17 @@ function OrbitRing({ items, inner, outer, label }: {
             item.run();
           }
         }}>
-        <title>{item.unavailable ? `${item.label} — ${item.unavailable}` : item.label}</title>
-        <path d={roundedOrbitSlice(inner, outer, start, end)} />
-        <text x={midpoint.x} y={midpoint.y} textAnchor="middle" dominantBaseline="middle">
-          {halves.map((part, position) =>
-            <tspan key={part} x={midpoint.x}
-              dy={position === 0 ? (halves.length === 2 ? -6 : 0) : 15}>{part}</tspan>)}
-        </text>
-      </g>;
+        <svg viewBox="0 0 560 560" aria-hidden="true">
+          <path d={path} fill="none" stroke="currentColor" strokeWidth={1.6}/>
+        </svg>
+        <span className="orbit-segment-label" style={{ left: midpoint.x, top: midpoint.y }}>
+          {parts.map((part, position) =>
+            <span key={position}>{part}</span>)}
+        </span>
+      </div>;
     })}
-  </g>;
+    <span className="sr-only">{label}</span>
+  </>;
 }
 
 export default function Orbit() {
@@ -152,8 +160,8 @@ export default function Orbit() {
     // Keep the entire circle, section tabs and status visible above the taskbar.
     const availableWidth = Math.max(320, window.screen.availWidth - 32);
     const availableHeight = Math.max(350, window.screen.availHeight - 32);
-    // Compact 440px Orbit: preserve the 560-unit sector geometry and scale the whole UI.
-    const factor = Math.min(440 / 560, availableWidth / 560, availableHeight / 560);
+    // Compact native Orbit window, scaling the original better.zip geometry.
+    const factor = Math.min(400 / 560, availableWidth / 560, availableHeight / 560);
     document.documentElement.style.setProperty("--orbit-fit", String(factor));
     if (factor < 0.999) {
       void getCurrentWindow().setSize(new LogicalSize(
@@ -589,12 +597,12 @@ export default function Orbit() {
       <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
         onWheel={handleWheel} onPointerMove={handlePointerMove}
         onPointerLeave={() => setCursor(null)} onPointerDownCapture={unlockOrbitAudio}>
-        {ringVisible && <svg key={tab} className="orbit-rings" viewBox="0 0 560 560"
+        {ringVisible && <div key={tab} className="orbit-rings"
           role="group" aria-label={tab === "convert" ? "Convert to format" : tab === "tools" ? "File tools" : "File actions"}>
           {outerActions.length > 0 && <OrbitRing items={outerActions} inner={187} outer={264} label="Outer actions" />}
           {innerActions.length > 0 && <OrbitRing items={innerActions} inner={106} outer={179} label="Inner actions" />}
-          <circle className="orbit-hub-outline" cx="280" cy="280" r="99" />
-        </svg>}
+          <div className="orbit-hub-outline" aria-hidden="true"/>
+        </div>}
         <div className="orbit-hub">
           {splitting ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void splitFile();}}>
             <label htmlFor="orbit-part-size">Part size (MB)</label>
