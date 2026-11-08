@@ -510,6 +510,21 @@ Function InstallMediaEngines
     DetailPrint "Existing private FFmpeg and FFprobe binaries detected."
     Return
 
+  ; Reuse existing system-installed FFmpeg/FFprobe when both are present.
+  ; Query PATH without running binaries; the application performs its normal checks.
+  nsExec::ExecToStack '"$SYSDIR\where.exe" ffmpeg.exe'
+  Pop $R0
+  Pop $R1
+  ${If} $R0 == 0
+    nsExec::ExecToStack '"$SYSDIR\where.exe" ffprobe.exe'
+    Pop $R0
+    Pop $R1
+    ${If} $R0 == 0
+      DetailPrint "FFmpeg and FFprobe already present on PATH. No download required."
+      Return
+    ${EndIf}
+  ${EndIf}
+
   download_media:
     InitPluginsDir
     Delete "$PLUGINSDIR\reformany-ffmpeg.zip"
@@ -623,7 +638,16 @@ LangString choowHowToInstall 0 ""
 {{/each}}
 
 Function .onInit
+  ; Interactive installations recommend media support; silent automation
+  ; must opt in explicitly via /MEDIA=1 rather than downloading 109 MB unseen.
   StrCpy $MediaEngineOptIn 1
+  ${If} ${Silent}
+    StrCpy $MediaEngineOptIn 0
+  ${EndIf}
+  ${GetOptions} $CMDLINE "/MEDIA=1" $R0
+  ${IfNot} ${Errors}
+    StrCpy $MediaEngineOptIn 1
+  ${EndIf}
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}
     StrCpy $PassiveMode 1
@@ -637,6 +661,10 @@ Function .onInit
   ${GetOptions} $CMDLINE "/UPDATE" $UpdateMode
   ${IfNot} ${Errors}
     StrCpy $UpdateMode 1
+  ${EndIf}
+  ${If} $PassiveMode = 1
+  ${OrIf} $UpdateMode = 1
+    StrCpy $MediaEngineOptIn 0
   ${EndIf}
 
   !if "${DISPLAYLANGUAGESELECTOR}" == "true"
