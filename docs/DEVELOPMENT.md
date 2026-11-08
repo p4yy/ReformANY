@@ -18,7 +18,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
 ```
 
-Note: `npm run tauri build` compiles the desktop application but installer bundling remains disabled until signing, icon packaging and Windows distribution are verified.
+Note: `npm run tauri build` is configured to produce a Windows NSIS installer. An installer is not a verified release until the Windows CI build, clean-machine smoke test, and signing review succeed.
 
 ## Manual QA checklist
 
