@@ -10,9 +10,10 @@ const choices: ReadonlyArray<{
   { key: "dark", label: "Dark", detail: "Graphite", icon: Moon },
 ];
 
-export default function ThemePicker({ value, onChange }: {
+export default function ThemePicker({ value, onChange, labels }: {
   value: ThemePreference;
   onChange: (next: ThemePreference) => void;
+  labels?: Partial<Record<ThemePreference, string>>;
 }) {
   return <div className="appearance-theme-picker" role="group" aria-label="Appearance theme">
     {choices.map(item => {
@@ -22,7 +23,7 @@ export default function ThemePicker({ value, onChange }: {
         className={`appearance-theme-option ${selected ? "is-selected" : ""}`}
         onClick={() => onChange(item.key)}>
         <span className="appearance-theme-symbol"><Icon size={19} strokeWidth={1.8}/></span>
-        <span className="appearance-theme-copy"><strong>{item.label}</strong><small>{item.detail}</small></span>
+        <span className="appearance-theme-copy"><strong>{labels?.[item.key] ?? item.label}</strong><small>{item.detail}</small></span>
         <span className="appearance-theme-check" aria-hidden="true">{selected && <Check size={14}/>}</span>
       </button>;
     })}
