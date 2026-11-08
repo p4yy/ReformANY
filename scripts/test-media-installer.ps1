@@ -10,7 +10,15 @@ New-Item -ItemType Directory -Path $Samples -Force | Out-Null
 try {
   Write-Host 'Installing ReformANY with optional FFmpeg component enabled...'
   $process = Start-Process -FilePath $Installer -ArgumentList @('/S', '/MEDIA=1', "/D=$Target") -Wait -PassThru
-  if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+  if ($process.ExitCode -ne 0) {
+    $log = Join-Path $env:TEMP 'reformany-media-install.log'
+    if (Test-Path -LiteralPath $log) {
+      Write-Host '=== FFmpeg installer diagnostic transcript ==='
+      Get-Content -LiteralPath $log | Select-Object -Last 160 | ForEach-Object { Write-Host $_ }
+      Write-Host '=== End diagnostic transcript ==='
+    } else { Write-Warning "Media installation transcript not found at $log" }
+    throw "Installer failed: $($process.ExitCode)"
+  }
   $FFmpeg = Join-Path $Target 'engines\ffmpeg.exe'
   $FFprobe = Join-Path $Target 'engines\ffprobe.exe'
   if (-not (Test-Path -LiteralPath $FFmpeg -PathType Leaf) -or
