@@ -80,7 +80,6 @@ export default function DocumentPreview({ initialPath }: Props) {
       standardFontDataUrl: "/pdfjs/standard_fonts/",
       wasmUrl: "/pdfjs/wasm/",
       cMapPacked: true,
-      isEvalSupported: false,
       useSystemFonts: true,
       stopAtErrors: false,
     });
