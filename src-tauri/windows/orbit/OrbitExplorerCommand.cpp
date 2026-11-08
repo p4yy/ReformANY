@@ -2,8 +2,6 @@
 // Do not perform conversion, file scanning, network I/O or UI work inside Explorer.
 // The command receives one path and launches the existing ReformANY.exe orbit mode.
 #define WIN32_LEAN_AND_MEAN
-#define UNICODE
-#define _UNICODE
 #include <windows.h>
 #include <shobjidl.h>
 #include <shlobj.h>
@@ -16,6 +14,8 @@
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(linker, "/EXPORT:DllGetClassObject")
+#pragma comment(linker, "/EXPORT:DllCanUnloadNow")
 
 // This identifier MUST equal the manifest's com:Class Id and desktop5:Verb Clsid.
 static constexpr GUID CLSID_ReformAnyOrbit = {
@@ -208,8 +208,7 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
     }
     return TRUE;
 }
-extern "C" __declspec(dllexport) HRESULT STDMETHODCALLTYPE
-DllGetClassObject(REFCLSID identifier, REFIID interface_id, void** object) {
+STDAPI DllGetClassObject(REFCLSID identifier, REFIID interface_id, void** object) {
     if (!object) return E_POINTER;
     *object = nullptr;
     if (!IsEqualGUID(identifier, CLSID_ReformAnyOrbit)) return CLASS_E_CLASSNOTAVAILABLE;
@@ -219,6 +218,6 @@ DllGetClassObject(REFCLSID identifier, REFIID interface_id, void** object) {
     factory->Release();
     return result;
 }
-extern "C" __declspec(dllexport) HRESULT STDMETHODCALLTYPE DllCanUnloadNow() {
+STDAPI DllCanUnloadNow() {
     return (g_instances.load() == 0 && g_locks.load() == 0) ? S_OK : S_FALSE;
 }
