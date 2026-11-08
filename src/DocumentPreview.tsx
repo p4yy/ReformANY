@@ -159,7 +159,7 @@ export default function DocumentPreview({ initialPath }: Props) {
   return <div className="content document-preview-page">
     <div className="preview-heading">
       <div><div className="eyebrow">LOCAL DOCUMENT VIEWER</div>
-        <h1>Preview.</h1>
+        <h1>Document preview</h1>
         <p>Read documents as they are. PDF pages retain embedded pictures, tables and original positions.</p>
       </div>
       <button type="button" className="button secondary" onClick={() => void selectFile()}>
