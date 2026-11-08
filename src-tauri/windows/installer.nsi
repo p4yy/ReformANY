@@ -432,7 +432,7 @@ FunctionEnd
 !insertmacro MUI_PAGE_DIRECTORY
 
  ; Optional media engine component is enabled by default on interactive installs.
-; The installer fetches one reviewed FFmpeg release; never download at app launch.
+; The installer contains a verified FFmpeg release; no setup-time download.
 Page custom MediaEnginePageCreate MediaEnginePageLeave
 
 ; 6. Start menu shortcut page
@@ -498,10 +498,13 @@ Function MediaEnginePageLeave
   ${NSD_GetState} $MediaEngineCheckbox $MediaEngineOptIn
 FunctionEnd
 
-; Downloads only if the option is enabled and app-local binaries are missing.
-; Verify/extract via the PowerShell script bundled with ReformANY. Failed
-; downloads never silently enable the conversion UI.
+; Install only when explicitly selected. Both binaries are already included
+; in the verified, offline installer. Never download anything during setup.
 Function InstallMediaEngines
+  ${If} $MediaEngineOptIn != 1
+    DetailPrint "Media engine component not selected."
+    Return
+  ${EndIf}
   ; FFmpeg is bundled at build time, never downloaded on the user's machine.
   IfFileExists "$INSTDIR\installer\media-bundle\ffmpeg.exe" 0 media_bundle_missing
   IfFileExists "$INSTDIR\installer\media-bundle\ffprobe.exe" 0 media_bundle_missing
