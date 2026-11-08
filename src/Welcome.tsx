@@ -83,9 +83,9 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
 
       <div className="welcome-main">
         <section className="welcome-copy">
-          <div className="welcome-eyebrow"><span/> REFORMANY · GET STARTED</div>
-          <h1 id="welcome-title">Files, handled.<br/><em>Right here.</em></h1>
-          <p className="welcome-description">Convert, compress and organize files in one place. Your work stays on this computer.</p>
+          <div className="welcome-eyebrow"><span/> GET STARTED</div>
+          <h1 id="welcome-title">Welcome to ReformANY</h1>
+          <p className="welcome-description">Convert images, media and documents, or manage archives. Files stay on your computer.</p>
           <div className="welcome-points" aria-label="ReformANY essentials">
             <span><LockKeyhole size={15}/> No cloud uploads</span>
             <span><ShieldCheck size={15}/> Originals preserved</span>
@@ -99,13 +99,13 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
               Explore Orbit <ArrowRight size={15}/>
             </button>
           </div>
-          <p className="welcome-small-note">This introduction appears only once. You can replay it from Appearance.</p>
+          <p className="welcome-small-note">Open the workspace to begin.</p>
         </section>
 
         <section className="welcome-demo" aria-labelledby="welcome-demo-title">
           <div className="welcome-demo-heading">
-            <span id="welcome-demo-title">MEET ORBIT</span>
-            <span>THREE QUICK SECTIONS</span>
+            <span id="welcome-demo-title">ORBIT PREVIEW</span>
+            <span>CONVERT · TOOLS · ACTIONS</span>
           </div>
           <div className="welcome-orbit-stage">
             <div className="welcome-orbit" ref={orbitRef} tabIndex={-1}
@@ -139,7 +139,7 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
       </div>
 
       <footer className="welcome-footer">
-        <span>ReformANY <span aria-hidden="true">/</span> PRIVATE BY DESIGN</span>
+        <span>ReformANY</span>
         <button onClick={finish}>Skip introduction <ArrowRight size={14}/></button>
       </footer>
     </main>
