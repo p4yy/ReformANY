@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
-  CircleAlert, Clock3, Copy, FileImage, Folder, FolderOpen, Layers3,
+  CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
   Moon, Palette, Plus, Settings2, Sun, Trash2, X,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
@@ -42,7 +42,6 @@ const targets: { key: Target; name: string; detail: string }[] = [
 const supported = "PNG, JPEG, WebP and BMP";
 const fmtBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 * 1024
   ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`;
-const fileStem = (path: string) => path.split(/[\\/]/).pop() || path;
 const makeId = () => crypto.randomUUID();
 
 function Mark({ size = 34 }: { size?: number }) {
