@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ArrowRight, LockKeyhole, MousePointer2, ShieldCheck } from "lucide-react";
 import { appIcon } from "./brand";
+import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
 import "./welcome.css";
 
 const WELCOME_KEY = "reformany.welcome.completed.v1";
@@ -24,7 +25,7 @@ const orbitTabs: { id: OrbitTab; label: string }[] = [
 
 type DemoSegments = { inner: string[]; outer: string[] };
 const demoRings: Record<OrbitTab, DemoSegments> = {
-  convert: { inner: ["PNG", "JPEG", "WebP", "BMP"], outer: ["GIF", "TIFF"] },
+  convert: { inner: ["JPEG", "WebP", "BMP", "GIF"], outer: ["TIFF", "ICO", "QOI", "AVIF"] },
   tools: { inner: ["ZIP", "7z"], outer: ["Split file", "Password ZIP", "More tools"] },
   actions: {
     inner: ["Rename", "Copy path", "Terminal", "Float"],
@@ -34,28 +35,17 @@ const demoRings: Record<OrbitTab, DemoSegments> = {
 
 // Geometry mirrors the real Orbit: annular wedges, a separated hub and two tiers.
 // The illustration does not run file operations; it previews their layout.
-function demoPoint(radius: number, degrees: number) {
-  const radians = (degrees - 90) * Math.PI / 180;
-  return { x: 280 + Math.cos(radians) * radius, y: 280 + Math.sin(radians) * radius };
-}
-function demoSector(inner: number, outer: number, start: number, end: number) {
-  const a = demoPoint(outer, start), b = demoPoint(outer, end);
-  const c = demoPoint(inner, end), d = demoPoint(inner, start);
-  return `M ${a.x} ${a.y} A ${outer} ${outer} 0 ${end - start > 180 ? 1 : 0} 1 ${b.x} ${b.y} L ${c.x} ${c.y} A ${inner} ${inner} 0 ${end - start > 180 ? 1 : 0} 0 ${d.x} ${d.y} Z`;
-}
 function DemoRing({ labels, inner, outer }: { labels: string[]; inner: number; outer: number }) {
   return <g>
     {labels.map((label, index) => {
-      const step = 360 / labels.length;
-      const start = labels.length === 1 ? -68 : index * step + 1.2;
-      const end = labels.length === 1 ? 68 : (index + 1) * step - 1.2;
-      const position = demoPoint((inner + outer) / 2, (start + end) / 2);
+      const { start, end } = orbitSectorAngles(labels.length, index);
+      const position = orbitPoint((inner + outer) / 2, (start + end) / 2);
       const words = label.split(" ");
       const lines = label.length > 10 && words.length > 1
         ? [words.slice(0, Math.ceil(words.length / 2)).join(" "),
           words.slice(Math.ceil(words.length / 2)).join(" ")] : [label];
       return <g key={label} className="welcome-radial-sector">
-        <path d={demoSector(inner, outer, start, end)} />
+        <path d={roundedOrbitSlice(inner, outer, start, end)} />
         <text x={position.x} y={position.y} textAnchor="middle" dominantBaseline="middle">
           {lines.map((line, lineIndex) => (
             <tspan key={line} x={position.x}
@@ -132,14 +122,16 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
                 <small>sample.png</small>
                 <span>Esc · close</span>
               </div>
-            </div>
-            <div className="welcome-orbit-tabs" role="tablist" aria-label="Orbit preview sections">
-              {orbitTabs.map(item => (
-                <button type="button" key={item.id} id={`welcome-orbit-tab-${item.id}`}
-                  role="tab" aria-selected={tab === item.id}
-                  aria-controls="welcome-orbit-panel" className={tab === item.id ? "active" : ""}
-                  onClick={() => setTab(item.id)}>{item.label}</button>
-              ))}
+              <div className="welcome-orbit-tabs" role="tablist" aria-label="Orbit preview sections">
+                <span className="welcome-orbit-tab-indicator" aria-hidden="true"
+                  style={{transform:`translateX(${orbitTabs.findIndex(item => item.id === tab) * 100}%)`}}/>
+                {orbitTabs.map((item, index) => (
+                  <button type="button" key={item.id} id={`welcome-orbit-tab-${item.id}`}
+                    role="tab" aria-selected={tab === item.id}
+                    aria-controls="welcome-orbit-panel" className={tab === item.id ? "active" : ""}
+                    onClick={() => setTab(item.id)}><span>{item.label}</span><small aria-hidden="true">{index + 1}</small></button>
+                ))}
+              </div>
             </div>
           </div>
           <p className="welcome-demo-caption"> Preview of Orbit. Available actions depend on the file and installed engines.</p>
