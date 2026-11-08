@@ -3,6 +3,27 @@
  * A tiny synthesized navigation tick; no sound assets, uploads or telemetry.
  */
 export const ORBIT_AUDIO_KEY = "reformany.orbitSounds";
+export const ORBIT_VOLUME_KEY = "reformany.orbitVolume";
+export const DEFAULT_ORBIT_VOLUME = 65;
+
+export function getOrbitVolume(): number {
+  try {
+    const value = localStorage.getItem(ORBIT_VOLUME_KEY);
+    if (value === null) return DEFAULT_ORBIT_VOLUME;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : DEFAULT_ORBIT_VOLUME;
+  } catch {
+    return DEFAULT_ORBIT_VOLUME;
+  }
+}
+
+export function setOrbitVolume(volume: number): void {
+  try {
+    localStorage.setItem(ORBIT_VOLUME_KEY, String(Math.max(0, Math.min(100, Math.round(volume)))));
+  } catch {
+    // Audio settings are optional; never interrupt the app when storage is denied.
+  }
+}
 
 export function getOrbitSoundsEnabled(): boolean {
   try {
@@ -38,7 +59,7 @@ function contextForOrbit(): AudioContext | null {
 }
 
 function shortTick(audio: AudioContext): void {
-  if (!getOrbitSoundsEnabled() || audio.state !== "running") return;
+  if (!getOrbitSoundsEnabled() || getOrbitVolume() === 0 || audio.state !== "running") return;
   try {
     const started = audio.currentTime;
     const oscillator = audio.createOscillator();
@@ -49,7 +70,12 @@ function shortTick(audio: AudioContext): void {
     oscillator.frequency.setValueAtTime(820, started);
     oscillator.frequency.exponentialRampToValueAtTime(580, started + 0.05);
     gain.gain.setValueAtTime(0.0001, started);
-    gain.gain.exponentialRampToValueAtTime(0.014, started + 0.004);
+    // The old 0.014 fixed peak was barely audible on many Windows devices.
+    // Keep a bounded gain even at 100%; zero is genuinely silent.
+    const volume = getOrbitVolume() / 100;
+    if (volume === 0) return;
+    const peak = 0.09 * Math.pow(volume, 1.25);
+    gain.gain.exponentialRampToValueAtTime(peak, started + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, started + 0.055);
 
     oscillator.connect(gain);
@@ -71,6 +97,18 @@ export function unlockOrbitAudio(): void {
   const audio = contextForOrbit();
   if (audio?.state === "suspended") {
     void audio.resume().catch(() => {});
+  }
+}
+
+/** Test the saved sound and volume from a user-clicked Preferences button. */
+export function previewOrbitSound(): void {
+  if (!getOrbitSoundsEnabled() || getOrbitVolume() === 0) return;
+  const audio = contextForOrbit();
+  if (!audio) return;
+  if (audio.state === "running") {
+    shortTick(audio);
+  } else if (audio.state === "suspended") {
+    void audio.resume().then(() => shortTick(audio)).catch(() => {});
   }
 }
 
