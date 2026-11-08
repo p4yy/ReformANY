@@ -357,7 +357,7 @@ export default function Orbit() {
   }
 
   async function encryptedZip() {
-    if (!file || !archivePassword || !engines?.sevenZip) return;
+    if (!file || !archivePassword) return;
     setPasswording(false); setPhase("processing"); setSelected("Password ZIP");
     setError(null); setNote(null); setOutput(null);
     try {
@@ -435,13 +435,14 @@ export default function Orbit() {
       })) : [])
     : tab === "tools" ? [
         { label: "More tools", run: () => void openWorkspace() },
+        ...(file && !file.error ? [{ label: isFolder ? "Open folder" : "Show file", run: () => void act("folder") }] : []),
         ...(file && !file.error && !isFolder ? [{
           label: "Split into parts", run: () => setSplitting(true),
         }] : []),
         ...(file?.name.endsWith(".reformany.parts.json") ? [{
           label: "Join parts", run: () => void joinParts(),
         }] : []),
-        ...(file && !file.error && engines?.sevenZip ? [{
+        ...(file && !file.error ? [{
           label: "Password ZIP", run: () => setPasswording(true),
         }] : []),
       ]
