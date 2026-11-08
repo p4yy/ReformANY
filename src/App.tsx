@@ -15,7 +15,7 @@ import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
 
-type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
+type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
 type Page = "convert" | "media" | "mediaTools" | "archives" | "documents" | "preview" | "ebooks" | "engines" | "activity" | "appearance";
 
@@ -56,8 +56,12 @@ const targets: { key: Target; name: string; detail: string }[] = [
   { key: "bmp", name: "BMP", detail: "Uncompressed · compatibility" },
   { key: "gif", name: "GIF", detail: "Static images · limited colors" },
   { key: "tiff", name: "TIFF", detail: "Single-page · high fidelity" },
+  { key: "ico", name: "ICO", detail: "App icon · max 256 px" },
+  { key: "tga", name: "TGA", detail: "Raster · design interchange" },
+  { key: "qoi", name: "QOI", detail: "Lossless · lightweight" },
+  { key: "avif", name: "AVIF", detail: "Compact · output only (preview)" },
 ];
-const supported = "PNG, JPEG, WebP, BMP, GIF (static) and TIFF (single-page)";
+const supported = "PNG, JPEG, WebP, BMP, GIF, TIFF, ICO, TGA, QOI and SVG input";
 const fmtBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 * 1024
   ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`;
 const makeId = () => crypto.randomUUID();
@@ -254,7 +258,7 @@ function App() {
     if (!desktop) { setNotice("Open the desktop app to import files."); return; }
     try {
       const paths = await open({ multiple: true, directory: false,
-        filters: [{ name: "Supported images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }] });
+        filters: [{ name: "Supported images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff", "ico", "tga", "qoi", "svg"] }] });
       if (paths) await addPaths(Array.isArray(paths) ? paths : [paths]);
     } catch (error) { setNotice(String(error)); }
   }
@@ -399,7 +403,7 @@ function App() {
               <label className="select-field"><span>Resize to maximum edge</span>
                 <select value={maxDimension === null ? "original" : String(maxDimension)} onChange={event => setMaxDimension(event.target.value === "original" ? null : Number(event.target.value))}>
                   <option value="original">Original size</option><option value="2048">2,048 px</option>
-                  <option value="1024">1,024 px</option><option value="512">512 px</option>
+                  <option value="1024">1,024 px</option><option value="512">512 px</option><option value="256">256 px (ICO)</option>
                 </select>
                 <small>No upscaling · Keeps aspect ratio</small>
               </label>
