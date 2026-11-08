@@ -133,3 +133,10 @@
 @media (prefers-reduced-motion:reduce) {
  .welcome-screen * {transition:none!important;animation:none!important}
 }
+
+/* Keep the replay control aligned with other native-looking settings. */
+.welcome-replay-setting {display:flex;align-items:center;justify-content:space-between;gap:20px}
+.welcome-replay-setting>div {min-width:0;max-width:540px}
+.welcome-replay-setting h2 {margin-bottom:8px}
+.welcome-replay-setting .button {flex-shrink:0}
+@media(max-width:720px){.welcome-replay-setting {align-items:flex-start;flex-direction:column}}
