@@ -51,7 +51,7 @@ fn media_tool(job: MediaToolJob) -> Result<String, String> {
     validate(&job)?;
     let ffmpeg = find_binary("ffmpeg").ok_or("FFmpeg is not installed")?;
     let ffprobe = find_binary("ffprobe").ok_or("FFprobe is not installed")?;
-    let (kind, ext, merging) = spec(&job.action)?;
+    let (kind, ext, _merging) = spec(&job.action)?;
     let inputs: Vec<PathBuf> = job.paths.iter().map(PathBuf::from).collect();
     if job.action != "strip-metadata" {
         for input in &inputs {
@@ -191,8 +191,8 @@ mod tests {
     }
     #[test]
     fn merging_is_always_explicit() {
-        assert_eq!(spec("merge-audio").unwrap().2, true);
-        assert_eq!(spec("merge-video").unwrap().2, true);
-        assert_eq!(spec("compress-video").unwrap().2, false);
+        assert!(spec("merge-audio").unwrap().2);
+        assert!(spec("merge-video").unwrap().2);
+        assert!(!spec("compress-video").unwrap().2);
     }
 }

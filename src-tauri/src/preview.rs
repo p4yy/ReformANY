@@ -25,11 +25,11 @@ fn decode_text(data: &[u8]) -> Result<String, String> {
             .map_err(|_| "Text file is not valid UTF-8".into());
     }
     if data.starts_with(&[0xff, 0xfe]) || data.starts_with(&[0xfe, 0xff]) {
-        if (data.len() - 2) % 2 != 0 {
+        if !(data.len() - 2).is_multiple_of(2) {
             return Err("Text file contains incomplete UTF-16 characters".into());
         }
         let little = data[0] == 0xff;
-        let units: Vec<u16> = data[2..].chunks_exact(2).map(|part| {
+        let units: Vec<u16> = data[2..].as_chunks::<2>().0.iter().map(|part| {
             if little { u16::from_le_bytes([part[0], part[1]]) }
             else { u16::from_be_bytes([part[0], part[1]]) }
         }).collect();
@@ -56,7 +56,7 @@ fn load_document(path: &Path) -> Result<PreviewData, String> {
     if metadata.len() > limit {
         return Err(format!(
             "Preview limit reached. PDF files must be under 48 MB and text files under 8 MB. This file is {} MB.",
-            (metadata.len() + 1_048_575) / 1_048_576
+            metadata.len().div_ceil(1_048_576)
         ));
     }
     let bytes = fs::read(path).map_err(|_| "Unable to read the selected document".to_owned())?;

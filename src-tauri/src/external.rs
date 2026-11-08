@@ -20,13 +20,10 @@ fn bundled_binary(name: &str) -> Option<PathBuf> {
     if !matches!(name, "ffmpeg" | "ffprobe") { return None; }
     let executable = if cfg!(windows) { format!("{name}.exe") } else { name.to_owned() };
     let app_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    for path in [
+    [
         app_dir.join("engines").join(&executable),
         app_dir.join(&executable),
-    ] {
-        if path.is_file() { return Some(path); }
-    }
-    None
+    ].into_iter().find(|path| path.is_file())
 }
 
 pub fn find_binary(name: &str) -> Option<PathBuf> {

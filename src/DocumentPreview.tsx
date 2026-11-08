@@ -25,9 +25,7 @@ function size(bytes: number) {
   return bytes > 1048576 ? (bytes / 1048576).toFixed(1) + " MB" :
     bytes > 1024 ? (bytes / 1024).toFixed(0) + " KB" : bytes + " bytes";
 }
-function isUrlAllowed(href?: string) {
-  return Boolean(href && /^https?:\/\//i.test(href));
-}
+// Documents are strictly local: links are rendered as text, never navigated.
 export default function DocumentPreview({ initialPath }: Props) {
   const [path, setPath] = useState<string | null>(initialPath || null);
   const [document, setDocument] = useState<Data | null>(null);
@@ -207,8 +205,7 @@ export default function DocumentPreview({ initialPath }: Props) {
         {document?.kind === "markdown" && <article className="preview-markdown-sheet" dir="auto">
           <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml
             components={{
-              a: ({ href, children }) => isUrlAllowed(href)
-                ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
+              a: ({ children }) => <span className="preview-unlinked-url">{children}</span>,
               img: ({ alt }) => <span className="preview-image-alt">[Image reference: {alt || "image"}]</span>,
             }}>{document.content}</ReactMarkdown>
         </article>}

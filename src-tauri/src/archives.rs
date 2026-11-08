@@ -97,7 +97,7 @@ fn creation_args(job: &ArchiveCreate, output: &Path) -> Result<(PathBuf, Vec<OsS
     };
     let mut args: Vec<OsString> = vec!["a".into()];
     if job.format == "rar" {
-        args.extend(["-ma5".into(), format!("-m{}", (u32::from(job.level) + 1) / 2).into()]);
+        args.extend(["-ma5".into(), format!("-m{}", u32::from(job.level).div_ceil(2)).into()]);
     } else {
         args.extend([
             format!("-t{}", job.format).into(),
