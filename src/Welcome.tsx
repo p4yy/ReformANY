@@ -69,9 +69,9 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
 
       <div className="welcome-main">
         <section className="welcome-copy">
-          <div className="welcome-eyebrow"><span/> WELCOME TO REFORMANY</div>
-          <h1 id="welcome-title">Your files.<br/><em>Your flow.</em></h1>
-          <p className="welcome-description">A quieter way to convert, organize and work with files. Everything happens on your computer.</p>
+          <div className="welcome-eyebrow"><span/> REFORMANY · GET STARTED</div>
+          <h1 id="welcome-title">Files, handled.<br/><em>Right here.</em></h1>
+          <p className="welcome-description">Convert, compress and organize files in one place. Your work stays on this computer.</p>
           <div className="welcome-points" aria-label="ReformANY essentials">
             <span><LockKeyhole size={15}/> No cloud uploads</span>
             <span><ShieldCheck size={15}/> Originals preserved</span>
@@ -91,7 +91,7 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
         <section className="welcome-demo" aria-labelledby="welcome-demo-title">
           <div className="welcome-demo-heading">
             <span id="welcome-demo-title">MEET ORBIT</span>
-            <span>RIGHT-CLICK. DONE.</span>
+            <span>THREE QUICK SECTIONS</span>
           </div>
           <div className="welcome-orbit-stage">
             <div className="welcome-orbit-halo" aria-hidden="true"/>
@@ -127,7 +127,7 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
               <div className="welcome-orbit-bottom"><span><Check size={12}/> LOCAL</span><span>Open ReformANY <ArrowRight size={11}/></span></div>
             </div>
           </div>
-          <p className="welcome-demo-caption"><WandSparkles size={14}/> Preview only. In File Explorer, right-click a file to open the real Orbit.</p>
+          <p className="welcome-demo-caption"><WandSparkles size={14}/> Orbit preview. Right-click a file in Explorer to open it.</p>
         </section>
       </div>
 
