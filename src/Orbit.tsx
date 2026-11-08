@@ -445,15 +445,36 @@ export default function Orbit() {
   }
 
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
-  const targets = kind === "image" ? imageFormats : kind === "audio" ? audioFormats : kind === "video" ? videoFormats : [];
-  const mediaReady = kind !== "audio" && kind !== "video" || Boolean(engines?.ffmpeg && engines?.ffprobe);
-  const description = file?.error ?? (loading ? "Reading file…" : isFolder ? "Use Tools to package this folder" : "No quick conversion for this file. Try the full workspace.");
+  const allTargets = kind === "image" ? imageFormats
+    : kind === "audio" ? audioFormats
+    : kind === "video" ? videoFormats : [];
+  const detectedFormat = (file?.detected || "").toLowerCase();
+  const targets = allTargets.filter(format => format.toLowerCase() !== detectedFormat);
+  const mediaReady = (kind !== "audio" && kind !== "video") || Boolean(engines?.ffmpeg && engines?.ffprobe);
+  const description = file?.error ?? (loading ? "Reading file…"
+    : kind === "pdf" ? "PDF · Choose TXT, Markdown or HTML"
+    : kind === "office" ? officeReady ? "Office · Convert to PDF" : "PDF export requires LibreOffice"
+    : kind === "shortcut" ? "Shortcut · Use Actions to manage it"
+    : kind === "application" ? "Application · Use Actions to manage it"
+    : kind === "archive" ? "Archive · Use Tools to extract"
+    : isFolder ? "Folder · Use Tools to package it"
+    : "No direct conversion for this file type");
 
+  // Show only actions with implemented local command handlers for this file type.
+  // No dummy PDF-to-DOCX or unsupported shortcut conversions are advertised.
+  const documentFormats: OrbitAction[] = kind === "pdf" && canConvert ? [
+    { label: "TXT", run: () => void convertDocument("txt") },
+    { label: "Markdown", run: () => void convertDocument("md") },
+    { label: "HTML", run: () => void convertDocument("html") },
+  ] : kind === "office" && canConvert && officeReady ? [
+    { label: "PDF", run: () => void convertDocument("pdf") },
+  ] : [];
 
   const innerActions: OrbitAction[] = tab === "convert"
-    ? (canConvert && mediaReady ? targets.slice(0, 4).map(target => ({
-        label: target, run: () => void convert(target),
-      })) : [])
+    ? documentFormats.length ? documentFormats
+      : (canConvert && mediaReady ? targets.slice(0, 5).map(target => ({
+          label: target, run: () => void convert(target),
+        })) : [])
     : tab === "tools" ? [
         ...(kind === "archive"
           ? ((isNativeZip || engines?.sevenZip) && canConvert
@@ -462,34 +483,37 @@ export default function Orbit() {
               { label: "ZIP", run: () => void archive("zip") },
               ...(engines?.sevenZip ? [{ label: "7z", run: () => void archive("7z") }] : []),
             ] : []),
-      ] : file ? [
+      ] : file && !file.error ? [
         { label: "Rename", run: () => { setNewName(file.name); setRenaming(true); } },
         { label: "Copy path", run: () => void act("copy") },
         { label: "Terminal", run: () => void act("terminal") },
-        ...(!isFolder ? [{ label: "Float", run: () => void act("float") }] : []),
+        ...(!isFolder && kind !== "shortcut" && kind !== "application"
+          ? [{ label: "Float", run: () => void act("float") }] : []),
       ] : [];
   const outerActions: OrbitAction[] = tab === "convert"
-    ? (canConvert && mediaReady ? targets.slice(4).map(target => ({
+    ? (canConvert && mediaReady ? targets.slice(5).map(target => ({
         label: target, run: () => void convert(target),
       })) : [])
     : tab === "tools" ? [
-        { label: "More tools", run: () => void openWorkspace() },
+        { label: kind === "pdf" || kind === "office" ? "Document tools" : "More tools", run: () => void openWorkspace() },
         ...(file && !file.error ? [{ label: isFolder ? "Open folder" : "Show file", run: () => void act("folder") }] : []),
-        ...(file && !file.error && !isFolder ? [{
+        ...(file && !file.error && !isFolder && kind !== "shortcut" && kind !== "application" ? [{
           label: "Split into parts", run: () => setSplitting(true),
         }] : []),
-        ...(file?.name.endsWith(".reformany.parts.json") ? [{
+        ...(file?.name.toLowerCase().endsWith(".reformany.parts.json") ? [{
           label: "Join parts", run: () => void joinParts(),
         }] : []),
         ...(file && !file.error ? [{
           label: "Password ZIP", run: () => setPasswording(true),
         }] : []),
       ]
-    : file ? [
-        { label: isFolder ? "Open folder" : "Show in Explorer", run: () => void act("folder") },
+    : file && !file.error ? [
+        { label: isFolder ? "Open folder" : kind === "shortcut" ? "Show shortcut" : "Show file",
+          run: () => void act("folder") },
         ...(!isFolder ? [
-          { label: "Copy file", run: () => void act("copyFile") },
-          { label: "Bluetooth", run: () => void act("bluetooth") },
+          { label: kind === "shortcut" ? "Copy shortcut" : "Copy file", run: () => void act("copyFile") },
+          ...(kind !== "shortcut" && kind !== "application"
+            ? [{ label: "Bluetooth", run: () => void act("bluetooth") }] : []),
         ] : []),
       ] : [];
 
