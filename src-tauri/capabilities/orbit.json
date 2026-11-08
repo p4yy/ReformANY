@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "orbit-window-controls",
+  "description": "Allow only the Orbit window to close, refocus after native dialogs, and fit its size to the monitor.",
+  "windows": [
+    "orbit"
+  ],
+  "permissions": [
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-size"
+  ]
+}
