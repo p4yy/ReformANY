@@ -1,5 +1,9 @@
+use image::codecs::gif::{GifDecoder, GifEncoder};
 use image::codecs::jpeg::JpegEncoder;
-use image::{DynamicImage, ImageFormat, ImageReader, Rgb, RgbImage};
+use image::codecs::png::PngDecoder;
+use image::codecs::webp::WebPDecoder;
+use image::{AnimationDecoder, DynamicImage, GenericImageView, ImageDecoder, ImageFormat, ImageReader, Rgb, RgbImage};
+use std::io::BufReader;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -39,6 +43,48 @@ pub struct ConversionItem {
     target: String,
     quality: u8,
     matte: String,
+    #[serde(default)]
+    options: TransformOptions,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TransformOptions {
+    /// Maximum edge of output; thumbnail preserves aspect ratio and does not upscale.
+    max_dimension: Option<u32>,
+    /// Clockwise degrees: 0, 90, 180, 270.
+    rotation: u16,
+    grayscale: bool,
+}
+
+impl TransformOptions {
+    fn validate(&self) -> Result<(), String> {
+        if !matches!(self.rotation, 0 | 90 | 180 | 270) {
+            return Err("Rotation must be 0, 90, 180 or 270 degrees".into());
+        }
+        if let Some(edge) = self.max_dimension {
+            if !(128..=8192).contains(&edge) {
+                return Err("Maximum edge must be between 128 and 8192 pixels".into());
+            }
+        }
+        Ok(())
+    }
+
+    fn apply(&self, mut image: DynamicImage) -> DynamicImage {
+        image = match self.rotation {
+            90 => image.rotate90(),
+            180 => image.rotate180(),
+            270 => image.rotate270(),
+            _ => image,
+        };
+        if let Some(edge) = self.max_dimension {
+            image = image.thumbnail(edge, edge);
+        }
+        if self.grayscale {
+            image = image.grayscale();
+        }
+        image
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -63,10 +109,59 @@ pub(crate) fn describe(path: &Path) -> Result<(u64, ImageFormat), String> {
     let len = file.read(&mut header).map_err(|_| "File could not be read".to_owned())?;
     let format = image::guess_format(&header[..len])
         .map_err(|_| "Unrecognized image signature".to_owned())?;
-    if !matches!(format, ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP | ImageFormat::Bmp) {
+    if !matches!(format, ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP | ImageFormat::Bmp | ImageFormat::Gif | ImageFormat::Tiff) {
         return Err("This image format is not supported yet".into());
     }
+    reject_multipage_or_animated(path, format)?;
     Ok((metadata.len(), format))
+}
+
+/// Reject formats that would otherwise silently discard animation or pages.
+fn reject_multipage_or_animated(path: &Path, format: ImageFormat) -> Result<(), String> {
+    match format {
+        ImageFormat::Png => {
+            let reader = BufReader::new(File::open(path).map_err(|e| e.to_string())?);
+            let decoder = PngDecoder::new(reader).map_err(|e| format!("Invalid PNG: {e}"))?;
+            if decoder.is_apng().map_err(|e| e.to_string())? {
+                return Err("Animated PNG is not supported yet; no frames were discarded".into());
+            }
+        }
+        ImageFormat::WebP => {
+            let reader = BufReader::new(File::open(path).map_err(|e| e.to_string())?);
+            let decoder = WebPDecoder::new(reader).map_err(|e| format!("Invalid WebP: {e}"))?;
+            if decoder.has_animation() {
+                return Err("Animated WebP is not supported yet; no frames were discarded".into());
+            }
+        }
+        ImageFormat::Gif => {
+            let reader = BufReader::new(File::open(path).map_err(|e| e.to_string())?);
+            let decoder = GifDecoder::new(reader).map_err(|e| format!("Invalid GIF: {e}"))?;
+            let (width, height) = decoder.dimensions();
+            if width as u64 * height as u64 > MAX_PIXELS {
+                return Err("Image exceeds the 40-megapixel processing limit".into());
+            }
+            let mut frames = decoder.into_frames();
+            if let Some(frame) = frames.next() {
+                frame.map_err(|e| format!("Invalid GIF frame: {e}"))?;
+            } else {
+                return Err("GIF contains no image frames".into());
+            }
+            if let Some(frame) = frames.next() {
+                frame.map_err(|e| format!("Invalid GIF frame: {e}"))?;
+                return Err("Animated GIF is not supported yet; no frames were discarded".into());
+            }
+        }
+        ImageFormat::Tiff => {
+            let reader = BufReader::new(File::open(path).map_err(|e| e.to_string())?);
+            let decoder = tiff::decoder::Decoder::new(reader)
+                .map_err(|e| format!("Invalid TIFF: {e}"))?;
+            if decoder.more_images() {
+                return Err("Multipage TIFF is not supported yet; no pages were discarded".into());
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn format_name(format: ImageFormat) -> &'static str {
@@ -75,6 +170,8 @@ fn format_name(format: ImageFormat) -> &'static str {
         ImageFormat::Jpeg => "JPEG",
         ImageFormat::WebP => "WebP",
         ImageFormat::Bmp => "BMP",
+        ImageFormat::Gif => "GIF",
+        ImageFormat::Tiff => "TIFF",
         _ => "Unsupported",
     }
 }
@@ -102,6 +199,8 @@ fn output_format(target: &str) -> Result<(ImageFormat, &'static str), String> {
         "jpeg" => Ok((ImageFormat::Jpeg, "jpg")),
         "webp" => Ok((ImageFormat::WebP, "webp")),
         "bmp" => Ok((ImageFormat::Bmp, "bmp")),
+        "gif" => Ok((ImageFormat::Gif, "gif")),
+        "tiff" => Ok((ImageFormat::Tiff, "tiff")),
         _ => Err("Requested output format is not supported".into()),
     }
 }
@@ -126,6 +225,7 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
     let input = Path::new(&item.path);
     let _ = describe(input)?;
     let (target_format, ext) = output_format(&item.target)?;
+    item.options.validate()?;
     let directory = match destination {
         Some(path) => PathBuf::from(path),
         None => input.parent().ok_or("Input folder could not be determined")?.to_path_buf(),
@@ -144,6 +244,8 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
     let image = ImageReader::open(input).map_err(|e| e.to_string())?
         .with_guessed_format().map_err(|e| e.to_string())?
         .decode().map_err(|e| format!("Unable to decode image: {e}"))?;
+    let image = item.options.apply(image);
+    let (result_width, result_height) = image.dimensions();
     if cancelled.load(Ordering::Relaxed) {
         return Err("cancelled".into());
     }
@@ -160,6 +262,11 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
             flattened.write_to(temp.as_file_mut(), target_format)
                 .map_err(|e| format!("BMP encoding failed: {e}"))?;
         }
+    } else if target_format == ImageFormat::Gif {
+        let rgba = image.to_rgba8();
+        GifEncoder::new(temp.as_file_mut())
+            .encode(rgba.as_raw(), result_width, result_height, image::ExtendedColorType::Rgba8)
+            .map_err(|e| format!("GIF encoding failed: {e}"))?;
     } else {
         image.write_to(temp.as_file_mut(), target_format)
             .map_err(|e| format!("Image encoding failed: {e}"))?;
@@ -171,7 +278,7 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
     let verified = ImageReader::open(temp.path()).map_err(|e| e.to_string())?
         .with_guessed_format().map_err(|e| e.to_string())?
         .into_dimensions().map_err(|e| format!("Output verification failed: {e}"))?;
-    if verified != (width, height) {
+    if verified != (result_width, result_height) {
         return Err("Output dimensions failed verification".into());
     }
     let stem = input.file_stem().ok_or("Invalid input filename")?.to_string_lossy();
@@ -216,6 +323,7 @@ pub async fn convert_batch(
     for file in &files {
         if file.id.is_empty() { return Err("A conversion item is missing its ID".into()); }
         output_format(&file.target)?;
+        file.options.validate()?;
         if file.matte != "white" && file.matte != "black" {
             return Err("Unsupported transparency background".into());
         }
@@ -290,7 +398,7 @@ mod tests {
         DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(3, 2, image::Rgba([12, 23, 34, 100])))
             .save_with_format(&path, ImageFormat::Png).unwrap();
         let task = ConversionItem { id: "one".into(), path: path.to_string_lossy().into(),
-            target: "jpeg".into(), quality: 83, matte: "white".into() };
+            target: "jpeg".into(), quality: 83, matte: "white".into(), options: TransformOptions::default() };
         let flag = AtomicBool::new(false);
         let a = convert_one(&task, None, &flag).unwrap();
         let b = convert_one(&task, None, &flag).unwrap();
@@ -312,18 +420,20 @@ mod tests {
             ("jpg", ImageFormat::Jpeg),
             ("webp", ImageFormat::WebP),
             ("bmp", ImageFormat::Bmp),
+            ("gif", ImageFormat::Gif),
+            ("tiff", ImageFormat::Tiff),
         ];
         let cancelled = AtomicBool::new(false);
         for (extension, source_format) in sources {
             let source = directory.path().join(format!("sample-{extension}.{extension}"));
             image.save_with_format(&source, source_format).unwrap();
-            for destination_format in ["png", "jpeg", "webp", "bmp"] {
+            for destination_format in ["png", "jpeg", "webp", "bmp", "gif", "tiff"] {
                 let task = ConversionItem {
                     id: "matrix".into(),
                     path: source.to_string_lossy().to_string(),
                     target: destination_format.into(),
                     quality: 88,
-                    matte: "white".into(),
+                    matte: "white".into(), options: TransformOptions::default(),
                 };
                 let converted = convert_one(&task, None, &cancelled).unwrap();
                 let reader = ImageReader::open(&converted).unwrap().with_guessed_format().unwrap();
@@ -344,7 +454,7 @@ mod tests {
         )).save_with_format(&source, ImageFormat::Png).unwrap();
         let item = ConversionItem {
             id: "alpha".into(), path: source.to_string_lossy().to_string(),
-            target: "jpeg".into(), quality: 100, matte: "white".into(),
+            target: "jpeg".into(), quality: 100, matte: "white".into(), options: TransformOptions::default(),
         };
         let output = convert_one(&item, None, &AtomicBool::new(false)).unwrap();
         let rgb = image::open(output).unwrap().to_rgb8();
@@ -360,12 +470,53 @@ mod tests {
         assert!(describe(&corrupt).is_err());
         let item = ConversionItem {
             id: "cancel".into(), path: corrupt.to_string_lossy().to_string(),
-            target: "png".into(), quality: 85, matte: "white".into(),
+            target: "png".into(), quality: 85, matte: "white".into(), options: TransformOptions::default(),
         };
         assert_eq!(
             convert_one(&item, None, &AtomicBool::new(true)).unwrap_err(),
             "cancelled"
         );
+    }
+
+    #[test]
+    fn resize_rotate_and_grayscale_are_applied_before_encoding() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("wide.png");
+        DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            120, 60, image::Rgba([230, 40, 30, 255]),
+        )).save_with_format(&input, ImageFormat::Png).unwrap();
+        let task = ConversionItem {
+            id: "transform".into(), path: input.to_string_lossy().into(), target: "png".into(),
+            quality: 90, matte: "white".into(),
+            options: TransformOptions { max_dimension: Some(128), rotation: 90, grayscale: true },
+        };
+        let output = convert_one(&task, None, &AtomicBool::new(false)).unwrap();
+        // Rotated 60x120; thumbnail is not upscaled by 128px edge.
+        assert_eq!(image::image_dimensions(output.clone()).unwrap(), (60, 120));
+        let sample = image::open(output).unwrap().to_rgb8().get_pixel(0, 0).0;
+        assert_eq!(sample[0], sample[1]);
+        assert_eq!(sample[1], sample[2]);
+    }
+
+    #[test]
+    fn rejects_invalid_transformation_options() {
+        assert!(TransformOptions { max_dimension: None, rotation: 45, grayscale: false }.validate().is_err());
+        assert!(TransformOptions { max_dimension: Some(0), rotation: 0, grayscale: false }.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_animated_gif_without_destroying_source() {
+        use image::Frame;
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("animated.gif");
+        let file = File::create(&input).unwrap();
+        let mut writer = GifEncoder::new(file);
+        let frame = || Frame::new(image::RgbaImage::from_pixel(
+            5, 5, image::Rgba([10, 25, 100, 255]),
+        ));
+        writer.encode_frames([frame(), frame()]).unwrap();
+        assert!(describe(&input).unwrap_err().contains("Animated GIF"));
+        assert!(input.exists());
     }
 
 }

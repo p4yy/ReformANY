@@ -1,30 +1,39 @@
-# Format support matrix
+# Format support — image milestone
 
-Status **Implemented, awaiting Windows CI and manual QA** describes code currently present, not proven successful conversions.
+The Rust engine implements conversion between six **single-image raster formats**. All 36 input/output routes have automated tests. This is not the full universal-conversion roadmap.
 
-| Input | Output | Status | Notes |
+| Format | Input | Output | Limitations |
 |---|---|---|---|
-| PNG | PNG, JPEG, WebP, BMP | Implemented, unverified | PNG/WebP retain alpha; JPEG/BMP composite on selected white/black background |
-| JPEG | PNG, JPEG, WebP, BMP | Implemented, unverified | JPEG quality applies only to JPEG output |
-| WebP | PNG, JPEG, WebP, BMP | Implemented, unverified | Static images; animated WebP needs separate policy and tests |
-| BMP | PNG, JPEG, WebP, BMP | Implemented, unverified | Static raster only |
-| PDF, Office, text | Other document formats | Not implemented | Requires format-specific engines and fidelity policy |
-| Audio, video | Any | Not implemented | Requires codec, container, patent and redistribution review |
-| Archives | Any | Not implemented | Requires independent safe extraction/repacking design |
-| GIF, TIFF, AVIF, SVG, HEIC | Any | Not implemented | Individual feasibility/security review required |
+| PNG | Yes | Yes | Animated PNG rejected |
+| JPEG | Yes | Yes | Lossy; transparency composited on selected matte |
+| WebP | Yes | Yes | Animated WebP rejected; encoder currently lossless |
+| BMP | Yes | Yes | Transparency composited on selected matte |
+| GIF | Static only | Static only | Indexed palette/quality loss possible; animated input rejected |
+| TIFF | Single page | Single page | Multipage input rejected; metadata and specialist color spaces may be lost |
 
-## Limitations
+Conversions also support optional **maximum-edge scaling (no upscaling), 90°/180°/270° clockwise rotation, and grayscale**. The main window exposes these under Conversion settings; Orbit uses original size by default.
 
-- Individual source files must be no larger than 150 MB and 40 megapixels.
-- 300 items maximum per submitted batch; two processing workers.
-- Image processing may discard metadata, ICC profiles, and EXIF orientation semantics. Do not rely on metadata fidelity until explicitly implemented and tested.
-- WebP encoding currently uses the image library's lossless behavior.
-- BMP/JPEG do not retain alpha.
-- Conversion of animated images is not supported as a fidelity-preserving operation.
-- The existing output is never overwritten; suffixes are added as necessary.
-- Cancellation is best effort at safe checkpoints, not necessarily during a codec call.
-- Non-image formats do not appear in output selectors.
+## Security and quality policies
 
-## Validation before promoting status to Verified
+- Content-signature detection; unsupported formats are rejected.
+- PNG/APNG, WebP animation, GIF multiframe, and multipage TIFF are checked to prevent silent frame/page loss.
+- 150 MB source limit and 40-megapixel decoded image limit.
+- Up to 300 files per batch, with two workers.
+- Output staged in destination and verified before no-clobber publication. Original is unchanged.
+- Existing outputs are never overwritten; a suffix is generated on collision.
+- JPEG quality range 1–100; the main UI exposes 30–100. It does not control WebP, GIF, or TIFF.
+- Cancellation is cooperative at safe checkpoints, not inside codec calls.
+- Processing may discard EXIF, ICC profiles, DPI, GPS metadata, color depth, and orientation. Do not use the current release for metadata-preserving professional archives.
 
-Run Rust unit tests, frontend typecheck/build, Windows Tauri launch, sample image matrix, corrupted file cases, alpha checks, collisions, Unicode paths, and cancellation QA. Record specific outputs and dates.
+## Not implemented
+
+- Video and audio, including MP3/MP4, FFmpeg-based processing
+- PDF, Office documents, spreadsheets, presentations, e-books
+- Archives and folders
+- SVG, HEIC, AVIF, PSD, RAW, ICO, and other specialist image formats
+- Animated output and multipage conversion
+- Metadata fidelity guarantees, GPU processing, transparent background removal
+
+## Verification
+
+Automated Rust tests cover 36 raster routes, transparency matte, original-file preservation and no-overwrite, transformations, invalid input, and animated GIF rejection. Green Windows and Linux CI is needed before promoting this build to *verified*. Real desktop QA is still required for drag/drop, Orbit, Windows Explorer registration and installer.
