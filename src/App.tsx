@@ -19,6 +19,7 @@ import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePr
 import DesktopChrome, { type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
 import ThemePicker from "./ThemePicker";
+import ActivityPage from "./ActivityPage";
 import Welcome, { shouldShowWelcome } from "./Welcome";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
@@ -431,21 +432,10 @@ function App() {
           {!desktop && <p className="browser-note">Browser preview only. Open ReformANY through Tauri to import and convert files.</p>}
         </div>}
 
-        {page === "activity" && <div className="content page-panel">
-          <div className="eyebrow">LOCAL HISTORY</div>
-          <div className="activity-heading"><div><h1>Activity</h1><p>Recent conversions, saved on this device.</p></div>
-            {history.length > 0 && <button className="text-action" onClick={() => setHistory([])}><Trash2 size={15}/> Clear history</button>}
-          </div>
-          {history.length > 0 ?
-            <div className="activity-list">{history.map(item =>
-              <div className="activity-item" key={item.id}><div className={`activity-symbol ${item.status}`}>{item.status === "completed" ? <Check size={18}/> : <CircleAlert size={18}/>}</div>
-                <div><strong>{item.name}</strong><small>{item.outputPath || item.error || item.status}</small>
-                  <small>{new Date(item.timestamp).toLocaleString()} · {item.target.toUpperCase()}</small></div>
-                {item.outputPath && <button className="text-action" aria-label={`Reveal ${item.name}`} onClick={() => void invoke("reveal_output", { path: item.outputPath }).catch(error => setNotice(String(error)))}><Folder size={15}/> Show</button>}
-                <span>{item.status}</span>
-              </div>)}</div> :
-            <div className="blank-state"><Clock3 size={25}/><strong>No activity yet</strong><p>Converted files and any errors will show here, including after restarting the app.</p><button className="button secondary" onClick={() => setPage("convert")}>Go to converter</button></div>}
-        </div>}
+        {page === "activity" && <ActivityPage items={history}
+          onClear={() => setHistory([])}
+          onReveal={path => void invoke("reveal_output", { path }).catch(error => setNotice(String(error)))}
+          onOpenWorkspace={() => setPage("convert")} />}
 
         {page === "appearance" && <div className="content page-panel">
           <div className="eyebrow">{tx("preferences").toUpperCase()}</div><h1>{tx("appearance")}</h1><p>Make the workspace feel right for you.</p>
