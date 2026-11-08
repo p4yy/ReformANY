@@ -65,6 +65,69 @@ jobs:
           name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Windows-test', github.event.number) || 'ReformANY-0.3.0-Windows-preview' }}
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+      # The user-supplied ZIP is the authoritative React design.
+      # NSIS continues as a completely silent backend (invoked only with /S).
+      - name: Prepare original five-step premium installer UI
+        shell: pwsh
+        run: |
+          $reference = Join-Path $env:RUNNER_TEMP 'ReformANY-Premium-Reference'
+          $frontend = Join-Path $PWD 'installer/setup-shell/frontend'
+          $overrides = Join-Path $PWD 'installer/setup-shell/frontend-overrides'
+          Expand-Archive -LiteralPath 'installer/reference/premium-installer-ui-prompt.zip' -DestinationPath $reference -Force
+          New-Item -ItemType Directory -Path $frontend -Force | Out-Null
+          Copy-Item -Path (Join-Path $reference '*') -Destination $frontend -Recurse -Force
+          Get-ChildItem -LiteralPath $overrides -File -Recurse | ForEach-Object {
+            $relative = $_.FullName.Substring($overrides.Length).TrimStart([char[]]@('\\','/'))
+            $target = Join-Path $frontend $relative
+            New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+            Copy-Item -LiteralPath $_.FullName -Destination $target -Force
+          }
+          # Remove the reference playground app; only the real installer is shipped.
+          Remove-Item -LiteralPath (Join-Path $frontend 'src/App.tsx') -Force
+          New-Item -ItemType Directory -Path (Join-Path $frontend 'public') -Force | Out-Null
+          Copy-Item 'src-tauri/icons/icon.png' (Join-Path $frontend 'public/brand.png') -Force
+          $icons = 'installer/setup-shell/src-tauri/icons'
+          New-Item -ItemType Directory -Path $icons -Force | Out-Null
+          Copy-Item 'src-tauri/icons/icon.ico' (Join-Path $icons 'icon.ico') -Force
+          Copy-Item 'src-tauri/icons/icon.png' (Join-Path $icons 'icon.png') -Force
+      - name: Compile actual premium React installer UI
+        shell: pwsh
+        run: |
+          Push-Location 'installer/setup-shell/frontend'
+          try {
+            npm install --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend npm install failed' }
+            npx tsc --noEmit
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend TypeScript failed' }
+            npm run build
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend Vite build failed' }
+          } finally { Pop-Location }
+      - name: Build frameless Windows premium setup executable
+        shell: pwsh
+        timeout-minutes: 35
+        run: |
+          $native = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (-not $native) { throw 'No real NSIS engine was built' }
+          $env:REFORMANY_NSIS_PAYLOAD = $native.FullName
+          cargo build --release --manifest-path 'installer/setup-shell/src-tauri/Cargo.toml'
+          if ($LASTEXITCODE -ne 0) { throw 'Premium Tauri setup compilation failed' }
+          $premium = 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe'
+          if (-not (Test-Path -LiteralPath $premium)) { throw 'Premium setup exe missing' }
+          & $premium --verify-payload
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled NSIS engine verification failed' }
+          Write-Host "Premium installer binary: $premium"
+      - name: Upload premium frameless setup EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Premium-Setup', github.event.number) || 'ReformANY-Premium-Setup-preview' }}
+          path: installer/setup-shell/src-tauri/target/release/reformany-setup.exe
+          if-no-files-found: error
+      - name: Verify real NSIS opt-out flags
+        shell: pwsh
+        run: |
+          $native = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (-not $native) { throw 'No real NSIS engine was built' }
+          ./scripts/test-setup-flags.ps1 -Installer $native.FullName
       - name: Verify installed Orbit context-menu entries
         shell: pwsh
         run: |

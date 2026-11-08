@@ -535,6 +535,12 @@ Function InstallMediaEngines
     Pop $R0
     ${If} $R0 != "success"
       DetailPrint "Media download failed: $R0"
+      ; Never display native Win32 dialogs from a silent premium setup.
+      ; Report the error to the supervising Tauri process instead.
+      ${If} ${Silent}
+        SetErrorLevel 5
+        Quit
+      ${EndIf}
       MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Could not download the media conversion tools. Check your internet connection. Retry or continue installing ReformANY without media conversion." IDRETRY download_media
       Return
     ${EndIf}
@@ -544,6 +550,10 @@ Function InstallMediaEngines
     Delete "$PLUGINSDIR\reformany-ffmpeg.zip"
     ${If} $R0 != 0
       DetailPrint "FFmpeg setup failed (exit code $R0)."
+      ${If} ${Silent}
+        SetErrorLevel 6
+        Quit
+      ${EndIf}
       MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Media engine installation failed verification or extraction. Retry or continue without media conversion. See installation details for the error." IDRETRY download_media
       Return
     ${EndIf}
