@@ -126,7 +126,7 @@ export function MediaPanel() {
   }
 
   return <div className="content engine-page">
-    <div className="eyebrow">LOCAL MEDIA ENGINE</div>
+    
     <h1>Audio & video</h1>
     <p>Convert media with an installed FFmpeg engine. Only supported output presets are offered.</p>
 
@@ -281,7 +281,7 @@ export function ArchivePanel() {
   }
 
   return <div className="content engine-page">
-    <div className="eyebrow">LOCAL ARCHIVE ENGINE</div>
+    
     <h1>Archives</h1>
     <p>Create archives or split and rejoin large files. Everything runs locally.</p>
     <div className="engine-switch engine-switch-three">
@@ -423,7 +423,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
   }
 
   return <div className="content engine-page">
-    <div className="eyebrow">DOCUMENT CONVERSION</div><h1>Documents</h1>
+    <h1>Documents</h1>
     <p>Actual PDF operations, with original files left in place. Office rendering uses LibreOffice if installed.</p>
     <div className="engine-switch engine-switch-three">
       <button className={mode === "images" ? "selected" : ""} onClick={() => changeMode("images")}>Images → PDF</button>
@@ -513,7 +513,7 @@ export function EnginesPanel() {
   }
 
   return <div className="content engine-page">
-    <div className="eyebrow">LOCAL ENGINE STATUS</div><h1>Engine status</h1>
+    <h1>Engine status</h1>
     <p>ReformANY keeps processing local. Core image, PDF and ZIP features are built in; larger format engines use software already installed on Windows.</p>
     <div className="engine-action-row">
       <div><strong>Engine readiness</strong><small>Refresh after installing any external tool.</small></div>
