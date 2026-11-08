@@ -100,9 +100,9 @@ struct ProgressEvent {
 }
 
 pub(crate) fn describe(path: &Path) -> Result<(u64, ImageFormat), String> {
-    let metadata = std::fs::metadata(path).map_err(|_| "File could not be opened".to_owned())?;
-    if !metadata.is_file() {
-        return Err("This path is not a regular file".into());
+    let metadata = std::fs::symlink_metadata(path).map_err(|_| "File could not be opened".to_owned())?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Only regular image files are accepted; links are blocked".into());
     }
     if metadata.len() > MAX_INPUT_BYTES {
         return Err("File exceeds the 150 MB input limit".into());
