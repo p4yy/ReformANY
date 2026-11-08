@@ -11,6 +11,12 @@ unmodified official builds are permitted under [LICENSE](../LICENSE).
 
 ## What needs written permission
 
+**If somebody takes ReformANY's actual code as-is, the rules apply.**
+That includes exact repository copies, copied original source files, compiled
+repackaged installers, and protected code reused inside a renamed application.
+The same applies to adaptations containing protected ReformANY material.
+Simply changing the name or adding a donation link does not grant permission.
+
 Repackaging, redistributing, selling or monetizing ReformANY, publishing a
 modified edition, or incorporating original ReformANY source code and
 protectable UI artwork into another application requires prior express written
