@@ -55,8 +55,13 @@ function WorkspaceToolbar({ page, navigate, language }: {
   const syncEdges = useCallback(() => {
     const element = viewport.current;
     if (!element) return;
-    const left = element.scrollLeft > 3;
-    const right = element.scrollLeft + element.clientWidth < element.scrollWidth - 3;
+    const available = Math.max(0, element.scrollWidth - element.clientWidth);
+    // Chromium/WebView2 uses negative scrollLeft for RTL navigation.
+    // The arrows always indicate the physical direction of remaining content.
+    const rtl = getComputedStyle(element).direction === "rtl";
+    const offset = rtl ? -element.scrollLeft : element.scrollLeft;
+    const left = rtl ? offset < available - 3 : offset > 3;
+    const right = rtl ? offset > 3 : offset < available - 3;
     setEdges(previous => previous.left === left && previous.right === right
       ? previous : { left, right });
   }, []);
