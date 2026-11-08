@@ -21,9 +21,9 @@ const steps = [
 
 export default function GuidePage({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
   return <div className="content guide-page">
-    <div className="eyebrow">GETTING STARTED</div>
+    
     <h1>How ReformANY works</h1>
-    <p>File tools designed to stay out of your way.</p>
+    <p>Choose a workspace, add a file, then select an available action.</p>
     <div className="guide-steps">
       {steps.map((step, index) => <section key={step.title}>
         <span>{String(index + 1).padStart(2, "0")}</span>
