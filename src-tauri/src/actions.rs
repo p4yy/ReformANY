@@ -134,6 +134,10 @@ pub fn float_file_context(state: State<'_, FloatRegistry>) -> Result<Option<Floa
 pub fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: String) -> Result<(), String> {
     let input = Path::new(&path);
     crate::external::verify_input(input, false)?;
+    // Grant the asset protocol access only to this explicitly selected file.
+    // Never expose arbitrary disk directories to the embedded browser.
+    app.asset_protocol_scope().allow_file(input)
+        .map_err(|e| format!("Cannot authorize floating media preview: {e}"))?;
     {
         let mut current = state.0.lock().map_err(|_| "Preview state is unavailable")?;
         *current = Some(path);
