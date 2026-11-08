@@ -118,8 +118,10 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                         "-preset".into(), "medium".into(),
                         "-pix_fmt".into(), "yuv420p".into(),
                         "-c:a".into(), "aac".into(),
-                        "-movflags".into(), "+faststart".into(),
                     ]);
+                    if matches!(job.target.as_str(), "mp4" | "mov") {
+                        args.extend(["-movflags".into(), "+faststart".into()]);
+                    }
                 }
             }
         }

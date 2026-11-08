@@ -2,7 +2,7 @@ use crate::external::{output_dir, publish, verify_input};
 use image::codecs::jpeg::JpegEncoder;
 use image::{GenericImageView, ImageReader};
 use lopdf::{content::{Content, Operation}, dictionary, Document, Object, Stream};
-use std::fs::{self, File};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 const MAX_PDF_INPUT_PAGES: usize = 200;

@@ -279,7 +279,7 @@ export default function Orbit() {
                       <Package size={15}/> Extract
                     </button>
                   : <>
-                    <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("zip")}><Package size={15}/> ZIP</button>
+                    <button className="orbit-option" disabled={!canConvert} onClick={() => void archive("zip")}><Package size={15}/> ZIP</button>
                     <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("7z")}><Package size={15}/> 7z</button>
                   </>}
                 <button className="orbit-option" onClick={() => void openWorkspace()}><ArrowRight size={15}/> More</button>
