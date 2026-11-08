@@ -71,3 +71,33 @@ html[data-mode="orbit"] { color-scheme:dark; }
 .orbit-open-app:hover {color:#fff;text-decoration:underline;text-underline-offset:3px}
 .orbit-disc button:focus-visible {outline:2px solid #9bc3ff;outline-offset:2px}
 @media(prefers-reduced-motion:reduce) {.orbit-frame *, .orbit-frame *:before {animation:none!important;transition:none!important;}}
+
+/* Three-stage Orbit — retains the original restrained circular surface. */
+.orbit-disc {padding:22px 24px 15px;}
+.orbit-file {margin-top:8px;gap:3px;}
+.orbit-thumbnail {width:65px;height:65px;border-radius:17px;}
+.orbit-filename {margin-top:3px;font-size:12px;}
+.orbit-divider {margin:9px 0 7px;}
+.orbit-main {width:100%;flex:1;min-height:110px;display:flex;align-items:center;justify-content:flex-start;flex-direction:column;position:relative;z-index:1;}
+.orbit-controls {min-height:0;gap:8px;width:100%;}
+.orbit-options {width:304px;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.orbit-options .orbit-option {height:33px;border-radius:10px;flex-direction:row;gap:3px;font-size:10px;}
+.orbit-options-tools .orbit-option {height:42px;}
+.orbit-options-tools .orbit-option svg {opacity:.8;}
+.orbit-actions-grid {display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:305px;}
+.orbit-actions-grid button {height:34px;display:flex;align-items:center;justify-content:center;gap:4px;background:rgba(220,233,255,.065);border:1px solid rgba(201,223,244,.16);border-radius:9px;font-size:9.5px;color:#f3f7fb;}
+.orbit-actions-grid button:hover:not(:disabled) {background:rgba(117,164,233,.18);border-color:rgba(151,191,250,.4)}
+.orbit-section-tabs {width:270px;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;background:rgba(11,19,30,.55);padding:4px;border-radius:99px;border:1px solid rgba(200,220,245,.1);margin:0 0 8px;z-index:1;}
+.orbit-section-tabs button {border:0;background:transparent;color:#adbcd0;border-radius:99px;height:29px;font-size:10px;font-weight:650;}
+.orbit-section-tabs button.is-active {background:#d4e7ff;color:#142c49;box-shadow:0 2px 7px rgba(0,0,0,.14);}
+.orbit-section-tabs button:disabled {opacity:.6}
+.orbit-footer {width:268px;margin-top:0;z-index:1;}
+.orbit-inline-error,.orbit-inline-note {display:block;max-width:294px;text-align:center;font-size:9.5px;line-height:1.35;overflow-wrap:anywhere;}
+.orbit-inline-error {color:#ffb5a7;}
+.orbit-inline-note {color:#acc8e5;}
+.orbit-unavailable {font-size:11px;min-height:45px;}
+.orbit-rename {width:300px;display:flex;flex-wrap:wrap;align-items:center;gap:7px;}
+.orbit-rename input {width:100%;border:1px solid rgba(210,230,255,.3);border-radius:9px;background:#1c2f44;color:white;height:32px;padding:0 11px;font-size:11px;}
+.orbit-rename button {border:1px solid rgba(220,230,255,.22);background:#2a4158;color:white;border-radius:8px;padding:6px 12px;font-size:10px;}
+.orbit-working,.orbit-result {min-height:98px;gap:8px;}
+.orbit-working small {font-size:9px;color:#a7b9ca;}

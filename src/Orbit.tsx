@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ArrowRight, Check, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal } from "lucide-react";
 
 type OrbitFile = {
   path: string;
@@ -12,18 +12,23 @@ type OrbitFile = {
   error: string | null;
 };
 type Phase = "ready" | "processing" | "completed" | "failed";
+type Tab = "convert" | "tools" | "actions";
+type EngineStatus = { ffmpeg: boolean; ffprobe: boolean; sevenZip: boolean; winrar: boolean };
 type EventPayload = {
   id: string;
   status: "processing" | "completed" | "failed" | "cancelled" | "batch-finished";
   outputPath: string | null;
   error: string | null;
 };
-const formats = [
-  { value: "png", label: "PNG" },
-  { value: "jpeg", label: "JPEG" },
-  { value: "webp", label: "WebP" },
-  { value: "bmp", label: "BMP" },
-] as const;
+const imageFormats = ["PNG", "JPEG", "WebP", "BMP", "GIF", "TIFF"];
+const audioFormats = ["MP3", "WAV", "FLAC", "M4A"];
+const videoFormats = ["MP4", "WebM", "MKV", "MOV"];
+function getKind(file: OrbitFile | null): "image" | "audio" | "video" | "archive" | "other" {
+  const value = (file?.detected || "").toLowerCase();
+  if (imageFormats.some(x => x.toLowerCase() === value) || value === "image") return "image";
+  if (value === "audio" || value === "video" || value === "archive") return value;
+  return "other";
+}
 
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1048576).toFixed(1)} MB`;
@@ -33,6 +38,11 @@ function formatSize(bytes: number): string {
 
 export default function Orbit() {
   const [file, setFile] = useState<OrbitFile | null>(null);
+  const [tab, setTab] = useState<Tab>("convert");
+  const [engines, setEngines] = useState<EngineStatus | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<Phase>("ready");
@@ -41,6 +51,7 @@ export default function Orbit() {
   const [selected, setSelected] = useState<string | null>(null);
   const requestId = useRef<string | null>(null);
   const batchId = useRef<string | null>(null);
+  const kind = getKind(file);
 
   useEffect(() => {
     let mounted = true;
@@ -48,6 +59,10 @@ export default function Orbit() {
       .then(info => { if (mounted) setFile(info); })
       .catch(reason => { if (mounted) setError(String(reason)); })
       .finally(() => { if (mounted) setLoading(false); });
+
+    invoke<EngineStatus>("engine_status")
+      .then(status => { if (mounted) setEngines(status); })
+      .catch(() => { /* External tools remain unavailable. */ });
 
     invoke<string | null>("orbit_preview")
       .then(src => { if (mounted) setPreview(src); })
@@ -86,24 +101,96 @@ export default function Orbit() {
   }
 
   async function convert(target: string) {
-    if (!file || file.error || !file.detected || phase === "processing") return;
+    if (!file || file.error || phase === "processing") return;
     const id = crypto.randomUUID();
     requestId.current = id;
     setSelected(target.toUpperCase());
     setPhase("processing");
     setOutput(null);
     setError(null);
+    setNote(null);
     try {
-      batchId.current = await invoke<string>("convert_batch", {
-        files: [{ id, path: file.path, target, quality: 88, matte: "white" }],
-        destination: null,
-      });
+      if (kind === "image") {
+        batchId.current = await invoke<string>("convert_batch", {
+          files: [{ id, path: file.path, target: target.toLowerCase(),
+            quality: 88, matte: "white", options: {} }],
+          destination: null,
+        });
+      } else if (kind === "video" || kind === "audio") {
+        const result = await invoke<string>("media_convert", {
+          job: { path: file.path, target: target.toLowerCase(), destination: null,
+            profile: "standard", startSeconds: null, durationSeconds: null },
+        });
+        setOutput(result);
+        setPhase("completed");
+      }
     } catch (reason) {
       batchId.current = null;
-      requestId.current = null;
       setError(String(reason));
       setPhase("failed");
     }
+  }
+
+  async function archive(action: "zip" | "7z" | "extract") {
+    if (!file || phase === "processing") return;
+    setSelected(action === "extract" ? "Extract" : action.toUpperCase());
+    setPhase("processing");
+    setError(null);
+    setOutput(null);
+    setNote(null);
+    try {
+      if (action === "extract") {
+        const result = await invoke<string>("archive_extract", {
+          job: { path: file.path, destination: null, password: null },
+        });
+        setOutput(result);
+      } else {
+        const name = file.name.replace(/\.[^.]+$/, "") || "Archive";
+        const result = await invoke<{ outputPaths: string[] }>("archive_create", {
+          job: { paths: [file.path], destination: null, name,
+            format: action, password: null, splitMegabytes: null, level: 5 },
+        });
+        setOutput(result.outputPaths[0] || null);
+      }
+      setPhase("completed");
+    } catch (reason) {
+      setError(String(reason));
+      setPhase("failed");
+    }
+  }
+
+  async function act(action: "copy" | "folder" | "terminal" | "bluetooth") {
+    if (!file) return;
+    setNote(null);
+    setError(null);
+    try {
+      if (action === "copy") {
+        await navigator.clipboard.writeText(file.path);
+        setNote("Path copied");
+      } else if (action === "folder") {
+        await invoke("reveal_output", { path: file.path });
+        setNote("Opened in Explorer");
+      } else if (action === "terminal") {
+        await invoke("open_terminal", { path: file.path });
+        setNote("Terminal opened");
+      } else {
+        const message = await invoke<string>("send_bluetooth", { path: file.path });
+        setNote(message);
+      }
+    } catch (reason) { setError(String(reason)); }
+  }
+
+  async function rename() {
+    if (!file) return;
+    setError(null);
+    try {
+      const result = await invoke<{ path: string; name: string }>("rename_file", {
+        path: file.path, newName,
+      });
+      setFile({ ...file, path: result.path, name: result.name });
+      setRenaming(false);
+      setNote("Renamed successfully");
+    } catch (reason) { setError(String(reason)); }
   }
 
   async function reveal() {
@@ -128,7 +215,9 @@ export default function Orbit() {
   }
 
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
-  const description = file?.error ?? error ?? (loading ? "Reading file…" : "Select a format to convert");
+  const targets = kind === "image" ? imageFormats : kind === "audio" ? audioFormats : kind === "video" ? videoFormats : [];
+  const mediaReady = kind === "image" || Boolean(engines?.ffmpeg && engines?.ffprobe);
+  const description = file?.error ?? (loading ? "Reading file…" : "No direct conversion for this type");
 
   return (
     <div className="orbit-frame">
@@ -154,49 +243,76 @@ export default function Orbit() {
 
         <div className="orbit-divider" role="presentation" />
 
-        {phase === "completed" ? (
-          <div className="orbit-result" role="status">
-            <div className="orbit-success"><CheckCircle2 size={18} /> Converted</div>
-            <span className="orbit-result-name" title={output ?? undefined}>{output?.split(/[\\/]/).pop()}</span>
+        <div className="orbit-main">
+          {phase === "completed" ? <div className="orbit-result" role="status">
+            <div className="orbit-success"><CheckCircle2 size={18}/> Done</div>
+            <span className="orbit-result-name" title={output || undefined}>{output?.split(/[\\/]/).pop()}</span>
             <div className="orbit-result-actions">
-              <button type="button" onClick={() => void reveal()}><FolderOpen size={15}/> Show file</button>
-              <button type="button" onClick={() => { setPhase("ready"); setSelected(null); setError(null); }}><ArrowRight size={15}/> Another format</button>
+              <button type="button" onClick={() => void reveal()}><FolderOpen size={15}/> Show result</button>
+              <button type="button" onClick={() => {setPhase("ready");setError(null);}}>Again</button>
             </div>
-          </div>
-        ) : phase === "processing" ? (
-          <div className="orbit-working" role="status" aria-live="polite">
-            <LoaderCircle size={21} className="orbit-spinner" />
-            <strong>Converting to {selected}…</strong>
+          </div> : phase === "processing" ? <div className="orbit-working" role="status" aria-live="polite">
+            <LoaderCircle size={20} className="orbit-spinner" />
+            <strong>{selected} · Working…</strong>
             <div className="orbit-indeterminate"><span/></div>
-            <button type="button" className="orbit-cancel" onClick={() => void cancel()}>Cancel</button>
-          </div>
-        ) : (
-          <div className="orbit-controls">
-            <span className="orbit-legend">{canConvert ? "QUICK CONVERT" : "FILE SUPPORT"}</span>
-            {canConvert ? (
-              <div className="orbit-options">
-                {formats.map(item => (
-                  <button
-                    type="button"
-                    className="orbit-option"
-                    key={item.value}
-                    disabled={!canConvert}
-                    onClick={() => void convert(item.value)}
-                    aria-label={`Convert to ${item.label}`}
-                  >
-                    <span>{item.label}</span><ArrowRight size={12} aria-hidden />
-                  </button>
-                ))}
+            <small>Processing locally</small>
+          </div> : <>
+            {tab === "convert" && <div className="orbit-controls">
+              <span className="orbit-legend">QUICK CONVERT</span>
+              {targets.length > 0 && canConvert && mediaReady
+                ? <div className="orbit-options">
+                  {targets.map(target => <button type="button" key={target}
+                    className="orbit-option" onClick={() => void convert(target)}>
+                      {target}<ArrowRight size={12}/>
+                    </button>)}
+                </div>
+                : <div className="orbit-unavailable">
+                    {canConvert && !mediaReady ? "FFmpeg and FFprobe must be installed for media." : description}
+                  </div>}
+            </div>}
+            {tab === "tools" && <div className="orbit-controls">
+              <span className="orbit-legend">QUICK TOOLS</span>
+              <div className="orbit-options orbit-options-tools">
+                {kind === "archive"
+                  ? <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("extract")}>
+                      <Package size={15}/> Extract
+                    </button>
+                  : <>
+                    <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("zip")}><Package size={15}/> ZIP</button>
+                    <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("7z")}><Package size={15}/> 7z</button>
+                  </>}
+                <button className="orbit-option" onClick={() => void openWorkspace()}><ArrowRight size={15}/> More</button>
               </div>
-            ) : (
-              <div className="orbit-unavailable" role="status">{description}</div>
-            )}
-            {phase === "failed" && error && <span className="orbit-error" role="alert">{error}</span>}
-          </div>
-        )}
+              {!engines?.sevenZip && <span className="orbit-inline-note">Install 7-Zip for archive tools.</span>}
+            </div>}
+            {tab === "actions" && <div className="orbit-controls">
+              <span className="orbit-legend">FILE ACTIONS</span>
+              {renaming ? <form className="orbit-rename" onSubmit={event => {event.preventDefault();void rename();}}>
+                <input autoFocus aria-label="New filename" value={newName} onChange={event => setNewName(event.target.value)}/>
+                <button type="submit">Save</button>
+                <button type="button" onClick={() => setRenaming(false)}>Cancel</button>
+              </form> : <div className="orbit-actions-grid">
+                <button disabled={!file} onClick={() => {setNewName(file?.name || "");setRenaming(true);}}><Pencil size={14}/> Rename</button>
+                <button disabled={!file} onClick={() => void act("copy")}><ClipboardCopy size={14}/> Copy path</button>
+                <button disabled={!file} onClick={() => void act("folder")}><FolderOpen size={14}/> Show file</button>
+                <button disabled={!file} onClick={() => void act("terminal")}><Terminal size={14}/> Terminal</button>
+                <button disabled={!file} onClick={() => void act("bluetooth")}><Bluetooth size={14}/> Bluetooth</button>
+              </div>}
+            </div>}
+          </>}
+          {error && phase !== "processing" && <span className="orbit-inline-error" role="alert">{error}</span>}
+          {note && phase !== "processing" && <span className="orbit-inline-note" role="status">{note}</span>}
+        </div>
+        <nav className="orbit-section-tabs" aria-label="Orbit sections">
+          {(["convert", "tools", "actions"] as Tab[]).map(value =>
+            <button key={value} className={tab === value ? "is-active" : ""}
+              disabled={phase === "processing"} onClick={() => {setTab(value);setError(null);setNote(null);setRenaming(false);setPhase("ready");}}>
+              {value[0].toUpperCase() + value.slice(1)}
+            </button>)}
+        </nav>
 
         <footer className="orbit-footer">
-          <span className="orbit-footnote"><Check size={12}/> Local conversion</span>
+          <span className="orbit-footnote">Local · No uploads</span>
           <button type="button" className="orbit-open-app" onClick={() => void openWorkspace()}>
             Full app <ArrowRight size={13}/>
           </button>
