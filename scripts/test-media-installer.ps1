@@ -25,10 +25,11 @@ try {
       -not (Test-Path -LiteralPath $FFprobe -PathType Leaf)) {
     throw 'Installer did not deploy both media engines'
   }
-  & $FFmpeg -version | Select-Object -First 1
-  if ($LASTEXITCODE -ne 0) { throw 'Installed FFmpeg is not executable' }
-  & $FFprobe -version | Select-Object -First 1
-  if ($LASTEXITCODE -ne 0) { throw 'Installed FFprobe is not executable' }
+  # Avoid relying on piped native $LASTEXITCODE; require explicit process success.
+  $ffmpegCheck = Start-Process -FilePath $FFmpeg -ArgumentList @('-version') -Wait -PassThru -NoNewWindow
+  if ($ffmpegCheck.ExitCode -ne 0) { throw 'Installed FFmpeg is not executable' }
+  $ffprobeCheck = Start-Process -FilePath $FFprobe -ArgumentList @('-version') -Wait -PassThru -NoNewWindow
+  if ($ffprobeCheck.ExitCode -ne 0) { throw 'Installed FFprobe is not executable' }
 
   $Source = Join-Path $Samples 'sample.mp4'
   $Audio = Join-Path $Samples 'sample.mp3'
