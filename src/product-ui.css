@@ -302,7 +302,7 @@ html[data-mode="main"] .action-bar{position:static!important;bottom:auto!importa
 /* Functional annular Orbit; the OS window is transparent outside the circle.
    Two dedicated rings + a hub; no visual rectangles or clipped action rows. */
 html[data-mode="orbit"] .orbit-frame{
-  width:580px;height:622px;display:flex;flex-direction:column;
+  width:580px;height:648px;display:flex;flex-direction:column;
   align-items:center;justify-content:flex-start;
   padding:0;margin:0;background:transparent;
   font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
