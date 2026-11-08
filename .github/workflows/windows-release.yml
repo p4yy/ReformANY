@@ -29,9 +29,18 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Build Windows installer
         run: npm run tauri build
+      - name: Sign (when credentials exist) and verify installer hashes
+        shell: pwsh
+        env:
+          REFORMANY_CERT_BASE64: ${{ secrets.REFORMANY_CERT_BASE64 }}
+          REFORMANY_CERT_PASSWORD: ${{ secrets.REFORMANY_CERT_PASSWORD }}
+        run: ./scripts/sign-and-hash-installer.ps1
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: ReformANY-0.3.0-Windows-preview
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.sha256
+            src-tauri/target/release/bundle/nsis/*.signature.json
           if-no-files-found: error
