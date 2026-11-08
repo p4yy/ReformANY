@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ClipboardCopy, Download, FileImage, FolderOpen, Pin, QrCode, X } from "lucide-react";
@@ -81,6 +81,14 @@ export default function FloatView() {
   }
 
   const qrImage = qrSvg ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(qrSvg) : null;
+  const extension = (file?.name.split(".").pop() || "").toLowerCase();
+  const assetUrl = file ? convertFileSrc(file.path) : null;
+  const isImage = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif", "svg", "ico"].includes(extension);
+  const isVideo = ["mp4", "m4v", "webm", "mov", "ogv"].includes(extension);
+  const isAudio = ["mp3", "m4a", "aac", "wav", "ogg", "flac", "opus"].includes(extension);
+  const isPdf = extension === "pdf";
+  const playable = isImage || isVideo || isAudio || isPdf;
+  const mediaError = () => setError("This media file could not be decoded by Windows WebView2. Try a supported MP4, MP3, WAV, or image format.");
 
   return <div className="float-shell">
     <header className="float-topbar">
@@ -93,11 +101,24 @@ export default function FloatView() {
       <button aria-current={mode === "qr" ? "page" : undefined} onClick={() => { setMode("qr"); setError(null); }}><QrCode size={14}/> QR code</button>
     </nav>
     {mode === "preview" ? <main className="float-content">
-      <div className="float-preview">{preview
-        ? <img src={preview} alt="Selected file preview"/>
-        : <FileImage size={46} strokeWidth={1.3} aria-hidden/>}
+      <div className="float-preview">
+        {isImage && assetUrl
+          ? <img src={assetUrl} alt="Selected image preview" onError={event => {
+              if (preview && event.currentTarget.src !== preview) {
+                event.currentTarget.src = preview;
+              } else mediaError();
+            }}/>
+          : isVideo && assetUrl
+            ? <video src={assetUrl} controls playsInline preload="metadata" onError={mediaError}/>
+            : isAudio && assetUrl
+              ? <div className="float-audio"><FileImage size={37} strokeWidth={1.3} aria-hidden/><audio src={assetUrl} controls preload="metadata" onError={mediaError}/></div>
+              : isPdf && assetUrl
+                ? <iframe src={assetUrl} title="PDF preview" onError={mediaError}/>
+                : preview ? <img src={preview} alt="Selected file preview"/>
+                  : <div className="float-unavailable"><FileImage size={42} strokeWidth={1.3} aria-hidden/><span>{file ? "Preview unavailable for this file type" : "Loading selected file…"}</span></div>}
       </div>
       <strong title={file?.name}>{file?.name || "Selected file"}</strong>
+      {file && !playable && <small>Use Show file to open this type in its default application.</small>}
       <small>{file ? size(file.bytes) : "Loading…"}</small>
       <p title={file?.path}>{file?.path || " "}</p>
     </main> : <main className="float-qr-content">
