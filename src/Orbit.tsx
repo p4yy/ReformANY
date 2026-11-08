@@ -240,7 +240,7 @@ export default function Orbit() {
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
   const targets = kind === "image" ? imageFormats : kind === "audio" ? audioFormats : kind === "video" ? videoFormats : [];
   const mediaReady = kind === "image" || Boolean(engines?.ffmpeg && engines?.ffprobe);
-  const description = file?.error ?? (loading ? "Reading file…" : "No direct conversion for this type");
+  const description = file?.error ?? (loading ? "Reading file…" : isFolder ? "Open Tools to archive this folder" : "No direct conversion for this type");
 
   return (
     <div className="orbit-frame">
@@ -257,11 +257,11 @@ export default function Orbit() {
 
         <div className="orbit-file">
           <div className="orbit-thumbnail">
-            {preview ? <img src={preview} alt="Selected image preview" /> : <FileImage size={30} strokeWidth={1.6} aria-hidden />}
+            {preview ? <img src={preview} alt="Selected image preview" /> : isFolder ? <FolderOpen size={30} strokeWidth={1.6} aria-hidden /> : <FileImage size={30} strokeWidth={1.6} aria-hidden />}
           </div>
           <strong className="orbit-filename" title={file?.name ?? undefined}>{file?.name ?? (loading ? "Opening file…" : "No file selected")}</strong>
           <span className="orbit-meta">
-            {file?.detected ? `${file.detected} · ${formatSize(file.bytes)}` : canConvert ? "" : "Quick conversion"}
+            {isFolder ? "Folder" : file?.detected ? `${file.detected} · ${formatSize(file.bytes)}` : canConvert ? "" : "Quick conversion"}
           </span>
         </div>
 
