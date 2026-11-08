@@ -1,4 +1,4 @@
-# Windows-only NSIS artwork: minimal, native-compatible and intentionally static.
+# NSIS artwork uses the same dark neutral palette on every installer page.
 # Uses the existing, owner-provided ReformANY icon; no stock or old GIFs.
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
@@ -17,11 +17,11 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
   $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-  $bg = [System.Drawing.SolidBrush]::new((Color 246 247 249))
-  $white = [System.Drawing.SolidBrush]::new((Color 31 42 55))
-  $muted = [System.Drawing.SolidBrush]::new((Color 97 110 128))
-  $accent = [System.Drawing.SolidBrush]::new((Color 45 115 220))
-  $line = [System.Drawing.Pen]::new((Color 217 224 234), 1)
+  $bg = [System.Drawing.SolidBrush]::new((Color 17 18 22))
+  $white = [System.Drawing.SolidBrush]::new((Color 243 244 247))
+  $muted = [System.Drawing.SolidBrush]::new((Color 157 161 172))
+  $accent = [System.Drawing.SolidBrush]::new((Color 71 138 243))
+  $line = [System.Drawing.Pen]::new((Color 56 58 64), 1)
   $g.FillRectangle($bg, 0, 0, $w, $h)
   $fontBig = [System.Drawing.Font]::new("Segoe UI",15,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
   $fontSmall = [System.Drawing.Font]::new("Segoe UI",11,[System.Drawing.FontStyle]::Regular,[System.Drawing.GraphicsUnit]::Pixel)
@@ -29,12 +29,11 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
   $logo = [System.Drawing.Image]::FromFile($mark)
   try {
     if ($sidebar) {
-      $g.DrawImage($logo, 23, 41, 44, 44)
-      $g.DrawString("ReformANY",$fontBig,$white,22,105)
-      $g.DrawString("File tools for Windows",$fontSmall,$muted,22,139)
-      $g.DrawString("Local by design",$fontSmall,$muted,22,155)
-      $g.DrawLine($line, 22, 265, 142, 265)
-      $g.DrawString("ReformANY 0.3",$fontMicro,$muted,22,277)
+      $g.DrawImage($logo, 26, 44, 48, 48)
+      $g.DrawString("ReformANY",$fontBig,$white,25,109)
+      $g.DrawLine($line,25,257,138,257)
+      $g.DrawString("SETUP",$fontMicro,$muted,25,267)
+      $g.DrawString("0.3.0",$fontMicro,$muted,25,283)
     } else {
       $g.DrawImage($logo,13,14,29,29)
       $g.DrawString("ReformANY",$fontBig,$white,49,20)
@@ -49,4 +48,4 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
 }
 PaintImage 164 314 (Join-Path $out "installer-sidebar.bmp") $true
 PaintImage 150 57 (Join-Path $out "installer-header.bmp") $false
-Write-Host "Generated native ReformANY NSIS artwork."
+Write-Host "Generated dark ReformANY installer artwork."
