@@ -40,7 +40,23 @@ jobs:
         shell: pwsh
         run: ./scripts/run-windows-rust-tests.ps1
       - name: Build Windows installer
-        run: npm run tauri build
+        shell: pwsh
+        run: |
+          # NSIS is fetched by Tauri during packaging. Retry only the known
+          # transient upstream NSIS HTTP 504 failure, never compiler/test errors.
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            $log = Join-Path $env:RUNNER_TEMP "reformany-tauri-build-$attempt.log"
+            & cmd.exe /d /s /c "npm run tauri build > `"$log`" 2>&1"
+            $exitCode = $LASTEXITCODE
+            Get-Content -LiteralPath $log
+            if ($exitCode -eq 0) { break }
+            $output = Get-Content -LiteralPath $log -Raw
+            if ($attempt -eq 3 -or $output -notmatch '(?is)(NSIS.{0,300}(504|Gateway Timeout)|(504|Gateway Timeout).{0,300}NSIS)') {
+              throw "Tauri build failed (exit $exitCode); no further retries."
+            }
+            Write-Warning "Transient NSIS HTTP 504 on attempt $attempt; retrying in 30 seconds."
+            Start-Sleep -Seconds 30
+          }
       - name: Verify installed Orbit context-menu entries
         shell: pwsh
         run: |
