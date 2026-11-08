@@ -124,6 +124,21 @@ html[data-mode="orbit"] .orbit-segment:focus-visible path {
 html[data-mode="orbit"] .orbit-segment:active path {
   fill: var(--orb-hover);
 }
+html[data-mode="orbit"] .orbit-segment.is-unavailable {
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: .42;
+}
+html[data-mode="orbit"] .orbit-segment.is-unavailable path,
+html[data-mode="orbit"] .orbit-segment.is-unavailable:nth-child(even) path {
+  fill: var(--orb-segment);
+  stroke: var(--orb-gap);
+}
+html[data-mode="orbit"] .orbit-segment.is-unavailable text {
+  fill: var(--orb-muted);
+  font-weight: 500;
+}
+
 html[data-mode="orbit"] .orbit-segment text {
   fill: var(--orb-text);
   font-family: inherit;
