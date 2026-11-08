@@ -56,7 +56,10 @@ fn classify_file(path: &Path) -> &'static str {
         "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aac"|"aiff"|"wma"|"ac3" => "Audio",
         "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
         "pdf" => "PDF",
-        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp"|"xls"|"xlsx"|"ods" => "Office",
+        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp" => "Office",
+        "csv"|"tsv"|"json"|"xls"|"xlsx"|"ods" => "Spreadsheet",
+        "srt"|"vtt" => "Subtitle",
+        "epub"|"mobi"|"fb2"|"fbz"|"azw"|"azw3"|"cbz"|"cbr"|"cb7"|"htmlz" => "Ebook",
         "lnk"|"url" => "Shortcut",
         "exe"|"msi"|"msix"|"bat"|"cmd" => "Application",
         _ => "File",
@@ -330,6 +333,10 @@ mod tests {
         }
         assert_eq!(classify_file(Path::new("report.PDF")), "PDF");
         assert_eq!(classify_file(Path::new("presentation.PPTX")), "Office");
+        assert_eq!(classify_file(Path::new("sheet.XLSX")), "Spreadsheet");
+        assert_eq!(classify_file(Path::new("data.CSV")), "Spreadsheet");
+        assert_eq!(classify_file(Path::new("subtitle.VTT")), "Subtitle");
+        assert_eq!(classify_file(Path::new("book.EPUB")), "Ebook");
         assert_eq!(classify_file(Path::new("tool.LNK")), "Shortcut");
         assert_eq!(classify_file(Path::new("website.url")), "Shortcut");
         assert_eq!(classify_file(Path::new("installer.MSI")), "Application");
