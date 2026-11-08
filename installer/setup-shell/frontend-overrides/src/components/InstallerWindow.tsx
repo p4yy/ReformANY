@@ -478,6 +478,7 @@ export function InstallerWindow({
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [closeFlash, setCloseFlash] = useState(false);
+  const [maximized, setMaximized] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installationError, setInstallationError] = useState<string | null>(null);
   const [stage, setStage] = useState('Preparing installation…');
@@ -495,6 +496,22 @@ export function InstallerWindow({
       if (alive) setStage(event.payload.stage);
     });
     return () => { alive = false; void subscription.then(unlisten => unlisten()); };
+  }, []);
+
+  useEffect(() => {
+    const window = getCurrentWindow();
+    let active = true;
+    const syncMaximized = () => {
+      void window.isMaximized().then(value => {
+        if (active) setMaximized(value);
+      }).catch(() => {});
+    };
+    syncMaximized();
+    const subscription = window.onResized(syncMaximized);
+    return () => {
+      active = false;
+      void subscription.then(unlisten => unlisten());
+    };
   }, []);
 
   const patch = (p: Partial<InstallerSettings>) =>
@@ -588,7 +605,7 @@ export function InstallerWindow({
           onMaximize={() => void getCurrentWindow().toggleMaximize()}
           onClose={handleClose}
           closeFlash={closeFlash}
-          maximized={false}
+          maximized={maximized}
         />
       </div>
 
