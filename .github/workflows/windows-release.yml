@@ -1,0 +1,54 @@
+name: Windows build (safe workspace)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      # A repository name ending in "." cannot be checked out into its usual
+      # Windows workspace path. Clone explicitly into a directory without the dot.
+      - name: Clone repository to a Windows-safe directory
+        shell: pwsh
+        working-directory: C:\
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'reformany-src'
+          git clone --depth 1 --branch main 'https://github.com/p4yy/ReformANY..git' $dest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Set-Location $dest
+          git fetch --depth 1 origin $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git checkout --detach $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Select Rust toolchain
+        working-directory: ${{ runner.temp }}\reformany-src
+        shell: pwsh
+        run: rustup default stable
+      - name: Install frontend dependencies
+        working-directory: ${{ runner.temp }}\reformany-src
+        shell: pwsh
+        run: npm install --no-audit --no-fund
+      - name: Build frontend
+        working-directory: ${{ runner.temp }}\reformany-src
+        shell: pwsh
+        run: npm run build
+      - name: Test Rust engine
+        working-directory: ${{ runner.temp }}\reformany-src
+        shell: pwsh
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Build Windows installer
+        working-directory: ${{ runner.temp }}\reformany-src
+        shell: pwsh
+        run: npm run tauri build
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReformANY-Windows-preview
+          path: ${{ runner.temp }}\reformany-src\src-tauri\target\release\bundle\nsis\*.exe
+          if-no-files-found: error
