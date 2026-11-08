@@ -61,3 +61,7 @@ npm run tauri build
 - [Dependency provenance and licensing](docs/PROVENANCE.md)
 
 ReformANY is an independently built application and does not import previous file-conversion application source code.
+
+## License and ownership
+
+© 2026 **Acev Dev Co**. All rights reserved. The original ReformANY source code, authored UI, documentation and first-party brand assets are **proprietary**, not open-source licensed. See [LICENSE](LICENSE). Third-party components retain their own licenses; see [dependency provenance](docs/PROVENANCE.md). Copyright does not confer registered trademark rights, and a public GitHub repository remains viewable and forkable under GitHub's Terms of Service.
