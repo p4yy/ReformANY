@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -54,6 +55,19 @@ export function MediaPanel() {
   const [duration, setDuration] = useState("");
   const [destination, setDestination] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [percent, setPercent] = useState<number | null>(null);
+  const [phase, setPhase] = useState("encoding");
+  const jobId = useRef<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    void listen<{ id: string; percent: number | null; phase: string }>("reformany:engine-progress", event => {
+      if (event.payload.id !== jobId.current) return;
+      setPercent(event.payload.percent);
+      setPhase(event.payload.phase);
+    }).then(stop => { if (cancelled) stop(); else unlisten = stop; });
+    return () => { cancelled = true; unlisten?.(); };
+  }, []);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ready = Boolean(engines?.ffmpeg && engines?.ffprobe);
@@ -84,21 +98,31 @@ export function MediaPanel() {
 
   async function convert() {
     if (!input || busy || !ready) return;
-    setBusy(true); setError(null); setResult(null);
+    setBusy(true); setError(null); setResult(null); setPercent(null);
+    const id = crypto.randomUUID();
+    jobId.current = id;
     try {
       const output = await invoke<string>("media_convert", {
         job: {
           path: input, target, profile, destination,
           startSeconds: start.trim() ? Number(start) : null,
           durationSeconds: duration.trim() ? Number(duration) : null,
+          progressId: id,
         },
       });
       setResult(output);
     } catch (cause) {
       setError(String(cause));
     } finally {
+      jobId.current = null;
       setBusy(false);
     }
+  }
+
+  async function cancel() {
+    if (!jobId.current) return;
+    try { await invoke("cancel_engine_job", { id: jobId.current }); }
+    catch (cause) { setError(String(cause)); }
   }
 
   return <div className="content engine-page">
@@ -148,8 +172,16 @@ export function MediaPanel() {
         {busy ? <><LoaderCircle className="engine-spin" size={17}/> Processing…</> : <>Convert media <ArrowRight size={16}/></>}
       </button>
     </div>
+    {busy && <div className="media-progress" role="status" aria-live="polite">
+      <div className="media-progress-heading">
+        <strong>{phase === "encoding" ? "Encoding media" : "Verifying output"}</strong>
+        <span>{percent !== null ? percent + "%" : "Calculating…"}</span>
+      </div>
+      <progress max={100} value={percent === null ? undefined : percent} aria-label="Media conversion progress"/>
+      <button type="button" className="text-action" onClick={() => void cancel()}>Cancel conversion</button>
+    </div>}
     {outputSelector(result, error)}
-    <p className="engine-footnote">Codec availability depends on the installed FFmpeg build. This preview reports processing state, not invented percentages. Trim is optional.</p>
+    <p className="engine-footnote">The percentage is derived from FFmpeg's reported output timestamp and input duration, not an animation. Unknown durations remain indeterminate; cancellation stops the encoder. Trim is optional.</p>
   </div>;
 }
 
