@@ -3,7 +3,7 @@
 # No PATH changes, no admin-wide installation, and no network access at application runtime.
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory=$true)][string]$Archive,
+  [string]$Archive,
   [Parameter(Mandatory=$true)][string]$TargetDir
 )
 $ErrorActionPreference = 'Stop'
@@ -16,6 +16,25 @@ $ReleasePage = 'https://www.gyan.dev/ffmpeg/builds/'
 $TempDir = Join-Path ([IO.Path]::GetTempPath()) ('reformany-media-' + [Guid]::NewGuid().ToString('N'))
 
 try {
+  if ([string]::IsNullOrWhiteSpace($Archive)) {
+    $Archive = Join-Path $TempDir 'ffmpeg.zip'
+    New-Item -Path $TempDir -ItemType Directory -Force | Out-Null
+    $downloaded = $false
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+      try {
+        Write-Output "Downloading media engines (attempt $attempt of 3)..."
+        Invoke-WebRequest -Uri $Source -OutFile $Archive -MaximumRedirection 5 -TimeoutSec 180 -ErrorAction Stop
+        if ((Get-Item -LiteralPath $Archive).Length -lt 1048576) { throw 'Downloaded archive is unexpectedly small' }
+        $downloaded = $true
+        break
+      } catch {
+        Write-Warning ("FFmpeg download attempt $attempt failed: " + $_.Exception.Message)
+        Remove-Item -LiteralPath $Archive -Force -ErrorAction SilentlyContinue
+        if ($attempt -lt 3) { Start-Sleep -Seconds (5 * $attempt) }
+      }
+    }
+    if (-not $downloaded) { throw 'Could not download media engines after three attempts' }
+  }
   if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) {
     throw 'Media engine download was not found'
   }
