@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert,
-  Clock3, Copy, FileImage, Folder, Layers3, Moon, Plus, Settings2,
-  Sun, Trash2, X, Monitor, Languages, Volume2,
+  Clock3, Copy, FileImage, Folder, Layers3, Plus, Settings2,
+  Trash2, X, Languages, Volume2,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -18,6 +18,7 @@ import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
 import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePreferences } from "./orbitMousePreferences";
 import DesktopChrome, { type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
+import ThemePicker from "./ThemePicker";
 import Welcome, { shouldShowWelcome } from "./Welcome";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
@@ -449,9 +450,8 @@ function App() {
         {page === "appearance" && <div className="content page-panel">
           <div className="eyebrow">{tx("preferences").toUpperCase()}</div><h1>{tx("appearance")}</h1><p>Make the workspace feel right for you.</p>
           <div className="preference-group"><h2>{tx("theme")}</h2><p>{tx("themeDescription")}</p>
-            <div className="theme-grid"><button className={`theme-choice ${theme === "light" ? "picked" : ""}`} onClick={() => setTheme("light")}><span className="theme-preview light-preview"><i/><i/><i/></span><span><Sun size={17}/> {tx("light")} {theme === "light" && <Check size={16}/>}</span></button>
-              <button className={`theme-choice ${theme === "dark" ? "picked" : ""}`} onClick={() => setTheme("dark")}><span className="theme-preview dark-preview"><i/><i/><i/></span><span><Moon size={17}/> {tx("dark")} {theme === "dark" && <Check size={16}/>}</span></button>
-              <button className={`theme-choice ${theme === "system" ? "picked" : ""}`} onClick={() => setTheme("system")}><span className="theme-preview system-preview"><i/><i/><i/></span><span><Monitor size={17}/> {tx("system")} {theme === "system" && <Check size={16}/>}</span></button></div>
+            <ThemePicker value={theme} onChange={setTheme}
+              labels={{ light: tx("light"), dark: tx("dark"), system: tx("system") }} />
           </div>
           <div className="preference-group"><h2><Languages size={18} aria-hidden="true"/> {tx("language")}</h2>
             <p>{tx("yourLanguage")}</p>
