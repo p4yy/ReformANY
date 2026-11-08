@@ -1,0 +1,35 @@
+name: Orbit Windows 11 native menu validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src-tauri/windows/orbit/**"
+      - "scripts/build-orbit-context.ps1"
+      - ".github/workflows/orbit-context.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-native-shell:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Compile native Explorer COM handler and verify sparse MSIX schema
+        shell: pwsh
+        run: ./scripts/build-orbit-context.ps1
+      - name: Publish unsigned integration diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReformANY-Orbit-Native-UNSIGNED-TEST-ONLY
+          path: |
+            target/orbit-context/layout/OrbitExplorerCommand.dll
+            target/orbit-context/layout/AppxManifest.xml
+            target/orbit-context/ReformANY-Orbit-UNSIGNED-TEST-ONLY.msix
+          if-no-files-found: error
