@@ -1,5 +1,8 @@
 use crate::external::{find_binary, format_name, output_dir, publish, verify_input};
 use serde::Deserialize;
+use tauri::{AppHandle, State}; 
+use std::sync::{Arc, atomic::AtomicBool};
+use crate::engine_progress::{self, JobRegistry};
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,6 +17,8 @@ pub struct MediaJob {
     profile: String,
     start_seconds: Option<f64>,
     duration_seconds: Option<f64>,
+    #[serde(default)]
+    progress_id: Option<String>,
 }
 
 /// Supported output profiles are explicit; arbitrary ffmpeg switches are never
@@ -64,7 +69,10 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
     if let Some(start) = job.start_seconds {
         args.extend(["-ss".into(), format!("{start:.3}").into()]);
     }
-    args.extend(["-i".into(), input.as_os_str().to_os_string()]);
+    args.extend([
+        "-protocol_whitelist".into(), "file,pipe,data,crypto".into(),
+        "-i".into(), input.as_os_str().to_os_string(),
+    ]);
     if let Some(duration) = job.duration_seconds {
         args.extend(["-t".into(), format!("{duration:.3}").into()]);
     }
@@ -132,7 +140,8 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
 
 fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String> {
     let output = Command::new(ffprobe)
-        .args(["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
+        .args(["-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
+            "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
         .arg(input)
         .output()
         .map_err(|e| format!("Cannot probe media: {e}"))?;
@@ -147,7 +156,17 @@ fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String>
     Ok(())
 }
 
-fn convert(job: MediaJob) -> Result<String, String> {
+fn media_duration(input: &Path, ffprobe: &Path) -> Option<f64> {
+    let output = Command::new(ffprobe).args([
+        "-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
+        "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+    ]).arg(input).output().ok()?;
+    if !output.status.success() { return None; }
+    String::from_utf8_lossy(&output.stdout).trim().parse::<f64>()
+        .ok().filter(|d| d.is_finite() && *d > 0.0)
+}
+fn convert_with_monitor(job: MediaJob, cancellation: Option<Arc<AtomicBool>>,
+    app: Option<AppHandle>) -> Result<String, String> {
     let kind = validate_job(&job)?;
     let ffmpeg = find_binary("ffmpeg")
         .ok_or("FFmpeg is not installed. Install a licensed FFmpeg build and add ffmpeg.exe to PATH.")?;
@@ -161,21 +180,51 @@ fn convert(job: MediaJob) -> Result<String, String> {
         .tempdir_in(&directory).map_err(|e| e.to_string())?;
     let stage = staging.path().join(format!("converted.{}", target_extension(&job.target)));
     let args = media_args(&job, &input, &stage)?;
-    crate::external::run(&ffmpeg, &args, None)?;
+    let flag = cancellation.unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+    let total = media_duration(&input, &ffprobe).map(|d| {
+        let start = job.start_seconds.unwrap_or(0.0);
+        job.duration_seconds.unwrap_or((d - start).max(0.0)).min((d - start).max(0.0))
+    }).filter(|d| *d > 0.0);
+    if let (Some(app), Some(id)) = (&app, &job.progress_id) {
+        engine_progress::emit(app, id, None, "encoding");
+    }
+    engine_progress::run_ffmpeg(&ffmpeg, &args, total, &flag, |value| {
+        if let (Some(app), Some(id)) = (&app, &job.progress_id) {
+            engine_progress::emit(app, id, value, "encoding");
+        }
+    })?;
+    if flag.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
     if fs::metadata(&stage).map_err(|_| "FFmpeg did not produce an output file".to_owned())?.len() == 0 {
         return Err("FFmpeg produced an empty file".into());
     }
     probe(&stage, kind, &ffprobe)?;
     let original = format_name(&input)?;
-    publish(&stage, &directory, &original, target_extension(&job.target))
-        .map(|p| p.to_string_lossy().into_owned())
+    let output = publish(&stage, &directory, &original, target_extension(&job.target))
+        .map(|p| p.to_string_lossy().into_owned())?;
+    if let (Some(app),Some(id)) = (&app,&job.progress_id) {
+        engine_progress::emit(app,id,Some(100),"completed");
+    }
+    Ok(output)
+}
+
+fn convert(job: MediaJob) -> Result<String, String> {
+    convert_with_monitor(job,None,None)
 }
 
 #[tauri::command]
-pub async fn media_convert(job: MediaJob) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || convert(job))
-        .await
-        .map_err(|_| "Media conversion worker exited unexpectedly".to_owned())?
+pub async fn media_convert(app: AppHandle, registry: State<'_,JobRegistry>,
+    job: MediaJob) -> Result<String, String> {
+    let id = job.progress_id.clone();
+    let token = if let Some(ref id) = id {
+        Some(registry.insert(id)?)
+    } else { None };
+    let result = tauri::async_runtime::spawn_blocking(move ||
+        convert_with_monitor(job,token,Some(app))
+    ).await.map_err(|_| "Media conversion worker exited unexpectedly".to_owned())?;
+    if let Some(ref id) = id { registry.remove(id); }
+    result
 }
 
 #[cfg(test)]
@@ -185,7 +234,7 @@ mod tests {
     fn sample(target: &str) -> MediaJob {
         MediaJob { path: "C:\\input.mov".into(), target: target.into(),
             destination: None, profile: "standard".into(), start_seconds: None,
-            duration_seconds: None }
+            duration_seconds: None, progress_id: None }
     }
 
     #[test]
@@ -229,7 +278,7 @@ mod tests {
             path: input.to_string_lossy().into_owned(),
             target: "mp3".into(),
             destination: None, profile: "small".into(),
-            start_seconds: None, duration_seconds: None,
+            start_seconds: None, duration_seconds: None, progress_id: None,
         }).unwrap();
         assert!(Path::new(&output).is_file());
         assert!(fs::metadata(&output).unwrap().len() > 0);
