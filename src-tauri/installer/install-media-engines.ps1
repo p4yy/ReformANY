@@ -4,9 +4,11 @@
 [CmdletBinding()]
 param(
   [string]$Archive,
+  [string]$LogPath,
   [Parameter(Mandatory=$true)][string]$TargetDir
 )
 $ErrorActionPreference = 'Stop'
+if ($LogPath) { Start-Transcript -LiteralPath $LogPath -Force | Out-Null }
 Set-StrictMode -Version Latest
 
 $Version = '9.0.2'
@@ -83,8 +85,9 @@ try {
   Write-Output 'FFmpeg and FFprobe installed privately for ReformANY.'
   exit 0
 } catch {
-  Write-Error ('Media engine setup failed: ' + $_.Exception.Message)
+  [Console]::Error.WriteLine('Media engine setup failed: ' + $_.Exception.ToString())
   exit 1
 } finally {
   Remove-Item -LiteralPath $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+  if ($LogPath) { Stop-Transcript | Out-Null }
 }
