@@ -83,7 +83,7 @@ function App() {
   const [grayscale, setGrayscale] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     localStorage.getItem("reformany.theme") === "dark" ? "dark" : "light");
-  const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "indigo");
+  const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "blue");
   const [batchId, setBatchId] = useState<string | null>(null);
   // A very fast batch may finish before its Tauri command promise resolves.
   const finishedBatchIds = useRef(new Set<string>());
@@ -364,7 +364,7 @@ function App() {
               <button className={`theme-choice ${theme === "dark" ? "picked" : ""}`} onClick={() => setTheme("dark")}><span className="theme-preview dark-preview"><i/><i/><i/></span><span><Moon size={17}/> Dark {theme === "dark" && <Check size={16}/>}</span></button></div>
           </div>
           <div className="preference-group"><h2>Accent</h2><p>A small touch of color for important actions.</p>
-            <div className="accent-grid">{[{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
+            <div className="accent-grid">{[{key:"blue",color:"#3679e9",name:"Blue"},{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
               <button key={item.key} className={`accent-chip ${accent === item.key ? "picked" : ""}`} onClick={() => setAccent(item.key)} aria-label={item.name} title={item.name} style={{background:item.color}}>{accent === item.key && <Check size={17}/>}</button>)}</div>
           </div>
           <div className="preference-group"><h2>Privacy</h2><p>Image processing happens locally. ReformANY does not upload your files to a server.</p></div>

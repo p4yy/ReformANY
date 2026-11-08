@@ -149,3 +149,56 @@ body { color: var(--text); }
 
 .import-actions {display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:920px) {.page-intro{flex-direction:column}.import-actions{justify-content:flex-start}}
+
+/* 0.3 visual refinement: original, restrained, legible desktop design. */
+:root {
+  font-family:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",Inter,system-ui,sans-serif;
+  --accent:#3679e9;
+  --accent-hover:#2466d5;
+  --accent-soft:#eaf2ff;
+  --shadow:0 8px 30px rgba(24,42,70,.045);
+}
+:root[data-accent="blue"] {
+  --accent:#3679e9;
+  --accent-hover:#2466d5;
+  --accent-soft:#eaf2ff;
+}
+:root[data-theme="dark"] {
+  --base:#11171e;
+  --side:#151d26;
+  --surface:#1b2530;
+  --text:#f4f7fc;
+  --muted:#b1bdcb;
+  --line:#2d3a47;
+  --strong-line:#405061;
+  --soft:#222f3d;
+  --shadow:0 10px 34px rgba(0,0,0,.14);
+}
+:root[data-theme="dark"][data-accent="blue"] { --accent:#5a9bf6; --accent-hover:#4487e9; --accent-soft:#283a51; }
+:root[data-theme="dark"][data-accent="indigo"] { --accent-soft:#313148; }
+:root[data-theme="dark"][data-accent="sage"] { --accent-soft:#213b35; }
+:root[data-theme="dark"][data-accent="slate"] { --accent-soft:#2c3b4b; }
+:root[data-theme="dark"][data-accent="coral"] { --accent-soft:#422f30; }
+.brand {font-weight:720;letter-spacing:-.8px;}
+.brand-mark {border-radius:10px;overflow:hidden;}
+h1 {font-weight:700;letter-spacing:-1.1px}
+.nav-button.selected {font-weight:700;}
+.dropzone {border-radius:19px;min-height:206px;box-shadow:var(--shadow);border-color:var(--strong-line)}
+.dropzone:hover {border-color:var(--accent)}
+.file-table,.settings-card {border-radius:16px;box-shadow:var(--shadow)}
+.file-detail strong {color:var(--text);font-weight:680}
+.button,.target-cell select,.select-field select {border-radius:11px}
+.button.primary {background:#276dde;color:white;box-shadow:0 3px 12px rgba(28,93,190,.20)}
+.button.primary:hover:not(:disabled) {background:#185cc7}
+.action-bar {
+  position:sticky;bottom:14px;z-index:4;
+  background:var(--surface);border:1px solid var(--line);
+  padding:13px 16px;border-radius:14px;box-shadow:var(--shadow);
+}
+:root[data-theme="dark"] .dropzone {background:var(--surface)}
+:root[data-theme="dark"] .breadcrumb,
+:root[data-theme="dark"] h1,:root[data-theme="dark"] h2,
+:root[data-theme="dark"] .file-detail strong {color:var(--text)}
+:root[data-theme="dark"] .action-summary span,
+:root[data-theme="dark"] .side-note-sub {color:var(--muted)}
+@media(max-width:850px) {.action-bar{bottom:7px;padding:12px}}
