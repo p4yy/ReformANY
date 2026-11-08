@@ -199,8 +199,8 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let source = folder.path().join("duplicate.zip");
         let mut writer = ZipWriter::new(File::create(&source).unwrap());
-        for data in [b"first" as &[u8], b"second"] {
-            writer.start_file("duplicate.txt", SimpleFileOptions::default()).unwrap();
+        for (name, data) in [("Duplicate.txt", b"first" as &[u8]), ("duplicate.txt", b"second" as &[u8])] {
+            writer.start_file(name, SimpleFileOptions::default()).unwrap();
             writer.write_all(data).unwrap();
         }
         writer.finish().unwrap();
