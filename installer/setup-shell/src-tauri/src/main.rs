@@ -5,9 +5,9 @@
 #[cfg(all(not(debug_assertions), not(feature = "custom-protocol")))]
 compile_error!("ReformANY premium setup release requires the custom-protocol feature to embed its frontend");
 
-//! Owner-supplied React installer shell. The embedded Tauri/NSIS installer is the
-//! authoritative installation engine; UI never simulates completion or writes
-//! system registry entries directly.
+// Owner-supplied React installer shell. The embedded Tauri/NSIS installer is the
+// authoritative installation engine; UI never simulates completion or writes
+// system registry entries directly.
 use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
