@@ -9,7 +9,13 @@ import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
 import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import {
+  Archive, ArrowRightLeft, Bluetooth, Check, CheckCircle2, Clapperboard,
+  Copy, FileArchive, FileImage, FileSpreadsheet, FileText, FolderOpen,
+  Layers3, LoaderCircle, LockKeyhole, Music2, Package, PanelsTopLeft,
+  Pencil, Scissors, ShieldCheck, Smartphone, SquareTerminal, Wrench, Zap,
+  type LucideIcon,
+} from "lucide-react";
 
 type OrbitFile = {
   path: string;
@@ -61,50 +67,95 @@ function formatSize(bytes: number): string {
 }
 
 
-type OrbitAction = { label: string; run: () => void; unavailable?: string };
-// Ported from better.zip's sector-glass treatment: each rounded wedge is an
-// independently clipped WebView element, so the desktop shows through the gaps.
-// Rendering a single opaque SVG disc would recreate the unwanted black backing.
-function OrbitRing({ items, inner, outer, label }: {
-  items: OrbitAction[]; inner: number; outer: number; label: string;
+type OrbitAction = { label: string; run: () => void; unavailable?: string; danger?: boolean };
+
+function orbitActionIcon(label: string, tab: Tab, kind: FileKind): LucideIcon {
+  const value = label.toLowerCase();
+  if (value.includes("password")) return LockKeyhole;
+  if (value.includes("split")) return Scissors;
+  if (value.includes("copy path") || value.includes("copy file") || value.includes("copy shortcut")) return Copy;
+  if (value.includes("rename")) return Pencil;
+  if (value.includes("terminal")) return SquareTerminal;
+  if (value.includes("float")) return PanelsTopLeft;
+  if (value.includes("bluetooth")) return Bluetooth;
+  if (value.includes("show") || value.includes("folder")) return FolderOpen;
+  if (value.includes("extract") || value.includes("archive")) return Archive;
+  if (value.includes("join")) return Layers3;
+  if (value.includes("unblock")) return ShieldCheck;
+  if (value.includes("phone")) return Smartphone;
+  if (tab === "convert" && kind === "image") return FileImage;
+  if (tab === "convert" && kind === "audio") return Music2;
+  if (tab === "convert" && kind === "video") return Clapperboard;
+  if (tab === "convert" && kind === "spreadsheet") return FileSpreadsheet;
+  if (tab === "convert" && ["pdf", "office", "subtitle", "ebook"].includes(kind)) return FileText;
+  if (value === "7z" || value === "zip") return Package;
+  return tab === "convert" ? ArrowRightLeft : tab === "tools" ? Wrench : Zap;
+}
+
+/** Sector geometry, icon spacing and focus behavior follow the uploaded React
+ * RadialMenu implementation. Items remain real Tauri commands, not sample data. */
+function OrbitRing({ items, inner, outer, label, tab, kind }: {
+  items: OrbitAction[]; inner: number; outer: number;
+  label: string; tab: Tab; kind: FileKind;
 }) {
-  return <>
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [focused, setFocused] = useState(0);
+  if (!items.length) return null;
+  return <svg className="orbit-ref-svg" viewBox="0 0 560 560" role="menu" aria-label={label}>
     {items.map((item, index) => {
       const { start, end } = orbitSectorAngles(items.length, index);
-      const midpoint = orbitPoint((inner + outer) / 2, (start + end) / 2);
-      const path = roundedOrbitSlice(inner, outer, start, end);
+      const point = orbitPoint(inner + (outer - inner) * .53, (start + end) / 2);
       const words = item.label.split(" ");
-      const split = words.length > 1 && item.label.length > 11;
-      const parts = split ? [
+      const multiLine = words.length > 1 && item.label.length > 10;
+      const lines = multiLine ? [
         words.slice(0, Math.ceil(words.length / 2)).join(" "),
         words.slice(Math.ceil(words.length / 2)).join(" "),
       ] : [item.label];
-      return <div key={item.label}
-        className={`orbit-segment ${item.unavailable ? "is-unavailable" : ""}`}
-        role="button" tabIndex={item.unavailable ? -1 : 0}
-        aria-disabled={Boolean(item.unavailable)}
-        aria-label={item.unavailable ? `${item.label}, ${item.unavailable}` : item.label}
-        title={item.unavailable ? `${item.label} — ${item.unavailable}` : item.label}
-        style={{ clipPath: `path("${path}")`, animationDelay: `${index * 24}ms` }}
-        onClick={item.unavailable ? undefined : item.run}
-        onPointerEnter={() => { if (!item.unavailable) playOrbitHover(); }}
+      const iconSize = outer > 200 ? 20 : 23;
+      const iconY = point.y - (lines.length * 17 + iconSize + 9) / 2;
+      const Icon = hovered === item.label ? Check : orbitActionIcon(item.label, tab, kind);
+      const isActive = hovered === item.label || (hovered === null && focused === index);
+      const disabled = Boolean(item.unavailable);
+      return <g key={item.label}
+        className="orbit-ref-sector"
+        data-active={isActive && !disabled}
+        data-disabled={disabled}
+        data-danger={Boolean(item.danger)}
+        data-ring={outer > 200 ? "outer" : "inner"}
+        role="menuitem" tabIndex={disabled ? -1 : index === focused ? 0 : -1}
+        aria-label={disabled ? `${item.label}: ${item.unavailable}` : item.label}
+        aria-disabled={disabled} aria-description={item.unavailable || undefined}
+        onClick={disabled ? undefined : item.run}
+        onPointerEnter={() => { if (disabled) return; setHovered(item.label); setFocused(index); playOrbitHover(); }}
+        onPointerLeave={() => setHovered(null)}
+        onFocus={() => { if (!disabled) setFocused(index); }}
         onKeyDown={event => {
-          if (!item.unavailable && (event.key === "Enter" || event.key === " ")) {
+          if (disabled) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault(); item.run();
+          } else if (event.key === "ArrowRight" || event.key === "ArrowDown" ||
+            event.key === "ArrowLeft" || event.key === "ArrowUp") {
             event.preventDefault();
-            item.run();
+            const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+            let next = index;
+            do { next = (next + direction + items.length) % items.length; }
+            while (next !== index && items[next].unavailable);
+            setFocused(next);
+            (event.currentTarget.parentElement?.querySelectorAll<SVGGElement>('[role="menuitem"]')[next])?.focus();
           }
         }}>
-        <svg viewBox="0 0 560 560" aria-hidden="true">
-          <path d={path} fill="none" stroke="currentColor" strokeWidth={1.6}/>
-        </svg>
-        <span className="orbit-segment-label" style={{ left: midpoint.x, top: midpoint.y }}>
-          {parts.map((part, position) =>
-            <span key={position}>{part}</span>)}
-        </span>
-      </div>;
+        <title>{item.unavailable ? `${item.label} — ${item.unavailable}` : item.label}</title>
+        <path className="orbit-ref-sector-surface" d={roundedOrbitSlice(inner, outer, start, end)}/>
+        <g pointerEvents="none" aria-hidden="true" className="orbit-ref-sector-content">
+          <Icon x={point.x - iconSize / 2} y={iconY} width={iconSize} height={iconSize} strokeWidth={1.55}/>
+          <text className="orbit-ref-sector-label" x={point.x}
+            y={iconY + iconSize + 21} textAnchor="middle">
+            {lines.map((line, i) => <tspan key={i} x={point.x} dy={i ? 17 : 0}>{line}</tspan>)}
+          </text>
+        </g>
+      </g>;
     })}
-    <span className="sr-only">{label}</span>
-  </>;
+  </svg>;
 }
 
 export default function Orbit() {
@@ -599,8 +650,13 @@ export default function Orbit() {
         onPointerLeave={() => setCursor(null)} onPointerDownCapture={unlockOrbitAudio}>
         {ringVisible && <div key={tab} className="orbit-rings"
           role="group" aria-label={tab === "convert" ? "Convert to format" : tab === "tools" ? "File tools" : "File actions"}>
-          {outerActions.length > 0 && <OrbitRing items={outerActions} inner={187} outer={264} label="Outer actions" />}
-          {innerActions.length > 0 && <OrbitRing items={innerActions} inner={106} outer={179} label="Inner actions" />}
+          {tab === "convert" ? <>
+            {outerActions.length > 0 && <OrbitRing items={outerActions} inner={168} outer={246}
+              label="Additional formats" tab={tab} kind={kind}/>}
+            {innerActions.length > 0 && <OrbitRing items={innerActions} inner={72} outer={161}
+              label="Formats" tab={tab} kind={kind}/>}
+          </> : <OrbitRing items={[...innerActions, ...outerActions]} inner={72} outer={246}
+            label={tab === "tools" ? "Tools" : "Actions"} tab={tab} kind={kind}/>}
           <div className="orbit-hub-outline" aria-hidden="true"/>
         </div>}
         <div className="orbit-hub">
