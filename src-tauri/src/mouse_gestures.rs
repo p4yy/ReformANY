@@ -4,12 +4,15 @@
 //! the actual source path is obtained only from a user-authorized file drop.
 use tauri::{AppHandle, State};
 
+#[cfg(any(target_os = "windows", test))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Gesture { Shake, Scroll }
 
+#[cfg(any(target_os = "windows", test))]
 #[derive(Clone, Copy)]
 enum MouseInput { Down, Move, Wheel(i16), Up }
 
+#[cfg(any(target_os = "windows", test))]
 #[derive(Default)]
 struct Detector {
     down: bool,
@@ -23,6 +26,7 @@ struct Detector {
     wheel_sum: i32,
 }
 
+#[cfg(any(target_os = "windows", test))]
 impl Detector {
     fn handle(&mut self, event: MouseInput, x: i32, y: i32, at: u32, modes: u8) -> Option<Gesture> {
         match event {
