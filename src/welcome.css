@@ -1,0 +1,142 @@
+/* ReformANY first-run welcome. Self-contained so the normal workspace theme is unchanged. */
+.welcome-screen {
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  background:radial-gradient(ellipse 50% 57% at 82% 46%,#1b2d42 0%,transparent 77%),
+    linear-gradient(140deg,#11151b 0%,#131a23 52%,#0e141d 100%);
+  color:#f2f5fa;
+  font-family:"Segoe UI Variable","Segoe UI",Inter,system-ui,sans-serif;
+  isolation:isolate;
+}
+.welcome-screen button {font:inherit}
+.welcome-screen button:focus-visible,
+.welcome-orbit:focus-visible {outline:2px solid #a4ccff;outline-offset:4px}
+.welcome-header,.welcome-footer {
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%;padding:27px clamp(30px,5.1vw,70px);
+}
+.welcome-header {border-bottom:1px solid rgba(221,233,249,.07)}
+.welcome-brand {display:flex;align-items:center;gap:12px;font-size:19px;font-weight:670;letter-spacing:-.85px;line-height:1}
+.welcome-brand img {display:block;object-fit:contain;border-radius:9px}
+.welcome-brand span span {font-weight:780}
+.welcome-header-label,.welcome-footer {
+  color:#8496a9;font-size:10px;font-weight:670;letter-spacing:1.15px;
+}
+.welcome-header-label span {padding:0 7px;color:#48617b}
+.welcome-main {
+  width:min(1250px,100%);margin:auto;flex:1;
+  display:grid;grid-template-columns:minmax(345px,1.04fr) minmax(385px,.96fr);
+  align-items:center;gap:24px;
+  padding:30px clamp(30px,5.1vw,70px) 44px;
+}
+.welcome-copy {max-width:580px;padding-bottom:5px}
+.welcome-eyebrow {
+  display:flex;align-items:center;gap:10px;margin:0 0 27px;
+  font-size:10px;font-weight:750;letter-spacing:2.3px;color:#9dbce0;
+}
+.welcome-eyebrow span {display:inline-block;width:6px;height:6px;background:#79aef3;border-radius:50%}
+.welcome-copy h1 {
+  margin:0;font-size:clamp(47px,5.25vw,73px);font-weight:620;letter-spacing:-3.7px;
+  line-height:1.095;color:#f6f8fa;
+}
+.welcome-copy h1 em {font-style:normal;color:#a8c8f3}
+.welcome-description {margin-top:26px;max-width:440px;font-size:15px;line-height:1.75;color:#a3b1c1}
+.welcome-points {
+  display:flex;flex-wrap:wrap;gap:11px 18px;
+  margin-top:29px;max-width:475px;
+}
+.welcome-points span {display:inline-flex;align-items:center;gap:7px;font-size:11px;color:#b8c8d8;white-space:nowrap}
+.welcome-points svg {color:#8db7e8}
+.welcome-actions {display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin-top:44px}
+.welcome-primary {
+  display:flex;align-items:center;justify-content:center;gap:22px;
+  padding:15px 21px;border:1px solid #a8ccfa;border-radius:11px;
+  background:#c0dcff;color:#152d49;font-size:13px!important;font-weight:750!important;
+  transition:background .18s ease,transform .18s ease;
+}
+.welcome-primary:hover {background:#e0efff;transform:translateY(-1px)}
+.welcome-secondary {
+  display:flex;align-items:center;gap:9px;
+  padding:14px 12px;border:0;background:none;
+  font-size:12px!important;font-weight:630!important;color:#d0dbea;
+}
+.welcome-secondary:hover {color:white}
+.welcome-small-note {font-size:10px;margin-top:15px;color:#7a8a9c}
+.welcome-demo {min-width:0;max-width:490px;justify-self:center;width:100%}
+.welcome-demo-heading {
+  display:flex;justify-content:space-between;align-items:center;
+  padding:0 12px 0 10px;margin-bottom:2px;
+  color:#a9bdd4;font-size:10px;font-weight:750;letter-spacing:2px;
+}
+.welcome-demo-heading span:last-child {font-size:9px;letter-spacing:1.2px;color:#738ba5}
+.welcome-orbit-stage {
+  display:grid;place-items:center;position:relative;min-height:432px;
+}
+.welcome-orbit-halo {
+  width:425px;height:425px;max-width:100%;position:absolute;border-radius:50%;
+  border:1px solid rgba(169,196,233,.10);
+  box-shadow:0 0 0 18px rgba(178,206,244,.018),0 0 0 49px rgba(175,214,255,.015);
+  pointer-events:none;
+}
+.welcome-orbit {
+  width:364px;height:364px;max-width:100%;border:1px solid rgba(189,214,246,.24);
+  border-radius:50%;background:radial-gradient(circle at 48% 8%,#273e57 0%,#1b2b3e 33%,#142233 67%,#0c1927 100%);
+  box-shadow:0 26px 75px rgba(0,0,0,.40),inset 0 1px 0 rgba(250,253,255,.13),inset 0 -12px 36px rgba(0,0,0,.16);
+  display:flex;align-items:center;flex-direction:column;position:relative;
+  padding:20px 24px 17px;z-index:1;outline:none;
+}
+.welcome-orbit::before {content:"";position:absolute;inset:10px;border:1px solid rgba(230,243,255,.06);border-radius:50%;pointer-events:none}
+.welcome-orbit-brand {display:flex;align-items:center;gap:7px;font-size:13px;font-weight:730;letter-spacing:-.25px;white-space:nowrap}
+.welcome-orbit-brand img {border-radius:6px;object-fit:contain}
+.welcome-orbit-brand span {font-size:10px;font-weight:590;padding:3px 8px;background:rgba(158,199,244,.13);border-radius:99px;color:#bfdaff;margin-left:2px}
+.welcome-orbit-file {display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:13px}
+.welcome-orbit-file-icon {display:grid;place-items:center;width:65px;height:65px;border:1px solid rgba(197,226,255,.17);border-radius:17px;background:rgba(211,235,255,.075);color:#b1d3fb}
+.welcome-orbit-file strong {font-size:12px;letter-spacing:-.15px}
+.welcome-orbit-file small {font-size:9px;color:#a8bad0}
+.welcome-orbit-tabs {margin-top:15px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;width:268px;border:1px solid rgba(205,227,251,.11);border-radius:99px;padding:4px;background:rgba(7,14,26,.35)}
+.welcome-orbit-tabs button {font-size:10px!important;color:#b5c4d7;border:0;border-radius:99px;background:none;padding:8px 0}
+.welcome-orbit-tabs button.active {background:#d1e7ff;color:#122c49;font-weight:720;box-shadow:0 2px 7px rgba(0,0,0,.14)}
+.welcome-orbit-panel {width:100%;margin-top:13px;text-align:center;min-height:64px}
+.welcome-orbit-hint {font-size:8px;letter-spacing:1.6px;font-weight:760;color:#9db1ca;margin-bottom:8px}
+.welcome-orbit-buttons {display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:300px;max-width:100%;margin:auto}
+.welcome-orbit-buttons span {display:flex;align-items:center;justify-content:center;gap:4px;padding:9px 2px;color:#ecf4ff;background:rgba(224,236,255,.065);border:1px solid rgba(200,224,255,.12);border-radius:8px;font-size:9.5px;white-space:nowrap}
+.welcome-orbit-buttons svg {color:#a7c7ed}
+.welcome-orbit-bottom {width:258px;display:flex;justify-content:space-between;align-items:center;margin-top:auto;font-size:9px;color:#b7cce5}
+.welcome-orbit-bottom>span {display:flex;align-items:center;gap:4px}
+.welcome-orbit-bottom span:first-child {color:#9fd1ba}
+.welcome-demo-caption {display:flex;justify-content:center;align-items:center;gap:7px;text-align:center;font-size:10px;color:#91a5bb;line-height:1.5;padding:2px 12px 0}
+.welcome-demo-caption svg {flex-shrink:0}
+.welcome-footer {border-top:1px solid rgba(221,233,249,.07)}
+.welcome-footer span span {margin:0 8px;color:#405d7c}
+.welcome-footer button {display:flex;align-items:center;gap:7px;border:0;background:none;color:#adc9e6;font-size:10px;font-weight:650;padding:6px 0}
+.welcome-footer button:hover {color:white}
+@media (max-width:970px) {
+ .welcome-main {grid-template-columns:1fr 1fr;gap:6px;padding-inline:30px}
+ .welcome-copy h1 {font-size:clamp(40px,5.3vw,58px);letter-spacing:-2.7px}
+ .welcome-orbit {transform:scale(.86)}
+ .welcome-orbit-stage {min-height:376px}
+ .welcome-orbit-halo {transform:scale(.86)}
+ .welcome-description {font-size:13px}
+ .welcome-points {gap:9px 12px}
+}
+@media (max-width:760px) {
+ .welcome-header,.welcome-footer {padding:18px 25px}
+ .welcome-main {display:flex;flex-direction:column;gap:22px;padding:32px 24px}
+ .welcome-copy,.welcome-demo {max-width:570px;width:100%}
+ .welcome-copy h1 {font-size:50px}
+ .welcome-actions {margin-top:26px}
+ .welcome-orbit-stage {min-height:345px}
+ .welcome-orbit {transform:scale(.82)}
+ .welcome-orbit-halo {transform:scale(.82)}
+ .welcome-header-label {font-size:8px}
+}
+@media (prefers-reduced-motion:reduce) {
+ .welcome-screen * {transition:none!important;animation:none!important}
+}
+
+/* Keep the replay control aligned with other native-looking settings. */
+.welcome-replay-setting {display:flex;align-items:center;justify-content:space-between;gap:20px}
+.welcome-replay-setting>div {min-width:0;max-width:540px}
+.welcome-replay-setting h2 {margin-bottom:8px}
+.welcome-replay-setting .button {flex-shrink:0}
+@media(max-width:720px){.welcome-replay-setting {align-items:flex-start;flex-direction:column}}
