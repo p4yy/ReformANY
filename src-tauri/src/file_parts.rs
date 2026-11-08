@@ -33,7 +33,15 @@ pub struct SplitResult {
 }
 
 fn safe_name(name: &str) -> bool {
-    !name.is_empty()
+    let device = name.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
+    let reserved = matches!(device.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" |
+        "COM1" | "COM2" | "COM3" | "COM4" | "COM5" |
+        "COM6" | "COM7" | "COM8" | "COM9" |
+        "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" |
+        "LPT6" | "LPT7" | "LPT8" | "LPT9");
+    !reserved
+        && !name.is_empty()
         && name.len() <= 220
         && name != "." && name != ".."
         && !name.ends_with(' ') && !name.ends_with('.')
@@ -294,6 +302,15 @@ mod tests {
         bytes[5] ^= 0xff;
         fs::write(&result.parts[0], bytes).unwrap();
         assert!(join(&result.manifest_path, None).is_err());
+    }
+
+    #[test]
+    fn rejects_windows_reserved_names_and_paths() {
+        for invalid in ["CON.txt", "PRN", "com1.bin", "LPT9", "folder/escape",
+                        "..\\escape", "trailing.", "bad:name"] {
+            assert!(!safe_name(invalid), "unsafe name accepted: {invalid}");
+        }
+        assert!(safe_name("Project export (1).tar.gz"));
     }
 
     #[test]
