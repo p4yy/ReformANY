@@ -51,7 +51,7 @@ fn classify_file(path: &Path) -> &'static str {
     let extension = path.extension().and_then(|x| x.to_str())
         .unwrap_or("").to_ascii_lowercase();
     match extension.as_str() {
-        "png"|"jpg"|"jpeg"|"webp"|"bmp"|"gif"|"tif"|"tiff" => "Image",
+        "png"|"jpg"|"jpeg"|"webp"|"bmp"|"gif"|"tif"|"tiff"|"ico"|"tga"|"qoi"|"svg" => "Image",
         "mp4"|"webm"|"mkv"|"mov"|"avi"|"wmv"|"m4v"|"mpeg"|"mpg"|"mts"|"m2ts" => "Video",
         "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aac"|"aiff"|"wma"|"ac3" => "Audio",
         "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
@@ -73,7 +73,21 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
             detected: Some("Folder".into()), error: None,
         },
         Ok(metadata) if metadata.is_file() => {
-            if kind == "Image" {
+            if kind == "Image" && crate::svg_image::is_svg(path) {
+                // SVG is a first-class input, but image::guess_format cannot
+                // recognize it. Apply the same local-only SVG validation used
+                // by conversion before advertising a quick-convert action.
+                match crate::svg_image::inspect_svg(path) {
+                    Ok(bytes) => OrbitInfo {
+                        path: raw, name, bytes,
+                        detected: Some("SVG".into()), error: None,
+                    },
+                    Err(error) => OrbitInfo {
+                        path: raw, name, bytes: metadata.len(),
+                        detected: Some("SVG".into()), error: Some(error),
+                    },
+                }
+            } else if kind == "Image" {
                 match describe(path) {
                     Ok((bytes, format)) => OrbitInfo {
                         path: raw, name, bytes,
@@ -284,11 +298,32 @@ mod tests {
     }
 
     #[test]
+    fn orbit_accepts_safe_svg_and_rejects_remote_svg() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sample.svg");
+        std::fs::write(&path,
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#1166dd"/></svg>"##,
+        ).unwrap();
+        let safe = orbit_file_info(&path).unwrap();
+        assert_eq!(safe.detected.as_deref(), Some("SVG"));
+        assert!(safe.error.is_none());
+
+        std::fs::write(&path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/unsafe.png"/></svg>"#,
+        ).unwrap();
+        let blocked = orbit_file_info(&path).unwrap();
+        assert!(blocked.error.is_some());
+    }
+
+    #[test]
     fn orbit_classifies_media_archive_and_images() {
         assert_eq!(classify_file(Path::new("video.MP4")), "Video");
         assert_eq!(classify_file(Path::new("voice.FLAC")), "Audio");
         assert_eq!(classify_file(Path::new("backup.RAR")), "Archive");
         assert_eq!(classify_file(Path::new("photo.webp")), "Image");
+        for extension in ["ICO", "TGA", "QOI", "SVG"] {
+            assert_eq!(classify_file(Path::new(&format!("artwork.{extension}"))), "Image");
+        }
         assert_eq!(classify_file(Path::new("notes.txt")), "File");
     }
 
