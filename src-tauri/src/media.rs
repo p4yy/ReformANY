@@ -257,7 +257,11 @@ mod tests {
             assert!(output_spec(target).is_ok(), "{target}");
             let args = media_args(&sample(target), Path::new("source"), Path::new("dest"))
                 .unwrap();
-            assert!(args.iter().any(|a| a == "-c:a"));
+            if target == "gif" {
+                assert!(args.iter().any(|a| a == "-an"), "GIF output must be video-only");
+            } else {
+                assert!(args.iter().any(|a| a == "-c:a"), "{target}");
+            }
         }
         assert!(output_spec("exe").is_err());
     }
