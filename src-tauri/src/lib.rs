@@ -16,6 +16,7 @@ mod subtitles;
 mod spreadsheets;
 mod engine_progress;
 mod file_parts;
+mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
@@ -33,6 +34,7 @@ use subtitles::subtitle_convert;
 use spreadsheets::spreadsheet_convert;
 use engine_progress::{cancel_engine_job, JobRegistry};
 use file_parts::{file_split, file_join};
+use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -78,6 +80,8 @@ pub fn run() {
             open_manual_updates,
             file_split,
             file_join,
+            qr_svg,
+            qr_save_svg,
             subtitle_convert,
             spreadsheet_convert,
             cancel_engine_job

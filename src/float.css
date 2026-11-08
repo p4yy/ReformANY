@@ -40,3 +40,21 @@ html[data-mode="float"],html[data-mode="float"] body,html[data-mode="float"] #ro
 .float-actions button:disabled{opacity:.5}
 .float-error,.float-note{font-size:10px;line-height:1.4;padding:5px 13px 11px}
 .float-error{color:#e29a91}.float-note{color:#c8d4a2}
+
+/* Actual offline QR workspace: real encoding, preview and native Save dialog. */
+.float-tabs{height:43px;display:flex;align-items:center;gap:5px;padding:5px 14px;border-bottom:1px solid var(--float-border);background:var(--float-bg)}
+.float-tabs button{display:flex;align-items:center;justify-content:center;gap:7px;flex:1;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--float-muted);height:31px;font-size:11px;font-weight:600;cursor:pointer}
+.float-tabs button[aria-current="page"]{background:var(--float-surface-raised);border-color:var(--float-border);color:var(--float-text)}
+.float-tabs button:focus-visible,.float-actions button:focus-visible,.float-qr-actions button:focus-visible{outline:2px solid #c8d4a2;outline-offset:2px}
+.float-qr-content{flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:16px 17px;overflow:auto}
+.float-qr-content label{color:var(--float-text);font-size:11px;font-weight:600}
+.float-qr-content textarea{width:100%;flex:0 0 auto;resize:vertical;min-height:52px;max-height:100px;box-sizing:border-box;padding:9px 10px;background:#171d15;border:1px solid var(--float-border);border-radius:9px;color:#edf2df;font-size:11px;font-family:inherit;line-height:1.4}
+.float-qr-content textarea:focus{outline:2px solid #8cb369;outline-offset:1px}
+.float-qr-actions{display:flex;gap:8px}
+.float-qr-actions button{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-height:36px;padding:0 8px;border:1px solid var(--float-border);border-radius:9px;background:var(--float-surface-raised);color:var(--float-text);font-size:11px;font-weight:600;cursor:pointer}
+.float-qr-actions button:first-child{background:#3a4a2b}
+.float-qr-actions button:disabled{cursor:not-allowed;opacity:.45}
+.float-qr-image{align-self:center;display:grid;place-items:center;flex:1;min-height:110px;width:100%;max-width:190px}
+.float-qr-image img{display:block;width:100%;height:auto;max-height:190px;aspect-ratio:1}
+.float-qr-empty{flex:1;min-height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:9px;border:1px dashed var(--float-border);border-radius:12px;color:var(--float-muted);font-size:10px}
+.float-qr-content small{font-size:10px;line-height:1.45;color:var(--float-muted)}

@@ -22,6 +22,7 @@ tempfile = "3"
 uuid = { version = "1", features = ["v4"] }
 
 base64 = "0.22"
+qrcodegen = "1.8.0"
 tiff = "0.11"
 walkdir = "2"
 zip = { version = "=8.6.0", default-features = false, features = ["deflate", "aes-crypto"] }
