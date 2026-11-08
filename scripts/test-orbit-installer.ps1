@@ -27,7 +27,7 @@ function Find-RegisteredVerb([string] $kind) {
     $key = "$root\$kind\shell\ReformANYOrbit"
     if (Test-Path -LiteralPath $key) { $hits += $key }
   }
-  return ,$hits
+  return $hits
 }
 $installedKeys = @()
 foreach ($kind in @('*', 'Directory')) {
