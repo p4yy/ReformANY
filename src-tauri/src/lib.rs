@@ -1,10 +1,18 @@
 mod conversion;
 mod orbit;
 mod scan;
+mod external;
+mod media;
+mod archives;
+mod actions;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
 use scan::expand_inputs;
+use external::engine_status;
+use media::media_convert;
+use archives::{archive_create, archive_extract};
+use actions::{rename_file, open_terminal, send_bluetooth};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,7 +33,14 @@ pub fn run() {
             orbit_preview,
             image_thumbnail,
             orbit_open_workspace,
-            reveal_output
+            reveal_output,
+            engine_status,
+            media_convert,
+            archive_create,
+            archive_extract,
+            rename_file,
+            open_terminal,
+            send_bluetooth
         ])
         .setup(move |app| {
             if orbit_mode {
