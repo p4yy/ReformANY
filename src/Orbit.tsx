@@ -41,6 +41,62 @@ function formatSize(bytes: number): string {
   return `${bytes} B`;
 }
 
+
+type OrbitAction = { label: string; run: () => void };
+const ORBIT_CENTER = 280;
+function orbitPoint(radius: number, degrees: number) {
+  const angle = (degrees - 90) * Math.PI / 180;
+  return { x: ORBIT_CENTER + Math.cos(angle) * radius, y: ORBIT_CENTER + Math.sin(angle) * radius };
+}
+function orbitSlice(inner: number, outer: number, start: number, end: number) {
+  const outerStart = orbitPoint(outer, start);
+  const outerEnd = orbitPoint(outer, end);
+  const innerEnd = orbitPoint(inner, end);
+  const innerStart = orbitPoint(inner, start);
+  const large = end - start > 180 ? 1 : 0;
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outer} ${outer} 0 ${large} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${inner} ${inner} 0 ${large} 0 ${innerStart.x} ${innerStart.y} Z`,
+  ].join(" ");
+}
+function OrbitRing({ items, inner, outer, label }: {
+  items: OrbitAction[]; inner: number; outer: number; label: string;
+}) {
+  return <g aria-label={label}>
+    {items.map((item, index) => {
+      const sector = 360 / items.length;
+      const start = index * sector + 1.15;
+      const end = (index + 1) * sector - 1.15;
+      const midpoint = orbitPoint((inner + outer) / 2, (start + end) / 2);
+      const words = item.label.split(" ");
+      const split = words.length > 1 && item.label.length > 11;
+      const halves = split ? [
+        words.slice(0, Math.ceil(words.length / 2)).join(" "),
+        words.slice(Math.ceil(words.length / 2)).join(" "),
+      ] : [item.label];
+      return <g key={item.label} className="orbit-segment" role="button" tabIndex={0}
+        aria-label={item.label} onClick={item.run}
+        onPointerEnter={() => playOrbitHover()}
+        onKeyDown={event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            item.run();
+          }
+        }}>
+        <title>{item.label}</title>
+        <path d={orbitSlice(inner, outer, start, end)} />
+        <text x={midpoint.x} y={midpoint.y} textAnchor="middle" dominantBaseline="middle">
+          {halves.map((part, position) =>
+            <tspan key={part} x={midpoint.x}
+              dy={position === 0 ? (halves.length === 2 ? -6 : 0) : 15}>{part}</tspan>)}
+        </text>
+      </g>;
+    })}
+  </g>;
+}
+
 export default function Orbit() {
   const [file, setFile] = useState<OrbitFile | null>(null);
   const [mousePreferences] = useState(readOrbitMousePreferences);
@@ -58,6 +114,8 @@ export default function Orbit() {
   const requestId = useRef<string | null>(null);
   const batchId = useRef<string | null>(null);
   const wheelSum = useRef(0);
+  const nativeDialogOpen = useRef(false);
+  const ignoreInitialFocus = useRef(true);
   const lastWheelAction = useRef(0);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const kind = getKind(file);
@@ -101,10 +159,23 @@ export default function Orbit() {
       }
     };
     window.addEventListener("keydown", onKey);
+    // Windows transparency does not make the rectangle click-through.
+    // Dismiss when another desktop window takes focus, even if Escape was not pressed.
+    // Skip the initial window activation and dialogs opened by an Orbit action.
+    const windowHandle = getCurrentWindow();
+    const focusListener = windowHandle.onFocusChanged(({ payload: focused }) => {
+      if (focused) {
+        ignoreInitialFocus.current = false;
+      } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current) {
+        void windowHandle.close();
+      }
+    });
+
     return () => {
       mounted = false;
       void subscribed.then(unlisten => unlisten());
       window.removeEventListener("keydown", onKey);
+      void focusListener.then(unlisten => unlisten());
     };
   }, []);
 
@@ -213,7 +284,14 @@ export default function Orbit() {
         await navigator.clipboard.writeText(file.path);
         setNote("Path copied");
       } else if (action === "copyFile") {
-        const destination = await open({ directory: true, multiple: false });
+        nativeDialogOpen.current = true;
+        let destination: string | string[] | null;
+        try {
+          destination = await open({ directory: true, multiple: false });
+          await getCurrentWindow().setFocus();
+        } finally {
+          nativeDialogOpen.current = false;
+        }
         if (typeof destination !== "string") return;
         const result = await invoke<string>("copy_file_to", { path: file.path, destination });
         setNote("Copied: " + result.split(/[\\/]/).pop());
@@ -272,114 +350,101 @@ export default function Orbit() {
   const mediaReady = kind !== "audio" && kind !== "video" || Boolean(engines?.ffmpeg && engines?.ffprobe);
   const description = file?.error ?? (loading ? "Reading file…" : isFolder ? "Use Tools to package this folder" : "No quick conversion for this file. Try the full workspace.");
 
+
+  const innerActions: OrbitAction[] = tab === "convert"
+    ? (canConvert && mediaReady ? targets.slice(0, 4).map(target => ({
+        label: target, run: () => void convert(target),
+      })) : [])
+    : tab === "tools" ? [
+        ...(kind === "archive"
+          ? ((isNativeZip || engines?.sevenZip) && canConvert
+            ? [{ label: "Extract", run: () => void archive("extract") }] : [])
+          : canConvert ? [
+              { label: "ZIP", run: () => void archive("zip") },
+              ...(engines?.sevenZip ? [{ label: "7z", run: () => void archive("7z") }] : []),
+            ] : []),
+        { label: "More tools", run: () => void openWorkspace() },
+      ] : file ? [
+        { label: "Rename", run: () => { setNewName(file.name); setRenaming(true); } },
+        { label: "Copy path", run: () => void act("copy") },
+        { label: "Terminal", run: () => void act("terminal") },
+        ...(!isFolder ? [{ label: "Float", run: () => void act("float") }] : []),
+      ] : [];
+  const outerActions: OrbitAction[] = tab === "convert"
+    ? (canConvert && mediaReady ? targets.slice(4).map(target => ({
+        label: target, run: () => void convert(target),
+      })) : [])
+    : tab === "tools" ? []
+    : file ? [
+        { label: isFolder ? "Open folder" : "Show in Explorer", run: () => void act("folder") },
+        ...(!isFolder ? [
+          { label: "Copy file", run: () => void act("copyFile") },
+          { label: "Bluetooth", run: () => void act("bluetooth") },
+        ] : []),
+      ] : [];
+
+  const message = error || note || (phase === "ready" && tab === "convert" && innerActions.length === 0
+    ? (canConvert && !mediaReady ? "FFmpeg and FFprobe are required for media conversion." : description)
+    : null);
+  const ringVisible = (phase === "ready" || phase === "failed") && !renaming;
+
   return (
-    <div className="orbit-frame">
-      <section className="orbit-disc" aria-label="ReformANY Orbit quick converter"
-        onPointerOver={handleOrbitHover} onPointerMove={handlePointerMove}
-        onPointerLeave={() => setCursor(null)}
-        onWheel={handleWheel} onPointerDownCapture={unlockOrbitAudio}>
-        <button type="button" className="orbit-close" aria-label="Close Orbit" onClick={() => void close()}>
-          <X size={16} strokeWidth={2} />
-        </button>
-
-        <header className="orbit-header">
-          <img src={appIcon} className="orbit-logo" alt="" />
-          <span>ReformANY</span><span className="orbit-tag">Orbit</span>
-        </header>
-
-        <div className="orbit-file">
-          <div className="orbit-thumbnail">
-            {preview ? <img src={preview} alt="Selected image preview" /> : isFolder ? <FolderOpen size={30} strokeWidth={1.6} aria-hidden /> : <FileImage size={30} strokeWidth={1.6} aria-hidden />}
-          </div>
-          <strong className="orbit-filename" title={file?.name ?? undefined}>{file?.name ?? (loading ? "Opening file…" : "No file selected")}</strong>
-          <span className="orbit-meta">
-            {isFolder ? "Folder" : file?.detected ? `${file.detected} · ${formatSize(file.bytes)}` : canConvert ? "" : "Quick conversion"}
-          </span>
-        </div>
-
-        <div className="orbit-divider" role="presentation" />
-
-        <div className="orbit-main">
-          {phase === "completed" ? <div className="orbit-result" role="status">
-            <div className="orbit-success"><CheckCircle2 size={18}/> Done</div>
-            <span className="orbit-result-name" title={output || undefined}>{output?.split(/[\\/]/).pop()}</span>
-            <div className="orbit-result-actions">
-              <button type="button" onClick={() => void reveal()}><FolderOpen size={15}/> Show result</button>
-              <button type="button" onClick={() => {setPhase("ready");setError(null);}}>Again</button>
+    <div className="orbit-frame" onPointerDown={event => {
+      if (event.target === event.currentTarget) void close();
+    }}>
+      <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
+        onWheel={handleWheel} onPointerMove={handlePointerMove}
+        onPointerLeave={() => setCursor(null)} onPointerDownCapture={unlockOrbitAudio}>
+        {ringVisible && <svg className="orbit-rings" viewBox="0 0 560 560"
+          role="group" aria-label={tab === "convert" ? "Convert to format" : tab === "tools" ? "File tools" : "File actions"}>
+          {outerActions.length > 0 && <OrbitRing items={outerActions} inner={187} outer={264} label="Outer actions" />}
+          {innerActions.length > 0 && <OrbitRing items={innerActions} inner={106} outer={179} label="Inner actions" />}
+          <circle className="orbit-hub-outline" cx="280" cy="280" r="99" />
+        </svg>}
+        <div className="orbit-hub">
+          {renaming ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void rename();}}>
+            <label htmlFor="orbit-rename-file">Rename file</label>
+            <input id="orbit-rename-file" autoFocus value={newName} onChange={event => setNewName(event.target.value)} />
+            <div className="orbit-rename-buttons">
+              <button type="submit">Save</button>
+              <button type="button" onClick={() => setRenaming(false)}>Cancel</button>
             </div>
-          </div> : phase === "processing" ? <div className="orbit-working" role="status" aria-live="polite">
-            <LoaderCircle size={20} className="orbit-spinner" />
-            <strong>{selected} · Working…</strong>
-            <div className="orbit-indeterminate"><span/></div>
-            <small>Processing locally</small>
-            {kind === "image" && <button className="orbit-cancel" onClick={() => void cancel()}>Cancel</button>}
-          </div> : <>
-            {tab === "convert" && <div className="orbit-controls">
-              <span className="orbit-legend">QUICK CONVERT</span>
-              {targets.length > 0 && canConvert && mediaReady
-                ? <div className="orbit-options">
-                  {targets.map(target => <button type="button" key={target}
-                    className="orbit-option" onClick={() => void convert(target)}>
-                      {target}<ArrowRight size={12}/>
-                    </button>)}
-                </div>
-                : <div className="orbit-unavailable">
-                    {canConvert && !mediaReady ? "FFmpeg and FFprobe must be installed for media." : description}
-                  </div>}
-            </div>}
-            {tab === "tools" && <div className="orbit-controls">
-              <span className="orbit-legend">QUICK TOOLS</span>
-              <div className="orbit-options orbit-options-tools">
-                {kind === "archive"
-                  ? <button className="orbit-option" disabled={!canConvert || !(isNativeZip || engines?.sevenZip)} onClick={() => void archive("extract")}>
-                      <Package size={15}/> Extract
-                    </button>
-                  : <>
-                    <button className="orbit-option" disabled={!canConvert} onClick={() => void archive("zip")}><Package size={15}/> ZIP</button>
-                    <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("7z")}><Package size={15}/> 7z</button>
-                  </>}
-                <button className="orbit-option" onClick={() => void openWorkspace()}><ArrowRight size={15}/> More</button>
-              </div>
-              {!engines?.sevenZip && <span className="orbit-inline-note">7-Zip is needed for 7z and non-ZIP archives.</span>}
-            </div>}
-            {tab === "actions" && <div className="orbit-controls">
-              <span className="orbit-legend">FILE ACTIONS</span>
-              {renaming ? <form className="orbit-rename" onSubmit={event => {event.preventDefault();void rename();}}>
-                <input autoFocus aria-label="New filename" value={newName} onChange={event => setNewName(event.target.value)}/>
-                <button type="submit">Save</button>
-                <button type="button" onClick={() => setRenaming(false)}>Cancel</button>
-              </form> : <div className="orbit-actions-grid">
-                <button disabled={!file} onClick={() => {setNewName(file?.name || "");setRenaming(true);}}><Pencil size={14}/> Rename</button>
-                <button disabled={!file} onClick={() => void act("copy")}><ClipboardCopy size={14}/> Copy path</button>
-                <button disabled={!file} onClick={() => void act("folder")}><FolderOpen size={14}/> {isFolder ? "Open folder" : "Show file"}</button>
-                <button disabled={!file} onClick={() => void act("terminal")}><Terminal size={14}/> Terminal</button>
-                <button disabled={!file || isFolder} onClick={() => void act("copyFile")}><Copy size={14}/> Copy file</button>
-                <button disabled={!file || isFolder} onClick={() => void act("float")}><Pin size={14}/> Float</button>
-                <button disabled={!file || isFolder} onClick={() => void act("bluetooth")}><Bluetooth size={14}/> Bluetooth</button>
-              </div>}
-            </div>}
+          </form> : phase === "processing" ? <>
+            <LoaderCircle size={26} className="orbit-spinner" aria-hidden="true" />
+            <strong>{selected} · Working</strong>
+            <span className="orbit-hub-subtitle">Processing locally</span>
+            {kind === "image" && <button className="orbit-hub-close" onClick={() => void cancel()}>Cancel</button>}
+          </> : phase === "completed" ? <>
+            <CheckCircle2 size={27} className="orbit-done-icon" aria-hidden="true" />
+            <strong>Done</strong>
+            <span className="orbit-hub-subtitle" title={output || ""}>{output?.split(/[\\/]/).pop()}</span>
+            <button className="orbit-hub-close" onClick={() => void reveal()}>Show result</button>
+            <button className="orbit-hub-close" onClick={() => {setPhase("ready"); setError(null);}}>Again</button>
+          </> : <>
+            <img className="orbit-logo" src={appIcon} alt="" />
+            <strong>{tab === "convert" ? "Convert" : tab === "tools" ? "Tools" : "Actions"}</strong>
+            <span className="orbit-hub-subtitle" title={file?.name ?? ""}>
+              {file?.name ?? (loading ? "Opening…" : "No file")}
+            </span>
+            <button type="button" className="orbit-hub-close" onClick={() => void close()}
+              aria-label="Close Orbit">Esc · close</button>
           </>}
-          {error && phase !== "processing" && <span className="orbit-inline-error" role="alert">{error}</span>}
-          {note && phase !== "processing" && <span className="orbit-inline-note" role="status">{note}</span>}
         </div>
-        <nav className="orbit-section-tabs" aria-label="Orbit sections">
-          {(["convert", "tools", "actions"] as Tab[]).map(value =>
-            <button key={value} className={tab === value ? "is-active" : ""}
-              disabled={phase === "processing"} onClick={() => {setTab(value);setError(null);setNote(null);setRenaming(false);setPhase("ready");}}>
-              {t(getLanguage(), value === "convert" ? "convert" : value === "tools" ? "tools" : "actions")}
-            </button>)}
-        </nav>
-
         {phase === "processing" && mousePreferences.pointerSpinner && cursor && <span
           aria-hidden="true" className="orbit-pointer-spinner"
           style={{ left: cursor.x + 14, top: cursor.y + 11 }} />}
-        <footer className="orbit-footer">
-          <span className="orbit-footnote">{t(getLanguage(), "localNoUploads")}</span>
-          <button type="button" className="orbit-open-app" onClick={() => void openWorkspace()}>
-            Full app <ArrowRight size={13}/>
-          </button>
-        </footer>
       </section>
+      <nav className="orbit-section-tabs" aria-label="Orbit sections">
+        {(["convert", "tools", "actions"] as Tab[]).map(value =>
+          <button key={value} className={tab === value ? "is-active" : ""}
+            disabled={phase === "processing"} onClick={() => {
+              setTab(value);setError(null);setNote(null);setRenaming(false);setPhase("ready");
+            }}>
+            {t(getLanguage(), value === "convert" ? "convert" : value === "tools" ? "tools" : "actions")}
+          </button>)}
+      </nav>
+      <div className={error ? "orbit-message orbit-message-error" : "orbit-message"}
+        role={error ? "alert" : "status"} aria-live="polite">{message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}</div>
     </div>
   );
 }
