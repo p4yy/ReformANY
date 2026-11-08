@@ -44,14 +44,20 @@ export function roundedOrbitSlice(inner: number, outer: number, start: number, e
   ].join(" ");
 }
 
+/** The uploaded RadialMenu uses a full 360-degree radial wheel.
+ * The mode switcher is rendered below the wheel in a transparent native window,
+ * without a painted rectangle behind either element.
+ */
 export function orbitSectorAngles(count: number, index: number) {
-  if (count < 1 || !Number.isInteger(index) || index < 0 || index >= count) {
+  if (count < 1 || index < 0 || index >= count || !Number.isInteger(index)) {
     throw new RangeError("Invalid radial segment index");
   }
-  if (count === 1) return { start: -65, end: 65 };
-  const sector = 270 / count;
+  if (count === 1) return { start: -150, end: 150 };
+  const step = 360 / count;
+  const gap = Math.min(2.3, step / 4);
+  const center = index * step;
   return {
-    start: 225 + index * sector + 1.55,
-    end: 225 + (index + 1) * sector - 1.55,
+    start: center - step / 2 + gap / 2,
+    end: center + step / 2 - gap / 2,
   };
 }
