@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert,
-  Clock3, Copy, FileImage, Folder, Layers3, Plus, Settings2,
+  Copy, FileImage, Folder, Layers3, Plus, Settings2,
   Trash2, X, Languages, Volume2,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
