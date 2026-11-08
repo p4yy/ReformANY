@@ -1,0 +1,286 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
+  CircleAlert, Clock3, Copy, FileImage, Folder, FolderOpen, Layers3,
+  Moon, Palette, Plus, Settings2, Sun, Trash2, X,
+} from "lucide-react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open } from "@tauri-apps/plugin-dialog";
+
+type Target = "png" | "jpeg" | "webp" | "bmp";
+type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
+type Page = "convert" | "activity" | "appearance";
+
+type FileInfo = {
+  path: string;
+  name: string;
+  bytes: number;
+  detected: string | null;
+  error: string | null;
+};
+type Row = FileInfo & {
+  id: string;
+  target: Target;
+  status: Status;
+  outputPath: string | null;
+};
+type ConversionEvent = {
+  id: string;
+  status: Status | "batch-finished";
+  outputPath: string | null;
+  error: string | null;
+};
+
+const targets: { key: Target; name: string; detail: string }[] = [
+  { key: "png", name: "PNG", detail: "Lossless · transparency" },
+  { key: "jpeg", name: "JPEG", detail: "Compact · photographs" },
+  { key: "webp", name: "WebP", detail: "Efficient · lossless" },
+  { key: "bmp", name: "BMP", detail: "Uncompressed · compatibility" },
+];
+const supported = "PNG, JPEG, WebP and BMP";
+const fmtBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 * 1024
+  ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`;
+const fileStem = (path: string) => path.split(/[\\/]/).pop() || path;
+const makeId = () => crypto.randomUUID();
+
+function Mark({ size = 34 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <rect width="40" height="40" rx="12" fill="currentColor" />
+      <path d="M11 15H28M28 15L23 10M28 15L23 20" stroke="var(--mark-ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M29 25H12M12 25L17 20M12 25L17 30" stroke="var(--mark-ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function App() {
+  const [page, setPage] = useState<Page>("convert");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [destination, setDestination] = useState<string | null>(null);
+  const [quality, setQuality] = useState(86);
+  const [matte, setMatte] = useState<"white" | "black">("white");
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    localStorage.getItem("reformany.theme") === "dark" ? "dark" : "light");
+  const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "indigo");
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const desktop = isTauri();
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.accent = accent;
+    localStorage.setItem("reformany.theme", theme);
+    localStorage.setItem("reformany.accent", accent);
+  }, [theme, accent]);
+
+  const addPaths = useCallback(async (paths: string[]) => {
+    if (!paths.length) return;
+    try {
+      const info = await invoke<FileInfo[]>("inspect_files", { paths: paths.slice(0, 300) });
+      setRows(current => {
+        const seen = new Set(current.map(row => row.path));
+        const appended: Row[] = info.filter(entry => !seen.has(entry.path)).map(entry => ({
+          ...entry, id: makeId(), target: entry.detected === "PNG" ? "webp" : "png",
+          status: entry.error ? "failed" : "ready", outputPath: null,
+        }));
+        return [...current, ...appended].slice(0, 300);
+      });
+      setPage("convert");
+    } catch (error) { setNotice(String(error)); }
+  }, []);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let cancelled = false;
+    let stopDrop: (() => void) | undefined;
+    let stopEvents: (() => void) | undefined;
+    getCurrentWebview().onDragDropEvent(event => {
+      if (event.payload.type === "enter" || event.payload.type === "over") setDragging(true);
+      if (event.payload.type === "leave") setDragging(false);
+      if (event.payload.type === "drop") {
+        setDragging(false);
+        void addPaths(event.payload.paths);
+      }
+    }).then(unlisten => { if (cancelled) unlisten(); else stopDrop = unlisten; })
+      .catch(error => setNotice(String(error)));
+    listen<ConversionEvent>("reformany:conversion", event => {
+      const update = event.payload;
+      if (update.status === "batch-finished") {
+        setBatchId(null);
+        return;
+      }
+      setRows(current => current.map(row => row.id === update.id ? {
+        ...row, status: update.status as Status,
+        outputPath: update.outputPath ?? row.outputPath,
+        error: update.error ?? (update.status === "completed" ? null : row.error),
+      } : row));
+    }).then(unlisten => { if (cancelled) unlisten(); else stopEvents = unlisten; })
+      .catch(error => setNotice(String(error)));
+    return () => { cancelled = true; stopDrop?.(); stopEvents?.(); };
+  }, [desktop, addPaths]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        void chooseFiles();
+      }
+      if (event.key === "Escape") setNotice(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
+
+  async function chooseFiles() {
+    if (!desktop) { setNotice("Open the desktop app to import files."); return; }
+    try {
+      const paths = await open({ multiple: true, directory: false,
+        filters: [{ name: "Supported images", extensions: ["png", "jpg", "jpeg", "webp", "bmp"] }] });
+      if (paths) await addPaths(Array.isArray(paths) ? paths : [paths]);
+    } catch (error) { setNotice(String(error)); }
+  }
+  async function chooseDestination() {
+    if (!desktop) { setNotice("Open the desktop app to choose a folder."); return; }
+    try {
+      const path = await open({ directory: true, multiple: false });
+      if (typeof path === "string") setDestination(path);
+    } catch (error) { setNotice(String(error)); }
+  }
+  async function runConversion() {
+    const pending = rows.filter(row => row.status === "ready" && !row.error);
+    if (!pending.length || batchId) return;
+    setRows(current => current.map(row => pending.some(p => p.id === row.id) ? { ...row, status: "processing" } : row));
+    try {
+      const id = await invoke<string>("convert_batch", {
+        files: pending.map(row => ({
+          id: row.id, path: row.path, target: row.target, quality, matte,
+        })),
+        destination,
+      });
+      setBatchId(id);
+    } catch (error) {
+      setRows(current => current.map(row => pending.some(p => p.id === row.id) ? { ...row, status: "ready" } : row));
+      setNotice(String(error));
+    }
+  }
+  async function cancelConversion() {
+    if (!batchId) return;
+    try { await invoke("cancel_batch", { batchId }); }
+    catch (error) { setNotice(String(error)); }
+  }
+
+  const active = rows.filter(row => row.status === "ready" && !row.error);
+  const processed = rows.filter(row => row.status === "completed").length;
+  const failed = rows.filter(row => row.status === "failed").length;
+  const busy = Boolean(batchId) || rows.some(row => row.status === "processing");
+  const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.bytes, 0), [rows]);
+
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand"><span className="brand-mark"><Mark size={34}/></span><span>Reform<span className="brand-any">ANY</span></span></div>
+        <div className="nav-label">WORKSPACE</div>
+        <nav aria-label="Main navigation">
+          <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> Convert</button>
+          <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")}><Clock3 size={18}/> Activity {processed > 0 && <span className="nav-count">{processed}</span>}</button>
+        </nav>
+        <div className="nav-label nav-label-spaced">PREFERENCES</div>
+        <nav aria-label="Preferences">
+          <button className={`nav-button ${page === "appearance" ? "selected" : ""}`} onClick={() => setPage("appearance")}><Palette size={18}/> Appearance</button>
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="side-note"><span className="status-dot"/> Local processing<br/><span className="side-note-sub">Your files stay on this device.</span></div>
+          <div className="sidebar-version">ReformANY <span>0.1.0 · Preview</span></div>
+        </div>
+      </aside>
+      <main className="main">
+        <header className="topbar">
+          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Convert" : page === "activity" ? "Activity" : "Appearance"}</span>
+          <span className="topbar-right"><span className="topbar-dot"/> Image conversion · Preview</span>
+        </header>
+        {page === "convert" && <div className="content">
+          <div className="page-intro">
+            <div><div className="eyebrow">YOUR WORKSPACE</div><h1>Make it another format.</h1><p>Simple, reliable conversion. No uploads, no unnecessary steps.</p></div>
+            <button className="button secondary add-top" onClick={() => void chooseFiles()}><Plus size={17}/> Add files</button>
+          </div>
+
+          <button className={`dropzone ${dragging ? "dragging" : ""}`} onClick={() => void chooseFiles()} aria-label="Choose images to convert">
+            <div className="drop-icon"><ArrowDownToLine size={24} strokeWidth={1.7}/></div>
+            <strong>Drop your files here</strong><span>or <u>browse your device</u> to get started</span>
+            <small>{supported} · Up to 150 MB per file</small>
+          </button>
+
+          <div className="section-header">
+            <div><h2>Files <span className="count">{rows.length}</span></h2><p>Choose what each file should become.</p></div>
+            {rows.length > 0 && !busy && <button className="text-action" onClick={() => setRows([])}><Trash2 size={15}/> Clear list</button>}
+          </div>
+
+          {rows.length ? <div className="file-table">
+            <div className="table-head"><span>FILE</span><span>CONVERT TO</span><span>STATUS</span><span/></div>
+            {rows.map(row => <div className="file-row" key={row.id}>
+              <div className="file-cell"><div className="file-icon"><FileImage size={19}/></div>
+                <div className="file-detail"><strong title={row.name}>{row.name}</strong><small>{row.detected || "Unknown"} {row.bytes > 0 ? `· ${fmtBytes(row.bytes)}` : ""}</small></div>
+              </div>
+              <div className="target-cell"><select value={row.target} disabled={row.status !== "ready" || !!row.error || busy}
+                aria-label={`Output format for ${row.name}`} onChange={event => setRows(current => current.map(item => item.id === row.id ? { ...item, target: event.target.value as Target } : item))}>
+                {targets.map(option => <option key={option.key} value={option.key}>{option.name}</option>)}</select><ChevronDown size={14}/></div>
+              <div className={`file-status ${row.status}`}>{row.status === "completed" ? <CheckCircle2 size={15}/> : row.status === "failed" ? <CircleAlert size={15}/> : row.status === "processing" ? <span className="spinner"/> : <span className="tiny-dot"/>}
+                {row.status === "ready" ? "Ready" : row.status === "processing" ? "Working…" : row.status === "completed" ? "Done" : row.status === "cancelled" ? "Cancelled" : "Error"}</div>
+              <button className="icon-button" title="Remove file" aria-label={`Remove ${row.name}`} disabled={busy} onClick={() => setRows(current => current.filter(item => item.id !== row.id))}><X size={17}/></button>
+              {(row.error || row.outputPath) && <div className="row-message" title={row.error || row.outputPath || ""}>
+                {row.error ? row.error : <>Saved to {row.outputPath} <button onClick={() => navigator.clipboard.writeText(row.outputPath || "")} aria-label="Copy output path"><Copy size={13}/></button></>}
+              </div>}
+            </div>)}
+          </div> : <div className="empty-list"><Layers3 size={19}/><span>Your files will appear here once added.</span></div>}
+
+          <div className="settings-card">
+            <button className="settings-head" onClick={() => setExpanded(current => !current)} aria-expanded={expanded}>
+              <span><Settings2 size={18}/> Conversion settings</span><span className="settings-hint">{expanded ? "Hide options" : "Fine-tune output"} <ChevronDown className={expanded ? "rotate" : ""} size={16}/></span>
+            </button>
+            <div className="destination-row"><div><strong>Save converted files</strong><small>{destination || "Alongside the originals · No files are overwritten"}</small></div>
+              <button className="button subtle" onClick={() => void chooseDestination()}><Folder size={16}/> Choose folder</button>
+              {destination && <button className="icon-button" title="Save alongside originals" aria-label="Reset output folder" onClick={() => setDestination(null)}><X size={16}/></button>}
+            </div>
+            {expanded && <div className="advanced-grid">
+              <label className="range-field"><span>JPEG quality <strong>{quality}%</strong></span><input type="range" min="30" max="100" value={quality} onChange={e => setQuality(Number(e.target.value))}/><small>Only affects JPEG output.</small></label>
+              <label className="select-field"><span>Background for formats without transparency</span><select value={matte} onChange={event => setMatte(event.target.value as "white" | "black")}><option value="white">White</option><option value="black">Black</option></select></label>
+            </div>}
+          </div>
+          <div className="action-bar"><div className="action-summary"><strong>{active.length} ready to convert</strong><span>{rows.length ? `${fmtBytes(totalBytes)} added · ${processed} completed ${failed ? `· ${failed} errors` : ""}` : "Add some images to begin"}</span></div>
+            {busy ? <button className="button cancel" onClick={() => void cancelConversion()}>Cancel batch</button> :
+              <button className="button primary" disabled={!active.length || !desktop} onClick={() => void runConversion()}>Convert {active.length ? `${active.length} ${active.length === 1 ? "file" : "files"}` : "files"} <ArrowRight size={18}/></button>}
+          </div>
+          {!desktop && <p className="browser-note">Browser preview only. Open ReformANY through Tauri to import and convert files.</p>}
+        </div>}
+
+        {page === "activity" && <div className="content page-panel">
+          <div className="eyebrow">THIS SESSION</div><h1>Activity</h1><p>Conversion results from your current workspace.</p>
+          {rows.filter(row => row.status === "completed" || row.status === "failed" || row.status === "cancelled").length ?
+            <div className="activity-list">{rows.filter(row => row.status === "completed" || row.status === "failed" || row.status === "cancelled").map(row =>
+              <div className="activity-item" key={row.id}><div className={`activity-symbol ${row.status}`}>{row.status === "completed" ? <Check size={18}/> : <CircleAlert size={18}/>}</div>
+                <div><strong>{row.name}</strong><small>{row.outputPath || row.error || row.status}</small></div><span>{row.status}</span></div>)}</div> :
+            <div className="blank-state"><Clock3 size={25}/><strong>No activity yet</strong><p>Converted files and any errors will show here.</p><button className="button secondary" onClick={() => setPage("convert")}>Go to converter</button></div>}
+        </div>}
+
+        {page === "appearance" && <div className="content page-panel">
+          <div className="eyebrow">PREFERENCES</div><h1>Appearance</h1><p>Make the workspace feel right for you.</p>
+          <div className="preference-group"><h2>Theme</h2><p>Choose the look of your workspace.</p>
+            <div className="theme-grid"><button className={`theme-choice ${theme === "light" ? "picked" : ""}`} onClick={() => setTheme("light")}><span className="theme-preview light-preview"><i/><i/><i/></span><span><Sun size={17}/> Light {theme === "light" && <Check size={16}/>}</span></button>
+              <button className={`theme-choice ${theme === "dark" ? "picked" : ""}`} onClick={() => setTheme("dark")}><span className="theme-preview dark-preview"><i/><i/><i/></span><span><Moon size={17}/> Dark {theme === "dark" && <Check size={16}/>}</span></button></div>
+          </div>
+          <div className="preference-group"><h2>Accent</h2><p>A small touch of color for important actions.</p>
+            <div className="accent-grid">{[{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
+              <button key={item.key} className={`accent-chip ${accent === item.key ? "picked" : ""}`} onClick={() => setAccent(item.key)} aria-label={item.name} title={item.name} style={{background:item.color}}>{accent === item.key && <Check size={17}/>}</button>)}</div>
+          </div>
+          <div className="preference-group"><h2>Privacy</h2><p>Image processing happens locally. ReformANY does not upload your files to a server.</p></div>
+        </div>}
+      </main>
+      {notice && <div className="toast" role="alert"><CircleAlert size={18}/><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={16}/></button></div>}
+    </div>
+  );
+}
+export default App;
