@@ -1,4 +1,4 @@
-<img src="public/brand/reformany-mark.jpg" alt="ReformANY mark" width="72" height="72">
+<img src="https://raw.githubusercontent.com/p4yy/ReformANY/main/src-tauri/icons/icon.png" alt="ReformANY app icon" width="72" height="72">
 
 # ReformANY
 
