@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AlertCircle, Check, Info, X } from "lucide-react";
 
 export default function OrbitNotice({
@@ -8,11 +8,13 @@ export default function OrbitNotice({
   error?: boolean;
   onDismiss: () => void;
 }) {
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
   useEffect(() => {
     if (error) return;
-    const timeout = window.setTimeout(onDismiss, 4200);
+    const timeout = window.setTimeout(() => dismissRef.current(), 4200);
     return () => window.clearTimeout(timeout);
-  }, [message, error, onDismiss]);
+  }, [message, error]);
   const Icon = error ? AlertCircle : message.toLowerCase().includes("copied") ? Check : Info;
   return <div className={`orbit-reference-toast ${error ? "is-error" : ""}`}
     role={error ? "alert" : "status"} aria-live={error ? "assertive" : "polite"}>
