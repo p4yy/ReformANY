@@ -58,3 +58,11 @@ html[data-mode="float"],html[data-mode="float"] body,html[data-mode="float"] #ro
 .float-qr-image img{display:block;width:100%;height:auto;max-height:190px;aspect-ratio:1}
 .float-qr-empty{flex:1;min-height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:9px;border:1px dashed var(--float-border);border-radius:12px;color:var(--float-muted);font-size:10px}
 .float-qr-content small{font-size:10px;line-height:1.45;color:var(--float-muted)}
+
+/* Native Float media playback: local asset URLs are granted per-file in Rust. */
+.float-preview{width:100%;height:min(52vh,300px);min-height:175px}
+.float-preview video,.float-preview iframe{display:block;width:100%;height:100%;border:0;background:#0d110d;object-fit:contain}
+.float-preview video{max-height:100%}
+.float-audio,.float-unavailable{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;text-align:center;padding:18px;box-sizing:border-box}
+.float-audio audio{width:100%;max-width:290px}
+.float-unavailable span{max-width:240px;font-size:12px;line-height:1.4;color:var(--float-muted)}
