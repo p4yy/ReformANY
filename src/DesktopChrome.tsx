@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Archive, BookOpen, Captions, Clapperboard, Clock3, Eye, FileSpreadsheet,
+  Archive, BookOpen, Captions, ChevronLeft, ChevronRight, Clapperboard, Clock3, Eye, FileSpreadsheet,
   FileText, Layers3, Palette, Settings2, Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -45,6 +45,57 @@ function NavButton({ icon: Icon, active, children, onClick }: {
   </button>;
 }
 
+function WorkspaceToolbar({ page, navigate, language }: {
+  page: DesktopPage;
+  navigate: (page: DesktopPage) => void;
+  language: LanguageCode;
+}) {
+  const viewport = useRef<HTMLElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const syncEdges = useCallback(() => {
+    const element = viewport.current;
+    if (!element) return;
+    const left = element.scrollLeft > 3;
+    const right = element.scrollLeft + element.clientWidth < element.scrollWidth - 3;
+    setEdges(previous => previous.left === left && previous.right === right
+      ? previous : { left, right });
+  }, []);
+
+  useEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    syncEdges();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncEdges);
+    observer?.observe(element);
+    element.addEventListener("scroll", syncEdges, { passive: true });
+    window.addEventListener("resize", syncEdges);
+    return () => {
+      observer?.disconnect();
+      element.removeEventListener("scroll", syncEdges);
+      window.removeEventListener("resize", syncEdges);
+    };
+  }, [syncEdges, language]);
+
+  return <div className="workspace-navigation">
+    <nav ref={viewport} aria-label="Workspace tools">
+      {workspace.map(item => <NavButton key={item.id} icon={item.icon}
+        active={page === item.id} onClick={() => navigate(item.id)}>
+        {item.translation ? t(language, item.translation) : item.label}
+      </NavButton>)}
+    </nav>
+    <button type="button" aria-label="Scroll workspace tools left"
+      className={`workspace-scroll workspace-scroll-prev ${edges.left ? "is-visible" : ""}`}
+      disabled={!edges.left} onClick={() => viewport.current?.scrollBy({ left: -230, behavior: "smooth" })}>
+      <ChevronLeft size={16} aria-hidden="true"/>
+    </button>
+    <button type="button" aria-label="Scroll workspace tools right"
+      className={`workspace-scroll workspace-scroll-next ${edges.right ? "is-visible" : ""}`}
+      disabled={!edges.right} onClick={() => viewport.current?.scrollBy({ left: 230, behavior: "smooth" })}>
+      <ChevronRight size={16} aria-hidden="true"/>
+    </button>
+  </div>;
+}
+
 export default function DesktopChrome({ page, navigate, historyCount, language }: {
   page: DesktopPage;
   navigate: (page: DesktopPage) => void;
@@ -66,12 +117,8 @@ export default function DesktopChrome({ page, navigate, historyCount, language }
       <NavButton icon={BookOpen} active={page === "guide"} onClick={() => navigate("guide")}>Guide</NavButton>
       <NavButton icon={Settings2} active={inSettings} onClick={() => navigate("appearance")}>{t(language, "preferences")}</NavButton>
     </nav>
-    {inWorkspace ? <nav aria-label="Workspace tools">
-      {workspace.map(item => <NavButton key={item.id} icon={item.icon}
-        active={page === item.id} onClick={() => navigate(item.id)}>
-        {item.translation ? t(language, item.translation) : item.label}
-      </NavButton>)}
-    </nav> : inSettings ? <nav aria-label="Preferences">
+    {inWorkspace ? <WorkspaceToolbar page={page} navigate={navigate} language={language}/>
+      : inSettings ? <nav aria-label="Preferences">
       {settings.map(item => <NavButton key={item.id} icon={item.icon}
         active={page === item.id} onClick={() => navigate(item.id)}>{item.label}</NavButton>)}
     </nav> : <div className="subnav-context">
