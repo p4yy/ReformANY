@@ -61,17 +61,40 @@ function orbitPoint(radius: number, degrees: number) {
   const angle = (degrees - 90) * Math.PI / 180;
   return { x: ORBIT_CENTER + Math.cos(angle) * radius, y: ORBIT_CENTER + Math.sin(angle) * radius };
 }
+// Rounded annular wedges adapted from the user's better.zip polar geometry.
+// Leave the lower 90° free for an integrated, inside-the-circle mode switcher.
 function orbitSlice(inner: number, outer: number, start: number, end: number) {
-  const outerStart = orbitPoint(outer, start);
-  const outerEnd = orbitPoint(outer, end);
-  const innerEnd = orbitPoint(inner, end);
-  const innerStart = orbitPoint(inner, start);
-  const large = end - start > 180 ? 1 : 0;
+  const sweep = end - start;
+  const corner = Math.min(8, (outer - inner) * .32);
+  const radiansToDeg = 180 / Math.PI;
+  const cIn = Math.min(corner / inner * radiansToDeg, sweep * .22);
+  const cOut = Math.min(corner / outer * radiansToDeg, sweep * .22);
+  const trim = Math.min(corner, (outer - inner) * .34);
+  const iStart = orbitPoint(inner, start + cIn);
+  const iEnd = orbitPoint(inner, end - cIn);
+  const iEndCorner = orbitPoint(inner, end);
+  const radialOutStart = orbitPoint(inner + trim, end);
+  const radialOutEnd = orbitPoint(outer - trim, end);
+  const oEndCorner = orbitPoint(outer, end);
+  const oStart = orbitPoint(outer, end - cOut);
+  const oEnd = orbitPoint(outer, start + cOut);
+  const oStartCorner = orbitPoint(outer, start);
+  const radialInStart = orbitPoint(outer - trim, start);
+  const radialInEnd = orbitPoint(inner + trim, start);
+  const iStartCorner = orbitPoint(inner, start);
+  const large = sweep > 180 ? 1 : 0;
+  const p = (point: {x:number;y:number}) => `${point.x.toFixed(3)} ${point.y.toFixed(3)}`;
   return [
-    `M ${outerStart.x} ${outerStart.y}`,
-    `A ${outer} ${outer} 0 ${large} 1 ${outerEnd.x} ${outerEnd.y}`,
-    `L ${innerEnd.x} ${innerEnd.y}`,
-    `A ${inner} ${inner} 0 ${large} 0 ${innerStart.x} ${innerStart.y} Z`,
+    `M ${p(iStart)}`,
+    `A ${inner} ${inner} 0 ${large} 1 ${p(iEnd)}`,
+    `Q ${p(iEndCorner)} ${p(radialOutStart)}`,
+    `L ${p(radialOutEnd)}`,
+    `Q ${p(oEndCorner)} ${p(oStart)}`,
+    `A ${outer} ${outer} 0 ${large} 0 ${p(oEnd)}`,
+    `Q ${p(oStartCorner)} ${p(radialInStart)}`,
+    `L ${p(radialInEnd)}`,
+    `Q ${p(iStartCorner)} ${p(iStart)}`,
+    "Z",
   ].join(" ");
 }
 function OrbitRing({ items, inner, outer, label }: {
@@ -79,11 +102,11 @@ function OrbitRing({ items, inner, outer, label }: {
 }) {
   return <g aria-label={label}>
     {items.map((item, index) => {
-      const sector = 360 / items.length;
-      // One-action rings render as a deliberate top arc, not a nearly
-      // complete 360° click target with a barely visible seam.
-      const start = items.length === 1 ? -68 : index * sector + 1.15;
-      const end = items.length === 1 ? 68 : (index + 1) * sector - 1.15;
+      const sector = 270 / items.length;
+      // A continuous upper 270° fan reserves the lower quarter for mode
+      // selection; action hit targets do not overlap the switcher.
+      const start = items.length === 1 ? -65 : 225 + index * sector + 1.55;
+      const end = items.length === 1 ? 65 : 225 + (index + 1) * sector - 1.55;
       const midpoint = orbitPoint((inner + outer) / 2, (start + end) / 2);
       const words = item.label.split(" ");
       const split = words.length > 1 && item.label.length > 11;
@@ -143,16 +166,32 @@ export default function Orbit() {
   const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
 
   useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => {
+      const choice = localStorage.getItem("reformany.theme");
+      const dark = choice === "dark" || (choice !== "light" && media.matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    };
+    sync();
+    media.addEventListener("change", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      media.removeEventListener("change", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  useEffect(() => {
     // WebView2 screen dimensions are in CSS/logical pixels. Native Tauri
     // window sizes use the same units through LogicalSize.
     // Keep the entire circle, section tabs and status visible above the taskbar.
     const availableWidth = Math.max(320, window.screen.availWidth - 32);
     const availableHeight = Math.max(350, window.screen.availHeight - 32);
-    const factor = Math.min(1, availableWidth / 580, availableHeight / 622);
+    const factor = Math.min(1, availableWidth / 560, availableHeight / 560);
     document.documentElement.style.setProperty("--orbit-fit", String(factor));
     if (factor < 0.999) {
       void getCurrentWindow().setSize(new LogicalSize(
-        Math.round(580 * factor), Math.round(622 * factor),
+        Math.round(560 * factor), Math.round(560 * factor),
       )).catch(() => { /* The original window remains usable if resizing is denied. */ });
     }
     return () => { document.documentElement.style.removeProperty("--orbit-fit"); };
@@ -537,7 +576,7 @@ export default function Orbit() {
       <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
         onWheel={handleWheel} onPointerMove={handlePointerMove}
         onPointerLeave={() => setCursor(null)} onPointerDownCapture={unlockOrbitAudio}>
-        {ringVisible && <svg className="orbit-rings" viewBox="0 0 560 560"
+        {ringVisible && <svg key={tab} className="orbit-rings" viewBox="0 0 560 560"
           role="group" aria-label={tab === "convert" ? "Convert to format" : tab === "tools" ? "File tools" : "File actions"}>
           {outerActions.length > 0 && <OrbitRing items={outerActions} inner={187} outer={264} label="Outer actions" />}
           {innerActions.length > 0 && <OrbitRing items={innerActions} inner={106} outer={179} label="Inner actions" />}
@@ -592,18 +631,26 @@ export default function Orbit() {
         {phase === "processing" && mousePreferences.pointerSpinner && cursor && <span
           aria-hidden="true" className="orbit-pointer-spinner"
           style={{ left: cursor.x + 14, top: cursor.y + 11 }} />}
+        <nav className="orbit-section-tabs" aria-label="Orbit sections" role="tablist">
+          <span className="orbit-tab-indicator" aria-hidden="true"
+            style={{ transform: `translateX(${(["convert", "tools", "actions"] as Tab[]).indexOf(tab) * 100}%)` }}/>
+          {(["convert", "tools", "actions"] as Tab[]).map((value, index) =>
+            <button type="button" role="tab" aria-selected={tab === value}
+              key={value} className={tab === value ? "is-active" : ""}
+              disabled={phase === "processing"} onClick={() => {
+                setTab(value);setError(null);setNote(null);
+                setRenaming(false);setSplitting(false);setPasswording(false);
+                setArchivePassword("");setPhase("ready");
+              }}>
+              <span>{t(getLanguage(), value)}</span><small aria-hidden="true">{index + 1}</small>
+            </button>)}
+        </nav>
+        <div className={error ? "orbit-message orbit-message-error" : "orbit-message"}
+          role={error ? "alert" : "status"} aria-live="polite"
+          title={message || file?.name || ""}>
+          {message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
+        </div>
       </section>
-      <nav className="orbit-section-tabs" aria-label="Orbit sections">
-        {(["convert", "tools", "actions"] as Tab[]).map(value =>
-          <button key={value} className={tab === value ? "is-active" : ""}
-            disabled={phase === "processing"} onClick={() => {
-              setTab(value);setError(null);setNote(null);setRenaming(false);setSplitting(false);setPasswording(false);setArchivePassword("");setPhase("ready");
-            }}>
-            {t(getLanguage(), value === "convert" ? "convert" : value === "tools" ? "tools" : "actions")}
-          </button>)}
-      </nav>
-      <div className={error ? "orbit-message orbit-message-error" : "orbit-message"}
-        role={error ? "alert" : "status"} aria-live="polite">{message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}</div>
     </div>
   );
 }
