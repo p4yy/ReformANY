@@ -97,7 +97,10 @@ pub async fn images_to_pdf(paths: Vec<String>, destination: Option<String>) -> R
         .await.map_err(|_| "PDF creation worker failed".to_owned())?
 }
 
-fn extract_pdf_text(path: &str, destination: Option<&str>) -> Result<String, String> {
+fn extract_pdf_text(path: &str, destination: Option<&str>, target: &str) -> Result<String, String> {
+    if !matches!(target, "txt" | "md" | "html") {
+        return Err("PDF text export must be TXT, Markdown or HTML".into());
+    }
     let source = Path::new(path);
     verify_input(source, false)?;
     if fs::metadata(source).map_err(|e| e.to_string())?.len() > MAX_PDF_PARSE_BYTES {
@@ -123,17 +126,31 @@ fn extract_pdf_text(path: &str, destination: Option<&str>) -> Result<String, Str
     let folder = output_dir(source, destination)?;
     let staging = tempfile::Builder::new().prefix(".reformany-text-")
         .tempdir_in(&folder).map_err(|e| e.to_string())?;
-    let file = staging.path().join("output.txt");
-    fs::write(&file, text.as_bytes()).map_err(|e| e.to_string())?;
+    let content = if target == "html" {
+        // A text-only HTML export, not a false claim of layout reconstruction.
+        let escaped = text.replace('&', "&amp;").replace('<', "&lt;")
+            .replace('>', "&gt;").replace('"', "&quot;");
+        format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Extracted PDF text</title></head><body><pre>{escaped}</pre></body></html>")
+    } else {
+        text
+    };
+    let file = staging.path().join(format!("output.{target}"));
+    fs::write(&file, content.as_bytes()).map_err(|e| e.to_string())?;
     let stem = source.file_stem().and_then(|s| s.to_str()).unwrap_or("Document");
-    publish(&file, &folder, stem, "txt")
+    publish(&file, &folder, stem, target)
         .map(|p| p.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
 pub async fn pdf_to_text(path: String, destination: Option<String>) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || extract_pdf_text(&path, destination.as_deref()))
+    tauri::async_runtime::spawn_blocking(move || extract_pdf_text(&path, destination.as_deref(), "txt"))
         .await.map_err(|_| "PDF text extraction worker failed".to_owned())?
+}
+
+#[tauri::command]
+pub async fn pdf_to_text_format(path: String, target: String, destination: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || extract_pdf_text(&path, destination.as_deref(), &target))
+        .await.map_err(|_| "PDF export worker failed".to_owned())?
 }
 
 fn find_office() -> Option<PathBuf> {
