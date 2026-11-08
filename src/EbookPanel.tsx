@@ -55,7 +55,7 @@ export default function EbookPanel() {
   }
   return <div className="content engine-page">
     <div className="eyebrow">LOCAL BOOK ENGINE</div>
-    <h1>Books, in your format.</h1>
+    <h1>E-books</h1>
     <p>EPUB, MOBI, FB2, PDF and DOCX conversions through Calibre—locally, without uploading your books.</p>
     <div className="engine-card">
       <div className="engine-card-title"><BookOpen size={20}/><h2>Source</h2></div>
