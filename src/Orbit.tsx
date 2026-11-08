@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
@@ -51,6 +52,7 @@ export default function Orbit() {
   const [newName, setNewName] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dropActive, setDropActive] = useState(false);
   const [phase, setPhase] = useState<Phase>("ready");
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +108,49 @@ export default function Orbit() {
       void subscribed.then(unlisten => unlisten());
       window.removeEventListener("keydown", onKey);
     };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let stop: (() => void) | null = null;
+    getCurrentWebview().onDragDropEvent(event => {
+      if (!active) return;
+      if (event.payload.type === "enter" || event.payload.type === "over") {
+        setDropActive(true);
+        return;
+      }
+      if (event.payload.type === "leave") { setDropActive(false); return; }
+      if (event.payload.type !== "drop") return;
+      setDropActive(false);
+      const files = event.payload.paths;
+      if (files.length !== 1) {
+        setError("Drop exactly one file or folder into Orbit.");
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      setNote(null);
+      setOutput(null);
+      setPhase("ready");
+      setRenaming(false);
+      setPreview(null);
+      void invoke<OrbitFile>("orbit_set_path", { path: files[0] }).then(async item => {
+        if (!active) return;
+        setFile(item);
+        try {
+          const image = await invoke<string | null>("orbit_preview");
+          if (active) setPreview(image);
+        } catch { /* Thumbnails are optional. */ }
+      }).catch(reason => {
+        if (active) setError(String(reason));
+      }).finally(() => {
+        if (active) setLoading(false);
+      });
+    }).then(unlisten => {
+      if (active) stop = unlisten;
+      else unlisten();
+    }).catch(reason => { if (active) setError(String(reason)); });
+    return () => { active = false; stop?.(); };
   }, []);
 
   function handleOrbitHover(event: ReactPointerEvent<HTMLElement>) {
@@ -273,7 +318,7 @@ export default function Orbit() {
   const description = file?.error ?? (loading ? "Reading file…" : isFolder ? "Open Tools to archive this folder" : "No direct conversion for this type");
 
   return (
-    <div className="orbit-frame">
+    <div className={`orbit-frame ${dropActive ? "orbit-drag-over" : ""}`}>
       <section className="orbit-disc" aria-label="ReformANY Orbit quick converter"
         onPointerOver={handleOrbitHover} onPointerMove={handlePointerMove}
         onPointerLeave={() => setCursor(null)}
@@ -291,9 +336,9 @@ export default function Orbit() {
           <div className="orbit-thumbnail">
             {preview ? <img src={preview} alt="Selected image preview" /> : isFolder ? <FolderOpen size={30} strokeWidth={1.6} aria-hidden /> : <FileImage size={30} strokeWidth={1.6} aria-hidden />}
           </div>
-          <strong className="orbit-filename" title={file?.name ?? undefined}>{file?.name ?? (loading ? "Opening file…" : "No file selected")}</strong>
+          <strong className="orbit-filename" title={file?.name ?? undefined}>{file?.name ?? (loading ? "Opening file…" : "Drop a file into Orbit")}</strong>
           <span className="orbit-meta">
-            {isFolder ? "Folder" : file?.detected ? `${file.detected} · ${formatSize(file.bytes)}` : canConvert ? "" : "Quick conversion"}
+            {isFolder ? "Folder" : file?.detected ? `${file.detected} · ${formatSize(file.bytes)}` : canConvert ? "" : file ? "Quick conversion" : "Release your file here"}
           </span>
         </div>
 
