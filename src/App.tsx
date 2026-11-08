@@ -1,9 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
-  CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
-  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages, BookOpen, Eye, Volume2, Captions, FileSpreadsheet,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, Clock3, Copy, FileImage, Folder, Layers3, Moon, Plus, Settings2, Sun, Trash2, X, Monitor, Languages, Volume2 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -16,12 +11,13 @@ import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
 import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePreferences } from "./orbitMousePreferences";
-import { appIcon } from "./brand";
+import DesktopChrome, { type DesktopPage } from "./DesktopChrome";
+import GuidePage from "./GuidePage";
 import Welcome, { shouldShowWelcome } from "./Welcome";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
-type Page = "convert" | "media" | "mediaTools" | "archives" | "subtitles" | "spreadsheets" | "documents" | "preview" | "ebooks" | "engines" | "activity" | "appearance" | "guide";
+type Page = DesktopPage;
 
 type ExpandedInputs = { paths: string[]; truncated: boolean };
 type FileInfo = {
@@ -69,11 +65,6 @@ const supported = "PNG, JPEG, WebP, BMP, GIF, TIFF, ICO, TGA, QOI and SVG input"
 const fmtBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 * 1024
   ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`;
 const makeId = () => crypto.randomUUID();
-
-function Mark({ size = 34 }: { size?: number }) {
-  return <img src={appIcon} width={size} height={size}
-    alt="" aria-hidden="true" style={{ display: "block", borderRadius: Math.round(size * .2), objectFit: "cover" }} />;
-}
 
 function FileThumbnail({ path }: { path: string }) {
   const element = useRef<HTMLDivElement>(null);
@@ -339,49 +330,13 @@ function App() {
 
   return (
     <div className="shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark"><Mark size={34}/></span><span>Reform<span className="brand-any">ANY</span></span></div>
-        <nav className="primary-navigation" aria-label="Primary navigation">
-          <button className={`nav-button ${isWorkspacePage ? "selected" : ""}`} onClick={() => setPage("convert")} aria-current={isWorkspacePage ? "page" : undefined}><Layers3 size={17}/> Workspace</button>
-          <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")} aria-current={page === "activity" ? "page" : undefined}><Clock3 size={17}/> Activity {history.length > 0 && <span className="nav-count">{history.length}</span>}</button>
-          <button className={`nav-button ${page === "guide" ? "selected" : ""}`} onClick={() => setPage("guide")} aria-current={page === "guide" ? "page" : undefined}><BookOpen size={17}/> Guide</button>
-          <button className={`nav-button ${isPreferencesPage ? "selected" : ""}`} onClick={() => setPage("appearance")} aria-current={isPreferencesPage ? "page" : undefined}><Settings2 size={17}/> Preferences</button>
-        </nav>
-        {isWorkspacePage ? <nav aria-label="Main navigation">
-          <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> {tx("images")}</button>
-          <button className={`nav-button ${page === "media" ? "selected" : ""}`} onClick={() => setPage("media")}><Clapperboard size={18}/> {tx("media")}</button>
-          <button className={`nav-button ${page === "mediaTools" ? "selected" : ""}`} onClick={() => setPage("mediaTools")}><Wrench size={18}/> Media tools</button>
-          <button className={`nav-button ${page === "archives" ? "selected" : ""}`} onClick={() => setPage("archives")}><Archive size={18}/> {tx("archives")}</button>
-          <button className={`nav-button ${page === "documents" ? "selected" : ""}`} onClick={() => setPage("documents")}><FileText size={18}/> {tx("documents")}</button>
-          <button className={`nav-button ${page === "subtitles" ? "selected" : ""}`} onClick={() => setPage("subtitles")}><Captions size={18}/> Subtitles</button>
-          <button className={`nav-button ${page === "spreadsheets" ? "selected" : ""}`} onClick={() => setPage("spreadsheets")}><FileSpreadsheet size={18}/> Spreadsheets</button>
-          <button className={`nav-button ${page === "preview" ? "selected" : ""}`} onClick={() => setPage("preview")}><Eye size={18}/> Preview</button>
-          <button className={`nav-button ${page === "ebooks" ? "selected" : ""}`} onClick={() => setPage("ebooks")}><BookOpen size={18}/> E-books</button>
-        </nav> : isPreferencesPage ? <nav aria-label="Preferences">
-          <button className={`nav-button ${page === "appearance" ? "selected" : ""}`} onClick={() => setPage("appearance")}><Palette size={18}/> Appearance</button>
-          <button className={`nav-button ${page === "engines" ? "selected" : ""}`} onClick={() => setPage("engines")}><Wrench size={18}/> Engines</button>
-        </nav> : <div className="subnav-context">{page === "activity" ? "Recent conversions" : "Getting started"}</div>}
-      </aside>
+      <DesktopChrome page={page} navigate={setPage} historyCount={history.length} language={language}/>
       <main className="main" ref={mainScrollRef}>
         <header className="topbar">
           <span className="breadcrumb">{sectionLabel} <span>/</span> {page === "convert" ? "Images" : page === "media" ? tx("media") : page === "mediaTools" ? "Media tools" : page === "archives" ? "Archives" : page === "subtitles" ? "Subtitles" : page === "spreadsheets" ? "Spreadsheets" : page === "documents" ? tx("documents") : page === "preview" ? "Preview" : page === "ebooks" ? "E-books" : page === "engines" ? "Engine status" : page === "activity" ? "History" : page === "guide" ? "Instructions" : "Appearance"}</span>
           <span className="topbar-right"><span className="topbar-dot"/> Local processing · Preview</span>
         </header>
-        {page === "guide" && <div className="content guide-page">
-          <div className="eyebrow">REFORMANY / GUIDE</div>
-          <h1>How to use ReformANY</h1>
-          <p>Files are processed on your computer. Choose a workspace for the kind of task you want to complete.</p>
-          <div className="guide-steps">
-            <section><span>01</span><div><h2>Choose a workspace</h2><p>Open Images, Audio & video, Archives, Documents or another tool above. Each workspace accepts the file types it supports.</p></div></section>
-            <section><span>02</span><div><h2>Add a file and choose an output</h2><p>Use Add files, select a folder, or drag supported files into the app. Set the format and any available options.</p></div></section>
-            <section><span>03</span><div><h2>Run the job</h2><p>Select Convert or the relevant action. Originals are kept; by default results are saved alongside the source file.</p></div></section>
-            <section><span>04</span><div><h2>Use Orbit in File Explorer</h2><p>Right-click a file and open ReformANY Orbit from the available context menu. Its Convert, Tools and Actions sections expose supported operations.</p></div></section>
-          </div>
-          <div className="guide-footer">
-            <button className="button primary" onClick={() => setPage("convert")}>Open workspace <ArrowRight size={16}/></button>
-            <span>External engines are listed under Preferences → Engines.</span>
-          </div>
-        </div>}
+        {page === "guide" && <GuidePage onOpenWorkspace={() => setPage("convert")}/>}
         {page === "media" && <MediaPanel />}
         {page === "mediaTools" && <MediaToolsPanel />}
         {page === "archives" && <ArchivePanel />}
