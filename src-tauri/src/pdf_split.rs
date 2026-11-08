@@ -73,7 +73,7 @@ fn plan_fixed(count: usize, mode: &str, value: u32) -> Result<Vec<(usize,usize)>
 fn split(path: &str, destination: Option<&str>, mode: &str, value: u32) -> Result<PdfSplitResult,String> {
     let source = Path::new(path);
     verify_input(source, false)?;
-    if !source.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("pdf")) {
+    if !source.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("pdf")) {
         return Err("Split PDF requires an actual .pdf input".into());
     }
     if fs::metadata(source).map_err(|e| e.to_string())?.len() > MAX_PDF_BYTES {
