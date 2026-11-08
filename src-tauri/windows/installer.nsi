@@ -531,7 +531,7 @@ Function InstallMediaEngines
     DetailPrint "Downloading and verifying FFmpeg 9.0.2 + FFprobe via Windows HTTPS..."
     ; PowerShell handles modern TLS, redirects, bounded retries and SHA-256.
     ; Do not use NSISdl for this large HTTPS download.
-    nsExec::ExecToLog '$"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe$" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $"$INSTDIR\installer\install-media-engines.ps1$" -TargetDir $"$INSTDIR\engines$"'
+    nsExec::ExecToLog '$"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe$" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $"$INSTDIR\installer\install-media-engines.ps1$" -TargetDir $"$INSTDIR\engines$" -LogPath $"$TEMP\reformany-media-install.log$"'
     Pop $R0
     ${If} $R0 != 0
       DetailPrint "FFmpeg setup failed (exit code $R0)."
