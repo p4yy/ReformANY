@@ -26,16 +26,25 @@ type EventPayload = {
   outputPath: string | null;
   error: string | null;
 };
-const imageFormats = ["PNG", "JPEG", "WebP", "BMP", "GIF", "TIFF"];
-const audioFormats = ["MP3", "WAV", "FLAC", "M4A"];
-const videoFormats = ["MP4", "WebM", "MKV", "MOV"];
-function getKind(file: OrbitFile | null): "image" | "audio" | "video" | "archive" | "other" {
+const imageFormats = ["PNG", "JPEG", "WebP", "BMP", "GIF", "TIFF", "ICO", "TGA", "QOI", "AVIF"];
+const audioFormats = ["MP3", "WAV", "FLAC", "M4A", "OGG", "Opus"];
+const videoFormats = ["MP4", "WebM", "MKV", "MOV", "AVI"];
+type FileKind = "image" | "audio" | "video" | "archive" | "pdf" | "office" | "shortcut" | "application" | "folder" | "other";
+function getKind(file: OrbitFile | null): FileKind {
   const value = (file?.detected || "").toLowerCase();
-  // The image engine accepts ICO, TGA, QOI and validated SVG inputs too.
-  // Keep input classification separate from the quick output preset list.
+  const extension = file?.name.split(".").pop()?.toLowerCase() || "";
+  if (value === "folder") return "folder";
+  if (value === "pdf") return "pdf";
+  if (value === "office") return "office";
+  if (value === "shortcut") return "shortcut";
+  if (value === "application") return "application";
   if (imageFormats.some(x => x.toLowerCase() === value) ||
       ["ico", "tga", "qoi", "svg", "image"].includes(value)) return "image";
   if (value === "audio" || value === "video" || value === "archive") return value;
+  // Compatibility for older installed shell launchers that return "File".
+  if (extension === "pdf") return "pdf";
+  if (["lnk", "url"].includes(extension)) return "shortcut";
+  if (["exe", "msi", "msix", "bat", "cmd"].includes(extension)) return "application";
   return "other";
 }
 
@@ -108,6 +117,7 @@ export default function Orbit() {
   const [mousePreferences] = useState(readOrbitMousePreferences);
   const [tab, setTab] = useState<Tab>(() => readOrbitMousePreferences().firstSection);
   const [engines, setEngines] = useState<EngineStatus | null>(null);
+  const [officeReady, setOfficeReady] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [splitting, setSplitting] = useState(false);
@@ -159,6 +169,9 @@ export default function Orbit() {
     invoke<EngineStatus>("engine_status")
       .then(status => { if (mounted) setEngines(status); })
       .catch(() => { /* External tools remain unavailable. */ });
+    invoke<boolean>("office_available")
+      .then(ready => { if (mounted) setOfficeReady(ready); })
+      .catch(() => { /* Office conversion stays unavailable. */ });
 
     invoke<string | null>("orbit_preview")
       .then(src => { if (mounted) setPreview(src); })
@@ -261,6 +274,29 @@ export default function Orbit() {
       }
     } catch (reason) {
       batchId.current = null;
+      setError(String(reason));
+      setPhase("failed");
+    }
+  }
+
+  async function convertDocument(target: "txt" | "md" | "html" | "pdf") {
+    if (!file || file.error || phase === "processing") return;
+    const isPdf = kind === "pdf";
+    if (!isPdf && (kind !== "office" || target !== "pdf" || !officeReady)) return;
+    setSelected(target.toUpperCase());
+    setPhase("processing");
+    setOutput(null);
+    setError(null);
+    setNote(null);
+    try {
+      const result = isPdf
+        ? await invoke<string>("pdf_to_text_format", {
+            path: file.path, target, destination: null,
+          })
+        : await invoke<string>("office_to_pdf", { path: file.path, destination: null });
+      setOutput(result);
+      setPhase("completed");
+    } catch (reason) {
       setError(String(reason));
       setPhase("failed");
     }
