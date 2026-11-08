@@ -502,8 +502,7 @@ FunctionEnd
 ; Verify/extract via the PowerShell script bundled with ReformANY. Failed
 ; downloads never silently enable the conversion UI.
 Function InstallMediaEngines
-  ; FFmpeg is bundled in the signed installer payload. Never contact the
-  ; network during installation; no PATH modification or system dependencies.
+  ; FFmpeg is bundled at build time, never downloaded on the user's machine.
   IfFileExists "$INSTDIR\installer\media-bundle\ffmpeg.exe" 0 media_bundle_missing
   IfFileExists "$INSTDIR\installer\media-bundle\ffprobe.exe" 0 media_bundle_missing
   CreateDirectory "$INSTDIR\engines"
