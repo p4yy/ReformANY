@@ -280,8 +280,8 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
     }
     let verified = ImageReader::open(temp.path()).map_err(|e| e.to_string())?
         .with_guessed_format().map_err(|e| e.to_string())?
-        .into_dimensions().map_err(|e| format!("Output verification failed: {e}"))?;
-    if verified != (result_width, result_height) {
+        .decode().map_err(|e| format!("Output verification failed: {e}"))?;
+    if verified.dimensions() != (result_width, result_height) {
         return Err("Output dimensions failed verification".into());
     }
     let stem = input.file_stem().ok_or("Invalid input filename")?.to_string_lossy();
@@ -346,15 +346,20 @@ pub async fn convert_batch(
         let semaphore = Arc::new(Semaphore::new(MAX_WORKERS));
         let mut handles = Vec::new();
         for item in files {
-            let permit = match semaphore.clone().acquire_owned().await {
-                Ok(p) => p,
-                Err(_) => break,
-            };
             let app = app_for_job.clone();
             let flag = flags.clone();
             let dest = destination.clone();
+            let pool = semaphore.clone();
             handles.push(tauri::async_runtime::spawn(async move {
-                let _permit = permit;
+                // Acquire *inside* the worker, not in the spawning loop. This
+                // allows convert_batch to return the batch ID immediately.
+                let _permit = match pool.acquire_owned().await {
+                    Ok(permit) => permit,
+                    Err(_) => {
+                        emit(&app, &item.id, "failed", None, Some("Worker pool closed".into()));
+                        return;
+                    }
+                };
                 if flag.load(Ordering::Relaxed) {
                     emit(&app, &item.id, "cancelled", None, None);
                     return;
