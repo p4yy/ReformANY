@@ -309,8 +309,8 @@ html[data-mode="orbit"] .orbit-frame{
   user-select:none;-webkit-user-select:none;
 }
 html[data-mode="orbit"] .orbit-disc{
-  display:block;position:relative;box-sizing:border-box;flex:0 0 548px;
-  width:548px;height:548px;margin:5px 0 0;padding:0;
+  display:block;position:relative;box-sizing:border-box;flex:0 0 540px;
+  width:540px;height:540px;margin:3px 0 0;padding:0;
   background:transparent;border:0;box-shadow:none;
   border-radius:50%;overflow:visible;
 }
@@ -399,7 +399,7 @@ html[data-mode="orbit"] .orbit-section-tabs button.is-active:hover{
 }
 html[data-mode="orbit"] .orbit-message{
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
-  width:500px;max-width:500px;min-height:20px;margin-top:6px;
+  width:500px;max-width:500px;min-height:20px;margin-top:4px;
   text-align:center;color:#d0d0d8;font-size:11px;line-height:1.3;
   white-space:normal;overflow:hidden;overflow-wrap:anywhere;
 }
