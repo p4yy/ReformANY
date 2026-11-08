@@ -3,7 +3,6 @@ mod orbit;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
-use std::path::PathBuf;
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

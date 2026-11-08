@@ -45,13 +45,8 @@ const fmtBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 *
 const makeId = () => crypto.randomUUID();
 
 function Mark({ size = 34 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <rect width="40" height="40" rx="12" fill="currentColor" />
-      <path d="M11 15H28M28 15L23 10M28 15L23 20" stroke="var(--mark-ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M29 25H12M12 25L17 20M12 25L17 30" stroke="var(--mark-ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
+  return <img src="/brand/reformany-mark.jpg" width={size} height={size}
+    alt="" aria-hidden="true" style={{ display: "block", borderRadius: Math.round(size * .2), objectFit: "cover" }} />;
 }
 
 function App() {
@@ -193,7 +188,7 @@ function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="side-note"><span className="status-dot"/> Local processing<br/><span className="side-note-sub">Your files stay on this device.</span></div>
-          <div className="sidebar-version">ReformANY <span>0.1.0 · Preview</span></div>
+          <div className="sidebar-version">ReformANY <span>0.2.0 · Preview</span></div>
         </div>
       </aside>
       <main className="main">

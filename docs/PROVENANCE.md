@@ -26,3 +26,7 @@ Dependency transitive licenses and binaries require an SBOM and release review b
 ## Original application assets
 
 The product's inline ReformANY mark and CSS were written for this project. No third-party brand artwork was supplied as application assets.
+
+## User-provided ReformANY brand mark
+
+The small brand icon used in the interface is an optimized crop of the logo image provided by the product owner in the design review on November 8, 2026. It is not a generated replacement or a copied mark from another application. Windows installer icon packaging may still require a higher-resolution, transparent, owner-approved icon asset.

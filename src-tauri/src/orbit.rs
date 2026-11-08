@@ -21,7 +21,7 @@ impl OrbitLaunch {
 /// turn on Orbit and cannot accidentally interpret a filename as a switch.
 pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<PathBuf> {
     let args: Vec<_> = args.into_iter().collect();
-    if args.len() != 2 || args[0] != OsString::from("orbit") {
+    if args.len() != 2 || args[0] != "orbit" {
         return None;
     }
     let path = PathBuf::from(&args[1]);
