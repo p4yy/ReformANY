@@ -12,12 +12,12 @@ export type DesktopPage =
   | "subtitles" | "spreadsheets" | "preview" | "ebooks"
   | "engines" | "activity" | "appearance" | "guide";
 
-const workspace: ReadonlyArray<{ id: DesktopPage; icon: LucideIcon; label: string | LangKey }> = [
-  { id: "convert", icon: Layers3, label: "images" },
-  { id: "media", icon: Clapperboard, label: "media" },
+const workspace: ReadonlyArray<{ id: DesktopPage; icon: LucideIcon; label: string; translation?: LangKey }> = [
+  { id: "convert", icon: Layers3, label: "images", translation: "images" },
+  { id: "media", icon: Clapperboard, label: "media", translation: "media" },
   { id: "mediaTools", icon: Wrench, label: "Media tools" },
-  { id: "archives", icon: Archive, label: "archives" },
-  { id: "documents", icon: FileText, label: "documents" },
+  { id: "archives", icon: Archive, label: "archives", translation: "archives" },
+  { id: "documents", icon: FileText, label: "documents", translation: "documents" },
   { id: "subtitles", icon: Captions, label: "Subtitles" },
   { id: "spreadsheets", icon: FileSpreadsheet, label: "Spreadsheets" },
   { id: "preview", icon: Eye, label: "Preview" },
@@ -59,18 +59,17 @@ export default function DesktopChrome({ page, navigate, historyCount, language }
       <span>Reform<span className="brand-any">ANY</span></span>
     </div>
     <nav className="primary-navigation" aria-label="Primary navigation">
-      <NavButton icon={Layers3} active={inWorkspace} onClick={() => navigate("convert")}>Workspace</NavButton>
+      <NavButton icon={Layers3} active={inWorkspace} onClick={() => navigate("convert")}>{t(language, "workspace")}</NavButton>
       <NavButton icon={Clock3} active={page === "activity"} onClick={() => navigate("activity")}>
-        Activity {historyCount > 0 && <span className="nav-count">{historyCount}</span>}
+        {t(language, "activity")} {historyCount > 0 && <span className="nav-count">{historyCount}</span>}
       </NavButton>
       <NavButton icon={BookOpen} active={page === "guide"} onClick={() => navigate("guide")}>Guide</NavButton>
-      <NavButton icon={Settings2} active={inSettings} onClick={() => navigate("appearance")}>Preferences</NavButton>
+      <NavButton icon={Settings2} active={inSettings} onClick={() => navigate("appearance")}>{t(language, "preferences")}</NavButton>
     </nav>
     {inWorkspace ? <nav aria-label="Workspace tools">
       {workspace.map(item => <NavButton key={item.id} icon={item.icon}
         active={page === item.id} onClick={() => navigate(item.id)}>
-        {(["images","media","archives","documents"] as string[]).includes(item.label)
-          ? t(language, item.label as LangKey) : item.label}
+        {item.translation ? t(language, item.translation) : item.label}
       </NavButton>)}
     </nav> : inSettings ? <nav aria-label="Preferences">
       {settings.map(item => <NavButton key={item.id} icon={item.icon}
