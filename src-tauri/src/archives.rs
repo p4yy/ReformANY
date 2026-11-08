@@ -260,6 +260,11 @@ fn check_listing(binary: &Path, source: &Path, password: Option<&str>) -> Result
         if line.starts_with("Symbolic Link = ") || line.starts_with("Hard Link = ") {
             return Err("Links in archives are blocked to protect the destination".into());
         }
+        if let Some(attributes) = line.strip_prefix("Attributes = ") {
+            if attributes.contains("L") && attributes.trim() != "LZ" {
+                return Err("Archive contains a link-like entry and cannot be safely extracted".into());
+            }
+        }
     }
     if count == 0 { return Err("Archive appears empty or unsupported".into()); }
     Ok(())
@@ -390,4 +395,34 @@ mod tests {
         assert!(verify_input(dir.path(), true).is_ok());
         assert!(dir.path().join("a.png").exists());
     }
+    #[test]
+    fn encrypted_split_7z_roundtrip_when_seven_zip_is_installed() {
+        if seven_zip().is_none() {
+            eprintln!("7-Zip not installed; integration smoke test skipped");
+            return;
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let file = temp.path().join("hello.txt");
+        fs::write(&file, b"Original contents remain untouched").unwrap();
+        let output = create(ArchiveCreate {
+            paths: vec![file.to_string_lossy().into_owned()],
+            destination: Some(temp.path().to_string_lossy().into_owned()),
+            name: "Encrypted test".into(), format: "7z".into(),
+            password: Some("A non-trivial test passphrase!".into()),
+            split_megabytes: Some(1), level: 1,
+        }).unwrap();
+        assert!(!output.output_paths.is_empty());
+        assert!(output.output_paths[0].ends_with(".7z.001"));
+        let folder = extract(ArchiveExtract {
+            path: output.output_paths[0].clone(),
+            destination: Some(temp.path().to_string_lossy().into_owned()),
+            password: Some("A non-trivial test passphrase!".into()),
+        }).unwrap();
+        let files: Vec<_> = WalkDir::new(&folder).into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file()).collect();
+        assert!(!files.is_empty());
+        assert_eq!(fs::read(&file).unwrap(), b"Original contents remain untouched");
+    }
+
 }
