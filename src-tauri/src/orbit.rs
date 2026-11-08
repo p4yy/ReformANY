@@ -55,6 +55,10 @@ fn classify_file(path: &Path) -> &'static str {
         "mp4"|"webm"|"mkv"|"mov"|"avi"|"wmv"|"m4v"|"mpeg"|"mpg"|"mts"|"m2ts" => "Video",
         "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aac"|"aiff"|"wma"|"ac3" => "Audio",
         "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
+        "pdf" => "PDF",
+        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp"|"xls"|"xlsx"|"ods" => "Office",
+        "lnk"|"url" => "Shortcut",
+        "exe"|"msi"|"msix"|"bat"|"cmd" => "Application",
         _ => "File",
     }
 }
@@ -324,6 +328,11 @@ mod tests {
         for extension in ["ICO", "TGA", "QOI", "SVG"] {
             assert_eq!(classify_file(Path::new(&format!("artwork.{extension}"))), "Image");
         }
+        assert_eq!(classify_file(Path::new("report.PDF")), "PDF");
+        assert_eq!(classify_file(Path::new("presentation.PPTX")), "Office");
+        assert_eq!(classify_file(Path::new("tool.LNK")), "Shortcut");
+        assert_eq!(classify_file(Path::new("website.url")), "Shortcut");
+        assert_eq!(classify_file(Path::new("installer.MSI")), "Application");
         assert_eq!(classify_file(Path::new("notes.txt")), "File");
     }
 
