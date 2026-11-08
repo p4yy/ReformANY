@@ -30,13 +30,18 @@ type EventPayload = {
 const imageFormats = ["PNG", "JPEG", "WebP", "BMP", "GIF", "TIFF", "ICO", "TGA", "QOI", "AVIF"];
 const audioFormats = ["MP3", "WAV", "FLAC", "M4A", "OGG", "Opus"];
 const videoFormats = ["MP4", "WebM", "MKV", "MOV", "AVI"];
-type FileKind = "image" | "audio" | "video" | "archive" | "pdf" | "office" | "shortcut" | "application" | "folder" | "other";
+type FileKind = "image" | "audio" | "video" | "archive" | "pdf" | "office" | "spreadsheet" | "subtitle" | "ebook" | "shortcut" | "application" | "folder" | "other";
 function getKind(file: OrbitFile | null): FileKind {
   const value = (file?.detected || "").toLowerCase();
   const extension = file?.name.split(".").pop()?.toLowerCase() || "";
   if (value === "folder") return "folder";
+  // Prefer exact extensions, including data/ebook files from older launchers.
+  if (["csv", "tsv", "json", "xls", "xlsx", "ods"].includes(extension)) return "spreadsheet";
+  if (["srt", "vtt"].includes(extension)) return "subtitle";
+  if (["epub", "mobi", "fb2", "fbz", "azw", "azw3", "cbz", "cbr", "cb7", "htmlz"].includes(extension)) return "ebook";
   if (value === "pdf") return "pdf";
   if (value === "office") return "office";
+  if (["spreadsheet", "subtitle", "ebook"].includes(value)) return value as FileKind;
   if (value === "shortcut") return "shortcut";
   if (value === "application") return "application";
   if (imageFormats.some(x => x.toLowerCase() === value) ||
@@ -97,6 +102,7 @@ export default function Orbit() {
   const [tab, setTab] = useState<Tab>(() => readOrbitMousePreferences().firstSection);
   const [engines, setEngines] = useState<EngineStatus | null>(null);
   const [officeReady, setOfficeReady] = useState(false);
+  const [calibreReady, setCalibreReady] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [splitting, setSplitting] = useState(false);
@@ -167,6 +173,9 @@ export default function Orbit() {
     invoke<boolean>("office_available")
       .then(ready => { if (mounted) setOfficeReady(ready); })
       .catch(() => { /* Office conversion stays unavailable. */ });
+    invoke<boolean>("ebook_engine_available")
+      .then(ready => { if (mounted) setCalibreReady(ready); })
+      .catch(() => { /* Optional e-book routes stay unavailable. */ });
 
     invoke<string | null>("orbit_preview")
       .then(src => { if (mounted) setPreview(src); })
@@ -289,6 +298,25 @@ export default function Orbit() {
             path: file.path, target, destination: null,
           })
         : await invoke<string>("office_to_pdf", { path: file.path, destination: null });
+      setOutput(result);
+      setPhase("completed");
+    } catch (reason) {
+      setError(String(reason));
+      setPhase("failed");
+    }
+  }
+
+  async function convertOther(target: string, command: "subtitle_convert" | "spreadsheet_convert" | "ebook_convert_file") {
+    if (!file || file.error || phase === "processing") return;
+    setSelected(target.toUpperCase());
+    setPhase("processing");
+    setError(null);
+    setOutput(null);
+    setNote(null);
+    try {
+      const result = await invoke<string>(command, {
+        job: { path: file.path, target: target.toLowerCase(), destination: null },
+      });
       setOutput(result);
       setPhase("completed");
     } catch (reason) {
