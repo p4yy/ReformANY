@@ -1,0 +1,212 @@
+use crate::external::{find_binary, format_name, output_dir, publish, verify_input};
+use serde::Deserialize;
+use std::ffi::OsString;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaJob {
+    path: String,
+    target: String,
+    destination: Option<String>,
+    profile: String,
+    start_seconds: Option<f64>,
+    duration_seconds: Option<f64>,
+}
+
+/// Supported output profiles are explicit; arbitrary ffmpeg switches are never
+/// forwarded to an external process.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum MediaKind { Audio, Video }
+
+fn output_spec(target: &str) -> Result<(MediaKind, &'static str), String> {
+    match target {
+        "mp3" | "m4a" | "wav" | "flac" | "ogg" | "opus" => Ok((MediaKind::Audio, target_extension(target))),
+        "mp4" | "webm" | "mkv" | "mov" | "avi" => Ok((MediaKind::Video, target_extension(target))),
+        _ => Err("Unsupported media destination format".into()),
+    }
+}
+
+fn target_extension(target: &str) -> &'static str {
+    match target {
+        "mp3" => "mp3", "m4a" => "m4a", "wav" => "wav",
+        "flac" => "flac", "ogg" => "ogg", "opus" => "opus",
+        "mp4" => "mp4", "webm" => "webm", "mkv" => "mkv",
+        "mov" => "mov", "avi" => "avi",
+        _ => "",
+    }
+}
+
+fn validate_job(job: &MediaJob) -> Result<MediaKind, String> {
+    let (kind, _) = output_spec(&job.target)?;
+    if !matches!(job.profile.as_str(), "standard" | "small" | "high") {
+        return Err("Unsupported quality preset".into());
+    }
+    for value in [job.start_seconds, job.duration_seconds].into_iter().flatten() {
+        if !value.is_finite() || !(0.0..=86400.0).contains(&value) {
+            return Err("Trim times must be within 0–86400 seconds".into());
+        }
+    }
+    if job.duration_seconds == Some(0.0) {
+        return Err("Trim duration must be above zero".into());
+    }
+    Ok(kind)
+}
+
+fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString>, String> {
+    let kind = validate_job(job)?;
+    let mut args: Vec<OsString> = vec![
+        "-hide_banner".into(), "-loglevel".into(), "error".into(),
+        "-nostdin".into(), "-n".into(),
+    ];
+    if let Some(start) = job.start_seconds {
+        args.extend(["-ss".into(), format!("{start:.3}").into()]);
+    }
+    args.extend(["-i".into(), input.as_os_str().to_os_string()]);
+    if let Some(duration) = job.duration_seconds {
+        args.extend(["-t".into(), format!("{duration:.3}").into()]);
+    }
+    // Explicit stream selection avoids accidental stream mapping.
+    match kind {
+        MediaKind::Audio => {
+            args.extend(["-map".into(), "0:a:0".into(), "-vn".into()]);
+            let codec = match job.target.as_str() {
+                "mp3" => "libmp3lame",
+                "m4a" => "aac",
+                "wav" => "pcm_s16le",
+                "flac" => "flac",
+                "ogg" => "libvorbis",
+                "opus" => "libopus",
+                _ => unreachable!(),
+            };
+            args.extend(["-c:a".into(), codec.into()]);
+            if matches!(job.target.as_str(), "mp3" | "m4a" | "ogg" | "opus") {
+                let bitrate = match job.profile.as_str() {
+                    "small" => "96k",
+                    "high" => "256k",
+                    _ => "160k",
+                };
+                args.extend(["-b:a".into(), bitrate.into()]);
+            }
+        }
+        MediaKind::Video => {
+            args.extend([
+                "-map".into(), "0:v:0".into(),
+                "-map".into(), "0:a:0?".into(),
+            ]);
+            let codec = match job.target.as_str() {
+                "webm" => "libvpx-vp9",
+                "avi" => "mpeg4",
+                _ => "libx264",
+            };
+            args.extend(["-c:v".into(), codec.into()]);
+            if job.target == "avi" {
+                args.extend(["-q:v".into(), (match job.profile.as_str() {
+                    "high" => "3", "small" => "8", _ => "5",
+                }).into()]);
+                args.extend(["-c:a".into(), "libmp3lame".into()]);
+            } else {
+                args.extend(["-crf".into(), (match job.profile.as_str() {
+                    "small" => "32", "high" => "18", _ => "24",
+                }).into()]);
+                if job.target == "webm" {
+                    args.extend(["-b:v".into(), "0".into(), "-c:a".into(), "libopus".into()]);
+                } else {
+                    args.extend([
+                        "-preset".into(), "medium".into(),
+                        "-pix_fmt".into(), "yuv420p".into(),
+                        "-c:a".into(), "aac".into(),
+                        "-movflags".into(), "+faststart".into(),
+                    ]);
+                }
+            }
+        }
+    }
+    args.push(stage.as_os_str().to_os_string());
+    Ok(args)
+}
+
+fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String> {
+    let output = Command::new(ffprobe)
+        .args(["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
+        .arg(input)
+        .output()
+        .map_err(|e| format!("Cannot probe media: {e}"))?;
+    if !output.status.success() {
+        return Err("Media file could not be inspected by FFprobe".into());
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let kind = match desired { MediaKind::Audio => "audio", MediaKind::Video => "video" };
+    if !text.lines().any(|line| line.trim() == kind) {
+        return Err(format!("Input does not contain a {kind} stream"));
+    }
+    Ok(())
+}
+
+fn convert(job: MediaJob) -> Result<String, String> {
+    let kind = validate_job(&job)?;
+    let ffmpeg = find_binary("ffmpeg")
+        .ok_or("FFmpeg is not installed. Install a licensed FFmpeg build and add ffmpeg.exe to PATH.")?;
+    let ffprobe = find_binary("ffprobe")
+        .ok_or("FFprobe is not installed. It normally comes with FFmpeg.")?;
+    let input = PathBuf::from(&job.path);
+    verify_input(&input, false)?;
+    probe(&input, kind, &ffprobe)?;
+    let directory = output_dir(&input, job.destination.as_deref())?;
+    let staging = tempfile::Builder::new().prefix(".reformany-media-")
+        .tempdir_in(&directory).map_err(|e| e.to_string())?;
+    let stage = staging.path().join(format!("converted.{}", target_extension(&job.target)));
+    let args = media_args(&job, &input, &stage)?;
+    crate::external::run(&ffmpeg, &args, None)?;
+    if fs::metadata(&stage).map_err(|_| "FFmpeg did not produce an output file".to_owned())?.len() == 0 {
+        return Err("FFmpeg produced an empty file".into());
+    }
+    probe(&stage, kind, &ffprobe)?;
+    let original = format_name(&input)?;
+    publish(&stage, &directory, &original, target_extension(&job.target))
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn media_convert(job: MediaJob) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || convert(job))
+        .await
+        .map_err(|_| "Media conversion worker exited unexpectedly".to_owned())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample(target: &str) -> MediaJob {
+        MediaJob { path: "C:\\input.mov".into(), target: target.into(),
+            destination: None, profile: "standard".into(), start_seconds: None,
+            duration_seconds: None }
+    }
+
+    #[test]
+    fn output_profiles_have_explicit_codec_mappings() {
+        for target in ["mp3","m4a","wav","flac","ogg","opus","mp4","webm","mkv","mov","avi"] {
+            assert!(output_spec(target).is_ok(), "{target}");
+            let args = media_args(&sample(target), Path::new("source"), Path::new("dest"))
+                .unwrap();
+            assert!(args.iter().any(|a| a == "-c:a"));
+        }
+        assert!(output_spec("exe").is_err());
+    }
+
+    #[test]
+    fn trim_and_preset_validation_rejects_invalid_values() {
+        let mut job = sample("mp4");
+        job.start_seconds = Some(-1.0);
+        assert!(validate_job(&job).is_err());
+        job.start_seconds = Some(5.0);
+        job.duration_seconds = Some(f64::INFINITY);
+        assert!(validate_job(&job).is_err());
+        job.duration_seconds = Some(2.0);
+        job.profile = "custom command".into();
+        assert!(validate_job(&job).is_err());
+    }
+}
