@@ -36,9 +36,9 @@ fn safe_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 220
         && name != "." && name != ".."
-        && !name.ends_with([' ', '.'])
+        && !name.ends_with(' ') && !name.ends_with('.')
         && !name.chars().any(|c| c.is_control() || "/\\:*?\"<>|".contains(c))
-        && Path::new(name).file_name().is_some_and(|v| v == name)
+        && Path::new(name).file_name().and_then(|v| v.to_str()) == Some(name)
 }
 
 fn staged_publish(source: &Path, destination: &Path) -> Result<(), String> {
@@ -200,9 +200,12 @@ fn join(manifest_path: &str, destination: Option<&str>) -> Result<String, String
         loop {
             let n = reader.read(&mut buffer).map_err(|e| e.to_string())?;
             if n == 0 { break; }
+            read_total = read_total.saturating_add(n as u64);
+            if read_total > expected {
+                return Err(format!("Part {index:03} changed while being read"));
+            }
             hasher.update(&buffer[..n]);
             output.write_all(&buffer[..n]).map_err(|e| e.to_string())?;
-            read_total += n as u64;
         }
         if read_total != expected { return Err(format!("Part {index:03} changed during joining")); }
         total += read_total;
