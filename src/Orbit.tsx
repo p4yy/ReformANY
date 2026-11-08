@@ -416,7 +416,18 @@ export default function Orbit() {
     ? (canConvert && mediaReady ? targets.slice(4).map(target => ({
         label: target, run: () => void convert(target),
       })) : [])
-    : tab === "tools" ? [{ label: "More tools", run: () => void openWorkspace() }]
+    : tab === "tools" ? [
+        { label: "More tools", run: () => void openWorkspace() },
+        ...(file && !file.error && !isFolder ? [{
+          label: "Split into parts", run: () => setSplitting(true),
+        }] : []),
+        ...(file?.name.endsWith(".reformany.parts.json") ? [{
+          label: "Join parts", run: () => void joinParts(),
+        }] : []),
+        ...(file && !file.error && engines?.sevenZip ? [{
+          label: "Password ZIP", run: () => setPasswording(true),
+        }] : []),
+      ]
     : file ? [
         { label: isFolder ? "Open folder" : "Show in Explorer", run: () => void act("folder") },
         ...(!isFolder ? [
@@ -428,7 +439,7 @@ export default function Orbit() {
   const message = error || note || (phase === "ready" && tab === "convert" && innerActions.length === 0
     ? (canConvert && !mediaReady ? "FFmpeg and FFprobe are required for media conversion." : description)
     : null);
-  const ringVisible = (phase === "ready" || phase === "failed") && !renaming;
+  const ringVisible = (phase === "ready" || phase === "failed") && !renaming && !splitting && !passwording;
 
   return (
     <div className="orbit-frame" onPointerDown={event => {
@@ -452,7 +463,24 @@ export default function Orbit() {
           <circle className="orbit-hub-outline" cx="280" cy="280" r="99" />
         </svg>}
         <div className="orbit-hub">
-          {renaming ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void rename();}}>
+          {splitting ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void splitFile();}}>
+            <label htmlFor="orbit-part-size">Part size (MB)</label>
+            <input id="orbit-part-size" autoFocus type="number" min="1" max="4096" step="1"
+              value={partSize} onChange={event => setPartSize(event.target.value)}/>
+            <div className="orbit-rename-buttons">
+              <button type="submit">Split</button>
+              <button type="button" onClick={() => setSplitting(false)}>Cancel</button>
+            </div>
+          </form> : passwording ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void encryptedZip();}}>
+            <label htmlFor="orbit-zip-password">ZIP password</label>
+            <input id="orbit-zip-password" autoFocus type="password" autoComplete="new-password"
+              value={archivePassword} onChange={event => setArchivePassword(event.target.value)}
+              minLength={1} maxLength={256} required/>
+            <div className="orbit-rename-buttons">
+              <button type="submit">Create</button>
+              <button type="button" onClick={() => {setPasswording(false);setArchivePassword("");}}>Cancel</button>
+            </div>
+          </form> : renaming ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void rename();}}>
             <label htmlFor="orbit-rename-file">Rename file</label>
             <input id="orbit-rename-file" autoFocus value={newName} onChange={event => setNewName(event.target.value)} />
             <div className="orbit-rename-buttons">
@@ -488,7 +516,7 @@ export default function Orbit() {
         {(["convert", "tools", "actions"] as Tab[]).map(value =>
           <button key={value} className={tab === value ? "is-active" : ""}
             disabled={phase === "processing"} onClick={() => {
-              setTab(value);setError(null);setNote(null);setRenaming(false);setPhase("ready");
+              setTab(value);setError(null);setNote(null);setRenaming(false);setSplitting(false);setPasswording(false);setArchivePassword("");setPhase("ready");
             }}>
             {t(getLanguage(), value === "convert" ? "convert" : value === "tools" ? "tools" : "actions")}
           </button>)}
