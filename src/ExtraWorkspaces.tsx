@@ -155,12 +155,13 @@ export function MediaPanel() {
 
 export function ArchivePanel() {
   const engines = useEngines();
-  const [mode, setMode] = useState<"create" | "extract">("create");
+  const [mode, setMode] = useState<"create" | "extract" | "split" | "join">("create");
   const [sources, setSources] = useState<string[]>([]);
   const [format, setFormat] = useState("7z");
   const [name, setName] = useState("ReformANY Archive");
   const [password, setPassword] = useState("");
   const [split, setSplit] = useState("0");
+  const [partSize, setPartSize] = useState("100");
   const [level, setLevel] = useState("5");
   const [destination, setDestination] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -169,20 +170,27 @@ export function ArchivePanel() {
   const [error, setError] = useState<string | null>(null);
   const supported = format === "rar" ? Boolean(engines?.winrar)
     : format === "zip" && split === "0" ? true : Boolean(engines?.sevenZip);
-  const canRun = mode === "extract"
-    ? (sources[0]?.toLowerCase().endsWith(".zip") || Boolean(engines?.sevenZip))
+  const canRun = mode === "split" || mode === "join" ? true : mode === "extract"
+    ? Boolean(sources[0]?.toLowerCase().endsWith(".zip") || engines?.sevenZip)
     : supported;
+
+  function changeMode(next: "create" | "extract" | "split" | "join") {
+    setMode(next); setSources([]); setResult(null); setError(null); setExtra([]);
+  }
 
   async function addFiles() {
     try {
-      const selection: unknown = await open({ multiple: true, directory: false });
+      const selection: unknown = await open({
+        multiple: mode === "create", directory: false,
+        ...(mode === "join" ? { filters: [{ name: "ReformANY parts manifest", extensions: ["json"] }] } : {}),
+      });
       const paths: string[] = Array.isArray(selection)
         ? selection.filter((item): item is string => typeof item === "string")
         : typeof selection === "string" ? [selection] : [];
       if (paths.length) {
         setSources(previous => mode === "create" ? [...new Set([...previous, ...paths])] : paths.slice(0, 1));
         if (mode === "extract") setName(stem(paths[0]));
-        else if (sources.length === 0) setName(stem(paths[0]) || "ReformANY Archive");
+        else if (mode === "create" && sources.length === 0) setName(stem(paths[0]) || "ReformANY Archive");
       }
     } catch (cause) { setError(String(cause)); }
   }
@@ -192,7 +200,7 @@ export function ArchivePanel() {
       const path = await open({ directory: true, multiple: false });
       if (typeof path === "string") {
         setSources(previous => [...new Set([...previous, path])]);
-        if (sources.length === 0) setName(stem(path) || "ReformANY Archive");
+        if (sources.length === 0) setName(fileName(path) || "ReformANY Archive");
       }
     } catch (cause) { setError(String(cause)); }
   }
@@ -218,11 +226,20 @@ export function ArchivePanel() {
         });
         setResult(result.outputPaths[0] || null);
         setExtra(result.outputPaths.slice(1));
-      } else {
+      } else if (mode === "extract") {
         const result = await invoke<string>("archive_extract", {
           job: { path: sources[0], destination, password: password || null },
         });
         setResult(result);
+      } else if (mode === "split") {
+        const splitResult = await invoke<{ manifestPath: string; parts: string[] }>("file_split", {
+          path: sources[0], destination, partMegabytes: Number(partSize),
+        });
+        setResult(splitResult.manifestPath);
+        setExtra(splitResult.parts);
+      } else {
+        const restored = await invoke<string>("file_join", { manifestPath: sources[0], destination });
+        setResult(restored);
       }
     } catch (cause) {
       setError(String(cause));
@@ -234,23 +251,25 @@ export function ArchivePanel() {
   return <div className="content engine-page">
     <div className="eyebrow">LOCAL ARCHIVE ENGINE</div>
     <h1>Archives, handled.</h1>
-    <p>Build encrypted archives, split into volumes, or extract supported formats with 7-Zip and WinRAR.</p>
-    <div className="engine-switch">
-      <button className={mode === "create" ? "selected" : ""} onClick={() => {setMode("create");setSources([]);setResult(null);setError(null);}}>Create archive</button>
-      <button className={mode === "extract" ? "selected" : ""} onClick={() => {setMode("extract");setSources([]);setResult(null);setError(null);}}>Extract archive</button>
+    <p>Create archives or split and rejoin large files. Everything runs locally.</p>
+    <div className="engine-switch engine-switch-three">
+      <button className={mode === "create" ? "selected" : ""} onClick={() => changeMode("create")}>Create</button>
+      <button className={mode === "extract" ? "selected" : ""} onClick={() => changeMode("extract")}>Extract</button>
+      <button className={mode === "split" ? "selected" : ""} onClick={() => changeMode("split")}>Split file</button>
+      <button className={mode === "join" ? "selected" : ""} onClick={() => changeMode("join")}>Join parts</button>
     </div>
 
     <div className="engine-card">
-      <div className="engine-card-title"><FileArchive size={18}/><h2>{mode === "create" ? "Files to package" : "Archive to extract"}</h2></div>
+      <div className="engine-card-title"><FileArchive size={18}/><h2>{mode === "create" ? "Files to package" : mode === "extract" ? "Archive to extract" : mode === "split" ? "File to split" : "Parts manifest to join"}</h2></div>
       <div className="engine-import-row">
-        <button className="button secondary" disabled={busy} onClick={() => void addFiles()}><Plus size={16}/> {mode === "create" ? "Add files" : "Choose archive"}</button>
+        <button className="button secondary" disabled={busy} onClick={() => void addFiles()}><Plus size={16}/> {mode === "create" ? "Add files" : mode === "extract" ? "Choose archive" : mode === "split" ? "Choose file" : "Choose manifest"}</button>
         {mode === "create" && <button className="button secondary" disabled={busy} onClick={() => void addFolder()}><Folder size={16}/> Add folder</button>}
         {!!sources.length && <button className="text-action" disabled={busy} onClick={() => setSources([])}><Trash2 size={14}/> Clear</button>}
       </div>
       <div className="engine-source-list">
         {sources.length ? sources.map(path => <div key={path}><ArchiveIcon size={15}/><span title={path}>{fileName(path)}</span>
           <button aria-label={"Remove "+fileName(path)} disabled={busy} onClick={() => setSources(current => current.filter(item => item !== path))}>×</button></div>)
-          : <p>{mode === "create" ? "Select files or a folder to compress." : "Select a ZIP, 7z, RAR, TAR or another format supported by your 7-Zip installation."}</p>}
+          : <p>{mode === "create" ? "Select files or a folder to compress." : mode === "extract" ? "Select a ZIP or another format supported by 7-Zip." : mode === "split" ? "Select a file to divide into numbered .001, .002… parts." : "Select the .reformany.parts.json manifest saved during splitting."}</p>}
       </div>
       {mode === "create" && <div className="engine-form-grid">
         <label>Archive name
@@ -276,11 +295,20 @@ export function ArchivePanel() {
           </select>
         </label>
       </div>}
-      <label className="engine-password"><Lock size={15}/> Password
+      {mode === "split" && <div className="engine-form-grid">
+        <label>Part size
+          <select value={partSize} disabled={busy} onChange={event => setPartSize(event.target.value)}>
+            <option value="1">1 MB</option><option value="10">10 MB</option>
+            <option value="50">50 MB</option><option value="100">100 MB</option>
+            <option value="500">500 MB</option><option value="1024">1 GB</option>
+          </select>
+        </label>
+      </div>}
+      {(mode === "create" || mode === "extract") && <label className="engine-password"><Lock size={15}/> Password
         <input type="password" placeholder="Optional" autoComplete="new-password" value={password}
           disabled={busy || (mode === "create" && !["zip","7z","rar"].includes(format))}
           onChange={event => setPassword(event.target.value)}/>
-      </label>
+      </label>}
       <div className="engine-directory">
         <div><strong>Destination</strong><small>{destination || "Alongside the selected files"}</small></div>
         {destination && <button className="text-action" onClick={() => setDestination(null)}>Reset</button>}
@@ -288,16 +316,16 @@ export function ArchivePanel() {
       </div>
     </div>
     <div className="engine-action-row">
-      <div><strong>{canRun ? "Archive engine available" : (format === "rar" && mode === "create" ? "WinRAR required for RAR creation" : "7-Zip required")}</strong>
-        <small>{mode === "create" ? "Selected originals are kept · existing archives never replaced" : "Extract into a new folder · existing files are kept"}</small></div>
+      <div><strong>{mode === "split" || mode === "join" ? "Built-in file parts ready" : canRun ? "Archive engine available" : (format === "rar" && mode === "create" ? "WinRAR required for RAR creation" : "7-Zip required")}</strong>
+        <small>{mode === "split" ? "Creates numbered parts with a SHA-256 manifest" : mode === "join" ? "Verifies all parts before restoring a copy" : mode === "create" ? "Originals are kept · no overwrites" : "Extract into a new folder · no overwrites"}</small></div>
       <button className="button primary" disabled={!sources.length || !canRun || busy} onClick={() => void execute()}>
         {busy ? <><LoaderCircle size={17} className="engine-spin"/> Working…</>
-          : <>{mode === "create" ? "Create archive" : "Extract files"} <ArrowRight size={16}/></>}
+          : <>{mode === "create" ? "Create archive" : mode === "extract" ? "Extract files" : mode === "split" ? "Split file" : "Join parts"} <ArrowRight size={16}/></>}
       </button>
     </div>
     {outputSelector(result, error)}
-    {extra.length > 0 && <p className="engine-footnote">{extra.length} additional part(s) saved alongside the first volume.</p>}
-    <p className="engine-footnote">7-Zip supports many more extraction formats than creation formats. For encrypted archives, filenames in ZIP remain visible; 7z can encrypt filenames. External command-line tools can expose passwords to other local processes during a job. The app does not store passwords.</p>
+    {extra.length > 0 && <p className="engine-footnote">{mode === "split" ? `${extra.length} numbered part(s) saved alongside the manifest.` : `${extra.length} additional archive volume(s) saved.`}</p>}
+    {(mode === "create" || mode === "extract") ? <p className="engine-footnote">7-Zip handles additional archive formats. ZIP encryption does not hide filenames; 7z can. External command-line tools may expose passwords in process arguments.</p> : <p className="engine-footnote">File parts are not compressed or encrypted. Keep every numbered part and the .reformany.parts.json manifest together. Joining verifies SHA-256 and never overwrites the original.</p>}
   </div>;
 }
 
