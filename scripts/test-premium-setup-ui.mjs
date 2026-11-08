@@ -3,7 +3,7 @@
 // (localhost) instead of embedding the built React frontend.
 // Chrome DevTools Protocol is enabled only for this CI test process, NEVER in
 // ReformANY's normal installer or on an end-user's machine.
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -42,6 +42,13 @@ try {
   });
 
   let page;
+  let lastTargets = [];
+  let lastProbeError = "not yet contacted";
+  let lastHttpStatus = null;
+  let launchError = null;
+  child.on("error", error => { launchError = String(error); });
+  console.log("Premium setup startup probe: pid=" + child.pid +
+    "; checking localhost CDP on port " + port + "; exe=" + exe);
   const end = Date.now() + 55000;
   while (Date.now() < end) {
     if (child.exitCode !== null) {
@@ -51,19 +58,40 @@ try {
       const response = await fetch(base + "/json/list", {
         signal: AbortSignal.timeout(1250),
       });
+      lastHttpStatus = response.status;
       if (response.ok) {
         const targets = await response.json();
-        page = targets.find(target => target.type === "page" && (
-          target.url.includes("tauri.localhost") ||
-          target.url.includes("localhost:1421") ||
-          target.url.startsWith("tauri://")
-        ));
+        lastTargets = targets.map(target => ({ type: target.type, url: target.url }));
+        // Select any WebView2 page, even if its URL is unexpected, so that the
+        // explicit origin check below reports the actual regression.
+        page = targets.find(target => target.type === "page");
         if (page) break;
       }
-    } catch { /* WebView2 not initialized yet */ }
+      lastProbeError = "HTTP " + response.status;
+    } catch (cause) { lastProbeError = String(cause); }
     await sleep(500);
   }
-  if (!page) throw new Error("Could not inspect live premium setup WebView2 page");
+  if (!page) {
+    let webviewProcesses = "unknown";
+    try {
+      webviewProcesses = execFileSync("tasklist.exe", [
+        "/FI", "IMAGENAME eq msedgewebview2.exe",
+      ], { encoding: "utf8", timeout: 5000 }).slice(0, 2500);
+    } catch (cause) { webviewProcesses = String(cause); }
+    let debuggerVersion = "unavailable";
+    try {
+      const response = await fetch(base + "/json/version", {
+        signal: AbortSignal.timeout(2000),
+      });
+      debuggerVersion = (await response.text()).slice(0, 1000);
+    } catch (cause) { debuggerVersion = String(cause); }
+    console.error("Premium setup WebView2 diagnostics", JSON.stringify({
+      pid: child.pid, exitCode: child.exitCode,
+      launchError, lastHttpStatus, lastProbeError,
+      lastTargets, debuggerVersion, webviewProcesses,
+    }, null, 2));
+    throw new Error("Could not inspect live premium setup WebView2 page; see diagnostics above");
+  }
 
   if (page.url.includes("localhost:1421") || page.url.includes("127.0.0.1:1421")) {
     throw new Error("REGRESSION: setup is loading the development localhost URL: " + page.url);
