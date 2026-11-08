@@ -6,6 +6,7 @@ mod media;
 mod archives;
 mod actions;
 mod native_zip;
+mod documents;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
@@ -14,6 +15,7 @@ use external::engine_status;
 use media::media_convert;
 use archives::{archive_create, archive_extract};
 use actions::{rename_file, open_terminal, send_bluetooth};
+use documents::{images_to_pdf, pdf_to_text, office_to_pdf, office_available};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -41,7 +43,11 @@ pub fn run() {
             archive_extract,
             rename_file,
             open_terminal,
-            send_bluetooth
+            send_bluetooth,
+            images_to_pdf,
+            pdf_to_text,
+            office_to_pdf,
+            office_available
         ])
         .setup(move |app| {
             if orbit_mode {

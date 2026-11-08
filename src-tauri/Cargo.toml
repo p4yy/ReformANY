@@ -25,6 +25,7 @@ base64 = "0.22"
 tiff = "0.11"
 walkdir = "2"
 zip = { version = "=8.6.0", default-features = false, features = ["deflate", "aes-crypto"] }
+lopdf = "0.38"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
