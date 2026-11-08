@@ -6,7 +6,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$repo = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+$repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $out = Join-Path $repo $Output
 $layout = Join-Path $out "layout"
 New-Item -ItemType Directory -Force -Path $layout, (Join-Path $layout "Assets") | Out-Null
