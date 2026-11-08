@@ -160,6 +160,7 @@ function App() {
   const [batchId, setBatchId] = useState<string | null>(null);
   // A very fast batch may finish before its Tauri command promise resolves.
   const finishedBatchIds = useRef(new Set<string>());
+  const mainScrollRef = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -182,6 +183,11 @@ function App() {
     localStorage.setItem("reformany.language", language);
   }, [language]);
   const tx = (key: LangKey) => t(language, key);
+
+  // Moving between workspaces should never reopen a page at the previous page\'s scroll offset.
+  useEffect(() => {
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+  }, [page, showWelcome]);
 
   useEffect(() => {
     const records: HistoryEntry[] = rows.filter((row): row is Row & { status: "completed" | "failed" | "cancelled" } =>
@@ -352,10 +358,10 @@ function App() {
           <div className="sidebar-version">ReformANY <span>0.3.0 · Preview</span></div>
         </div>
       </aside>
-      <main className="main">
+      <main className="main" ref={mainScrollRef}>
         <header className="topbar">
           <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? tx("media") : page === "mediaTools" ? "Media tools" : page === "archives" ? "Archives" : page === "subtitles" ? "Subtitles" : page === "spreadsheets" ? "Spreadsheets" : page === "documents" ? tx("documents") : page === "preview" ? "Preview" : page === "ebooks" ? "E-books" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
-          <span className="topbar-right"><span className="topbar-dot"/> Image conversion · Preview</span>
+          <span className="topbar-right"><span className="topbar-dot"/> Local processing · Preview</span>
         </header>
         {page === "media" && <MediaPanel />}
         {page === "mediaTools" && <MediaToolsPanel />}
