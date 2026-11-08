@@ -1,4 +1,4 @@
-# Windows-only NSIS artwork: dark, quiet, original and intentionally static.
+# Windows-only NSIS artwork: minimal, native-compatible and intentionally static.
 # Uses the existing, owner-provided ReformANY icon; no stock or old GIFs.
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
@@ -16,32 +16,28 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
   $g = [System.Drawing.Graphics]::FromImage($img)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-  $bg = [System.Drawing.SolidBrush]::new((Color 17 21 27))
-  $white = [System.Drawing.SolidBrush]::new((Color 244 248 252))
-  $muted = [System.Drawing.SolidBrush]::new((Color 157 174 193))
-  $accent = [System.Drawing.SolidBrush]::new((Color 73 143 242))
-  $line = [System.Drawing.Pen]::new((Color 47 63 83), 1)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $bg = [System.Drawing.SolidBrush]::new((Color 246 247 249))
+  $white = [System.Drawing.SolidBrush]::new((Color 31 42 55))
+  $muted = [System.Drawing.SolidBrush]::new((Color 97 110 128))
+  $accent = [System.Drawing.SolidBrush]::new((Color 45 115 220))
+  $line = [System.Drawing.Pen]::new((Color 217 224 234), 1)
   $g.FillRectangle($bg, 0, 0, $w, $h)
-  $fontBig = [System.Drawing.Font]::new("Segoe UI",16,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
-  $fontSmall = [System.Drawing.Font]::new("Segoe UI",10,[System.Drawing.FontStyle]::Regular,[System.Drawing.GraphicsUnit]::Pixel)
+  $fontBig = [System.Drawing.Font]::new("Segoe UI",15,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
+  $fontSmall = [System.Drawing.Font]::new("Segoe UI",11,[System.Drawing.FontStyle]::Regular,[System.Drawing.GraphicsUnit]::Pixel)
   $fontMicro = [System.Drawing.Font]::new("Segoe UI",9,[System.Drawing.FontStyle]::Regular,[System.Drawing.GraphicsUnit]::Pixel)
   $logo = [System.Drawing.Image]::FromFile($mark)
   try {
     if ($sidebar) {
-      $g.FillRectangle($accent,23,22,3,22)
-      $g.DrawImage($logo, 23, 61, 48, 48)
-      $g.DrawString("ReformANY",$fontBig,$white,22,126)
-      $g.DrawString("A simpler way to",$fontSmall,$muted,23,162)
-      $g.DrawString("work with files.",$fontSmall,$muted,23,177)
-      $g.DrawLine($line, 23, 220, 141, 220)
-      $g.DrawString("LOCAL",$fontMicro,$white,23,240)
-      $g.DrawString("PRIVATE",$fontMicro,$white,23,254)
-      $g.DrawString("EFFORTLESS",$fontMicro,$white,23,268)
-      $g.FillEllipse($accent,123,268,6,6)
+      $g.DrawImage($logo, 23, 41, 44, 44)
+      $g.DrawString("ReformANY",$fontBig,$white,22,105)
+      $g.DrawString("File tools for Windows",$fontSmall,$muted,22,139)
+      $g.DrawString("Local by design",$fontSmall,$muted,22,155)
+      $g.DrawLine($line, 22, 265, 142, 265)
+      $g.DrawString("ReformANY 0.3",$fontMicro,$muted,22,277)
     } else {
-      $g.DrawImage($logo,13,13,31,31)
-      $g.DrawString("ReformANY",$fontBig,$white,50,15)
-      $g.FillRectangle($accent,49,40,65,2)
+      $g.DrawImage($logo,13,14,29,29)
+      $g.DrawString("ReformANY",$fontBig,$white,49,20)
     }
     $img.Save($target,[System.Drawing.Imaging.ImageFormat]::Bmp)
   } finally {
@@ -53,4 +49,4 @@ function PaintImage([int]$w, [int]$h, [string]$target, [bool]$sidebar) {
 }
 PaintImage 164 314 (Join-Path $out "installer-sidebar.bmp") $true
 PaintImage 150 57 (Join-Path $out "installer-header.bmp") $false
-Write-Host "Generated ReformANY's dark branded NSIS artwork."
+Write-Host "Generated ReformANY\'s native light NSIS artwork."
