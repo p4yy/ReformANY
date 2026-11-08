@@ -8,6 +8,7 @@ import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
 import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
+import OrbitActionDialog from "./OrbitActionDialog";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
 import {
   Archive, ArrowRightLeft, Bluetooth, Check, CheckCircle2, Clapperboard,
@@ -625,13 +626,13 @@ export default function Orbit() {
   const message = error || note || (phase === "ready" && tab === "convert" &&
     (convertActions.length === 0 || convertActions.every(a => Boolean(a.unavailable)))
     ? description : null);
-  const ringVisible = (phase === "ready" || phase === "failed") && !renaming && !splitting && !passwording;
+  const ringVisible = phase === "ready" || phase === "failed";
 
   return (
     <div className="orbit-frame" onPointerDown={event => {
       // Transparent corners are part of the native rectangular window.
       // Dismiss them explicitly without swallowing clicks on the three section tabs.
-      if ((event.target as Element).closest(".orbit-section-tabs")) return;
+      if ((event.target as Element).closest(".orbit-section-tabs, .orbit-action-dialog")) return;
       const disc = event.currentTarget.querySelector(".orbit-disc");
       if (!disc) return;
       const rect = disc.getBoundingClientRect();
@@ -654,31 +655,10 @@ export default function Orbit() {
           <div className="orbit-hub-outline" aria-hidden="true"/>
         </div>}
         <div className="orbit-hub">
-          {splitting ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void splitFile();}}>
-            <label htmlFor="orbit-part-size">Part size (MB)</label>
-            <input id="orbit-part-size" autoFocus type="number" min="1" max="4096" step="1"
-              value={partSize} onChange={event => setPartSize(event.target.value)}/>
-            <div className="orbit-rename-buttons">
-              <button type="submit">Split</button>
-              <button type="button" onClick={() => setSplitting(false)}>Cancel</button>
-            </div>
-          </form> : passwording ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void encryptedZip();}}>
-            <label htmlFor="orbit-zip-password">ZIP password</label>
-            <input id="orbit-zip-password" autoFocus type="password" autoComplete="new-password"
-              value={archivePassword} onChange={event => setArchivePassword(event.target.value)}
-              minLength={1} maxLength={256} required/>
-            <div className="orbit-rename-buttons">
-              <button type="submit">Create</button>
-              <button type="button" onClick={() => {setPasswording(false);setArchivePassword("");}}>Cancel</button>
-            </div>
-          </form> : renaming ? <form className="orbit-rename" onSubmit={event => {event.preventDefault(); void rename();}}>
-            <label htmlFor="orbit-rename-file">Rename file</label>
-            <input id="orbit-rename-file" autoFocus value={newName} onChange={event => setNewName(event.target.value)} />
-            <div className="orbit-rename-buttons">
-              <button type="submit">Save</button>
-              <button type="button" onClick={() => setRenaming(false)}>Cancel</button>
-            </div>
-          </form> : phase === "processing" ? <>
+          {(splitting || passwording || renaming) ? <>
+            <img className="orbit-logo" src={appIcon} alt="ReformANY"/>
+            <strong>{renaming ? "Rename" : splitting ? "Split file" : "Password ZIP"}</strong>
+          </> : phase === "processing" ? <>
             <LoaderCircle size={26} className="orbit-spinner" aria-hidden="true" />
             <strong>{selected} · Working</strong>
             <span className="orbit-hub-subtitle">Processing locally</span>
@@ -725,6 +705,20 @@ export default function Orbit() {
           title={message || file?.name || ""}>
           {message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
         </div>
+      {(renaming || splitting || passwording) && file && <OrbitActionDialog
+        kind={renaming ? "rename" : splitting ? "split" : "password"}
+        name={file.name} bytes={formatSize(file.bytes)}
+        value={renaming ? newName : splitting ? partSize : archivePassword}
+        onValue={renaming ? setNewName : splitting ? setPartSize : setArchivePassword}
+        onClose={() => {
+          setRenaming(false);setSplitting(false);setPasswording(false);
+          setArchivePassword("");setError(null);
+        }}
+        onSubmit={() => {
+          if (renaming) void rename();
+          else if (splitting) void splitFile();
+          else void encryptedZip();
+        }}/>}
     </div>
   );
 }
