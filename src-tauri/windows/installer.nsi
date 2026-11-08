@@ -20,15 +20,16 @@ ManifestDPIAwareness PerMonitorV2
 {{/if}}
 
 !include MUI2.nsh
+!include nsDialogs.nsh
 ; Uniform graphite palette for every standard MUI page. The NSIS
 ; installation and uninstallation logic remains intact.
-!define MUI_BGCOLOR "111216"
-!define MUI_TEXTCOLOR "F3F4F7"
-!define MUI_DIRECTORYPAGE_BGCOLOR "202126"
-!define MUI_STARTMENUPAGE_BGCOLOR "202126"
-!define MUI_INSTFILESPAGE_COLORS "F3F4F7 111216"
+!define MUI_BGCOLOR "171f19"
+!define MUI_TEXTCOLOR "e8eee4"
+!define MUI_DIRECTORYPAGE_BGCOLOR "242d26"
+!define MUI_STARTMENUPAGE_BGCOLOR "242d26"
+!define MUI_INSTFILESPAGE_COLORS "e8eee4 171f19"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "colored"
-!define MUI_INSTALLCOLORS "478AF3 111216"
+!define MUI_INSTALLCOLORS "AFC69C 171f19"
 !define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH "FitControl"
 !define MUI_CUSTOMFUNCTION_GUIINIT ReformANYDarkGUI
 !include FileFunc.nsh
@@ -87,6 +88,8 @@ Var UpdateMode
 Var NoShortcutMode
 Var WixMode
 Var OldMainBinaryName
+Var MediaEngineOptIn
+Var MediaEngineCheckbox
 
 Name "${PRODUCTNAME}"
 BrandingText "ReformANY"
@@ -426,6 +429,10 @@ FunctionEnd
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW ReformANYDarkPage
 !insertmacro MUI_PAGE_DIRECTORY
 
+ ; Optional media engine component is enabled by default on interactive installs.
+; The installer fetches one reviewed FFmpeg release; never download at app launch.
+Page custom MediaEnginePageCreate MediaEnginePageLeave
+
 ; 6. Start menu shortcut page
 Var AppStartMenuFolder
 !if "${STARTMENUFOLDER}" != ""
@@ -459,12 +466,79 @@ Var AppStartMenuFolder
 
 ; Set the native title bar, footer, and page colors when the wizard opens.
 ; Classic Windows buttons may still follow the user's OS theme: verify on real Windows 11.
+Function MediaEnginePageCreate
+  ${If} $PassiveMode = 1
+  ${OrIf} ${Silent}
+  ${OrIf} $UpdateMode = 1
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Media conversion" "Install the tools needed for video and audio files"
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 30u "ReformANY uses FFmpeg and FFprobe to convert MP4, MKV, MOV, WebM, MP3, WAV, FLAC, and other supported formats."
+  Pop $1
+  SetCtlColors $1 e8eee4 171f19
+  ${NSD_CreateCheckbox} 0 43u 100% 24u "Download and install media conversion tools (about 109 MB)"
+  Pop $MediaEngineCheckbox
+  ${If} $MediaEngineOptIn == 1
+    ${NSD_Check} $MediaEngineCheckbox
+  ${EndIf}
+  ${NSD_CreateLabel} 0 77u 100% 60u "Recommended. Uses FFmpeg 9.0.2 from Gyan's reviewed Windows release. The download is checksum-verified and installed only inside ReformANY. An internet connection is required. You can skip this, but media conversions will not work unless both tools are available."
+  Pop $1
+  SetCtlColors $1 9eaf9f 171f19
+  nsDialogs::Show
+FunctionEnd
+
+Function MediaEnginePageLeave
+  ${NSD_GetState} $MediaEngineCheckbox $MediaEngineOptIn
+FunctionEnd
+
+; Downloads only if the option is enabled and app-local binaries are missing.
+; Verify/extract via the PowerShell script bundled with ReformANY. Failed
+; downloads never silently enable the conversion UI.
+Function InstallMediaEngines
+  ${If} $MediaEngineOptIn != 1
+    DetailPrint "Media engine component skipped by installer preference."
+    Return
+  ${EndIf}
+  IfFileExists "$INSTDIR\engines\ffmpeg.exe" 0 download_media
+  IfFileExists "$INSTDIR\engines\ffprobe.exe" media_installed download_media
+  media_installed:
+    DetailPrint "Existing private FFmpeg and FFprobe binaries detected."
+    Return
+
+  download_media:
+    InitPluginsDir
+    Delete "$PLUGINSDIR\reformany-ffmpeg.zip"
+    DetailPrint "Downloading verified FFmpeg 9.0.2 + FFprobe (~109 MB)..."
+    NSISdl::download "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip" "$PLUGINSDIR\reformany-ffmpeg.zip"
+    Pop $R0
+    ${If} $R0 != "success"
+      DetailPrint "Media download failed: $R0"
+      MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Could not download the media conversion tools. Check your internet connection. Retry or continue installing ReformANY without media conversion." IDRETRY download_media
+      Return
+    ${EndIf}
+    DetailPrint "Checking media engine download and installing..."
+    nsExec::ExecToLog '$"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe$" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $"$INSTDIR\installer\install-media-engines.ps1$" -Archive $"$PLUGINSDIR\reformany-ffmpeg.zip$" -TargetDir $"$INSTDIR\engines$"'
+    Pop $R0
+    Delete "$PLUGINSDIR\reformany-ffmpeg.zip"
+    ${If} $R0 != 0
+      DetailPrint "FFmpeg setup failed (exit code $R0)."
+      MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Media engine installation failed verification or extraction. Retry or continue without media conversion. See installation details for the error." IDRETRY download_media
+      Return
+    ${EndIf}
+    DetailPrint "FFmpeg and FFprobe are ready. Media conversion will work offline."
+FunctionEnd
+
 Function ReformANYDarkGUI
   ; Windows 10/11 DWM dark title bar. Failures on older versions are harmless.
   System::Call 'DWMAPI::DwmSetWindowAttribute(p$HWNDPARENT,i20,*i1,i4)i.r0'
-  SetCtlColors $HWNDPARENT F3F4F7 111216
+  SetCtlColors $HWNDPARENT e8eee4 171f19
   GetDlgItem $0 $HWNDPARENT 1
-  SetCtlColors $0 F3F4F7 202126
+  SetCtlColors $0 e8eee4 242d26
   GetDlgItem $0 $HWNDPARENT 2
   SetCtlColors $0 F3F4F7 202126
   GetDlgItem $0 $HWNDPARENT 3
@@ -476,10 +550,10 @@ FunctionEnd
 Function ReformANYDarkPage
   FindWindow $0 "#32770" "" $HWNDPARENT
   StrCmp $0 0 done
-  SetCtlColors $0 F3F4F7 111216
+  SetCtlColors $0 e8eee4 171f19
   GetDlgItem $1 $0 1019
   StrCmp $1 0 done
-  SetCtlColors $1 F3F4F7 202126
+  SetCtlColors $1 e8eee4 242d26
   done:
 FunctionEnd
 
@@ -549,6 +623,7 @@ LangString choowHowToInstall 0 ""
 {{/each}}
 
 Function .onInit
+  StrCpy $MediaEngineOptIn 1
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}
     StrCpy $PassiveMode 1
@@ -746,6 +821,10 @@ Section Install
     File /a "/oname={{this}}" "{{no-escape @key}}"
   {{/each}}
 
+  ; Run the optional media component while the NSIS progress page is open.
+  ; It is installed only in this app's folder, never into system PATH.
+  Call InstallMediaEngines
+
   ; Create file associations
   {{#each file_associations as |association| ~}}
     {{#each association.ext as |ext| ~}}
@@ -880,6 +959,13 @@ Section Uninstall
   {{#each binaries}}
     Delete "$INSTDIR\\{{this}}"
   {{/each}}
+
+  ; Remove only the binaries and notices installed privately for this app.
+  Delete "$INSTDIR\engines\ffmpeg.exe"
+  Delete "$INSTDIR\engines\ffprobe.exe"
+  Delete "$INSTDIR\engines\LICENSE"
+  Delete "$INSTDIR\engines\SOURCE.txt"
+  RMDir "$INSTDIR\engines"
 
   ; Delete app associations
   {{#each file_associations as |association| ~}}
