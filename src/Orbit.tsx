@@ -571,7 +571,7 @@ export default function Orbit() {
       const rect = disc.getBoundingClientRect();
       const distance = Math.hypot(event.clientX - rect.left - rect.width / 2,
         event.clientY - rect.top - rect.height / 2);
-      if (distance > rect.width * (264 / 560) + 1) void close();
+      if (distance > rect.width / 2 - 1) void close();
     }}>
       <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
         onWheel={handleWheel} onPointerMove={handlePointerMove}
