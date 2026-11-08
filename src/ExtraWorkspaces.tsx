@@ -15,6 +15,10 @@ type Engines = {
 };
 
 const videoTypes = ["mp4", "webm", "mkv", "mov", "avi"];
+const audioInputExtensions = new Set([
+  "mp3", "wav", "flac", "ogg", "opus", "aac", "m4a", "wma",
+  "aiff", "ac3", "ape", "alac", "amr", "caf",
+]);
 const audioTypes = ["mp3", "m4a", "wav", "flac", "ogg", "opus"];
 const archiveTypes = ["7z", "zip", "rar", "tar", "gzip", "bzip2", "xz", "wim"];
 
@@ -46,7 +50,7 @@ function outputSelector(output: string | null, resultError: string | null) {
   </div>;
 }
 
-export function MediaPanel() {
+export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
   const engines = useEngines();
   const [input, setInput] = useState<string | null>(null);
   const [target, setTarget] = useState("mp4");
@@ -71,6 +75,19 @@ export function MediaPanel() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ready = Boolean(engines?.ffmpeg && engines?.ffprobe);
+  // Native WebView2 drop events are handled at App level. When a supported file
+  // arrives, select it here rather than trying to decode it as an image.
+  useEffect(() => {
+    if (!droppedPath) return;
+    setInput(droppedPath);
+    setResult(null);
+    setError(null);
+    setPercent(null);
+    setStart("");
+    setDuration("");
+    const ext = droppedPath.split(".").pop()?.toLowerCase();
+    setTarget(ext && audioInputExtensions.has(ext) ? "mp3" : "mp4");
+  }, [droppedPath]);
 
   async function chooseInput() {
     try {
@@ -84,7 +101,7 @@ export function MediaPanel() {
         setError(null);
         setResult(null);
         const ext = selected.split(".").pop()?.toLowerCase();
-        setTarget(ext && ["mp3","m4a","wav","flac","ogg","opus","aac","wma","aiff","ac3"].includes(ext) ? "mp3" : "mp4");
+        setTarget(ext && audioInputExtensions.has(ext) ? "mp3" : "mp4");
       }
     } catch (cause) { setError(String(cause)); }
   }
