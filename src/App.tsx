@@ -169,7 +169,8 @@ function App() {
     setOrbitSounds(next);
     setOrbitSoundsEnabled(next);
   }
-  const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "blue");
+  // Orbit sage is the official accent throughout ReformANY.
+  const accent = "sage";
   const [batchId, setBatchId] = useState<string | null>(null);
   // A very fast batch may finish before its Tauri command promise resolves.
   const finishedBatchIds = useRef(new Set<string>());
@@ -531,9 +532,9 @@ function App() {
               </label>
             </div>
           </div>
-          <div className="preference-group"><h2>{tx("accent")}</h2><p>Highlight color for selected controls.</p>
-            <div className="accent-grid">{[{key:"blue",color:"#3679e9",name:"Blue"},{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
-              <button key={item.key} className={`accent-chip ${accent === item.key ? "picked" : ""}`} onClick={() => setAccent(item.key)} aria-label={item.name} title={item.name} style={{background:item.color}}>{accent === item.key && <Check size={17}/>}</button>)}</div>
+          <div className="preference-group"><h2>{tx("accent")}</h2>
+            <p>Orbit olive and sage are the official application colors.</p>
+            <span className="official-brand-accent">● Sage · Official</span>
           </div>
           <div className="preference-group welcome-replay-setting">
             <div>
