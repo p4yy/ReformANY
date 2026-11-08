@@ -106,6 +106,10 @@ export default function Orbit() {
   const [engines, setEngines] = useState<EngineStatus | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+  const [partSize, setPartSize] = useState("100");
+  const [passwording, setPasswording] = useState(false);
+  const [archivePassword, setArchivePassword] = useState("");
   const [newName, setNewName] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,6 +308,50 @@ export default function Orbit() {
         setNote(message);
       }
     } catch (reason) { setError(String(reason)); }
+  }
+
+
+  async function splitFile() {
+    if (!file || isFolder) return;
+    const size = Number(partSize);
+    if (!Number.isInteger(size) || size < 1 || size > 4096) {
+      setError("Part size must be between 1 and 4096 MB");
+      return;
+    }
+    setSplitting(false); setPhase("processing"); setSelected("Split");
+    setError(null); setNote(null); setOutput(null);
+    try {
+      const result = await invoke<{ manifestPath: string }>("file_split", {
+        path: file.path, destination: null, partMegabytes: size,
+      });
+      setOutput(result.manifestPath); setPhase("completed");
+    } catch (reason) { setError(String(reason)); setPhase("failed"); }
+  }
+
+  async function joinParts() {
+    if (!file || !file.name.endsWith(".reformany.parts.json")) return;
+    setPhase("processing"); setSelected("Join"); setError(null); setNote(null); setOutput(null);
+    try {
+      const result = await invoke<string>("file_join", {
+        manifestPath: file.path, destination: null,
+      });
+      setOutput(result); setPhase("completed");
+    } catch (reason) { setError(String(reason)); setPhase("failed"); }
+  }
+
+  async function encryptedZip() {
+    if (!file || !archivePassword || !engines?.sevenZip) return;
+    setPasswording(false); setPhase("processing"); setSelected("Password ZIP");
+    setError(null); setNote(null); setOutput(null);
+    try {
+      const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
+      const result = await invoke<{ outputPaths: string[] }>("archive_create", {
+        job: { paths: [file.path], destination: null, name, format: "zip",
+          password: archivePassword, splitMegabytes: null, level: 5 },
+      });
+      setOutput(result.outputPaths[0] || null); setPhase("completed");
+    } catch (reason) { setError(String(reason)); setPhase("failed"); }
+    finally { setArchivePassword(""); }
   }
 
   async function rename() {
