@@ -7,6 +7,7 @@ const focusable =
 
 export default function OrbitActionDialog({
   kind, name, bytes, value, onValue, onSubmit, onClose, busy = false, error,
+  splitPdf = false, splitMode = "size", onSplitMode,
 }: {
   kind: OrbitDialogKind;
   name: string;
@@ -17,6 +18,9 @@ export default function OrbitActionDialog({
   onClose: () => void;
   busy?: boolean;
   error?: string;
+  splitPdf?: boolean;
+  splitMode?: "size" | "parts" | "pages";
+  onSplitMode?: (value: "size" | "parts" | "pages") => void;
 }) {
   const titleId = useId();
   const panel = useRef<HTMLElement>(null);
@@ -24,13 +28,13 @@ export default function OrbitActionDialog({
   onCloseRef.current = onClose;
   const [confirm, setConfirm] = useState("");
   const [visible, setVisible] = useState(false);
-  const title = kind === "rename" ? "Rename" : kind === "split" ? "Split file" : "Password-protected ZIP";
+  const title = kind === "rename" ? "Rename" : kind === "split" ? (splitPdf ? "Split PDF" : "Split binary file") : "Password-protected ZIP";
   const description = kind === "rename" ? "Choose a new file name."
-    : kind === "split" ? "Choose the maximum size for each part."
+    : kind === "split" ? (splitPdf ? "Create independent PDFs by approximate size, number of parts, or pages per file." : "Divide into binary volumes for later rejoining; these are not usable standalone documents.")
     : "Protect the archive with a password.";
   const Icon = kind === "rename" ? Pencil : kind === "split" ? Scissors : LockKeyhole;
   const valid = kind === "rename" ? value.trim().length > 0
-    : kind === "split" ? Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 4096
+    : kind === "split" ? Number.isInteger(Number(value)) && Number(value) >= (splitPdf && splitMode === "parts" ? 2 : 1) && Number(value) <= 4096
     : value.length >= 8 && value === confirm;
 
   useEffect(() => {
@@ -81,26 +85,38 @@ export default function OrbitActionDialog({
         <small>{bytes}</small>
       </div>
       <form onSubmit={handleSubmit}>
+        {kind === "split" && splitPdf && <>
+          <label htmlFor="orbit-split-method">Split PDF by</label>
+          <select id="orbit-split-method" value={splitMode} onChange={event => {
+            const mode = event.target.value as "size" | "parts" | "pages";
+            onSplitMode?.(mode);
+            onValue(mode === "parts" ? "2" : mode === "pages" ? "1" : "5");
+          }}>
+            <option value="size">Approximate size (MB)</option>
+            <option value="parts">Number of PDF parts</option>
+            <option value="pages">Pages per PDF</option>
+          </select>
+        </>}
         <label htmlFor="orbit-dialog-value">{kind === "rename" ? "File name"
-          : kind === "split" ? "Maximum size per part" : "Password"}</label>
+          : kind === "split" ? (splitPdf ? splitMode === "size" ? "Target size per PDF" : splitMode === "parts" ? "Number of PDF files" : "Pages per PDF" : "Binary volume size") : "Password"}</label>
         <div className="orbit-dialog-field">
           <input id="orbit-dialog-value" autoFocus
             type={kind === "password" && !visible ? "password" : kind === "split" ? "number" : "text"}
-            min={kind === "split" ? 1 : undefined}
+            min={kind === "split" ? (splitPdf && splitMode === "parts" ? 2 : 1) : undefined}
             max={kind === "split" ? 4096 : undefined}
             maxLength={kind === "rename" ? 250 : kind === "password" ? 256 : undefined}
             step={kind === "split" ? 1 : undefined}
             autoComplete={kind === "password" ? "new-password" : "off"}
             value={value} onChange={event => onValue(event.target.value)}
             required/>
-          {kind === "split" && <span className="orbit-dialog-unit">MB</span>}
+          {kind === "split" && (!splitPdf || splitMode === "size") && <span className="orbit-dialog-unit">MB</span>}
           {kind === "password" && <button type="button" className="orbit-dialog-eye"
             aria-label={visible ? "Hide password" : "Show password"}
             onClick={() => setVisible(!visible)}>
             {visible ? <EyeOff size={17}/> : <Eye size={17}/>}
           </button>}
         </div>
-        {kind === "split" && <div className="orbit-dialog-presets">
+        {kind === "split" && (!splitPdf || splitMode === "size") && <div className="orbit-dialog-presets">
           {[1,5,10,25,100].map(size => <button type="button" key={size}
             aria-pressed={Number(value) === size}
             onClick={() => onValue(String(size))}>{size} MB</button>)}
@@ -117,7 +133,7 @@ export default function OrbitActionDialog({
         <div className="orbit-dialog-footer">
           <button type="button" className="orbit-dialog-cancel" onClick={onClose}>Cancel</button>
           <button type="submit" className="orbit-dialog-submit" disabled={!valid || busy}>
-            {busy ? "Renaming…" : kind === "rename" ? "Save" : kind === "split" ? "Split file" : "Create ZIP"}
+            {busy ? "Renaming…" : kind === "rename" ? "Save" : kind === "split" ? (splitPdf ? "Create PDFs" : "Split binary") : "Create ZIP"}
           </button>
         </div>
       </form>
