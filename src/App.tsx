@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
@@ -85,6 +85,8 @@ function App() {
     localStorage.getItem("reformany.theme") === "dark" ? "dark" : "light");
   const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "indigo");
   const [batchId, setBatchId] = useState<string | null>(null);
+  // A very fast batch may finish before its Tauri command promise resolves.
+  const finishedBatchIds = useRef(new Set<string>());
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -155,7 +157,8 @@ function App() {
     listen<ConversionEvent>("reformany:conversion", event => {
       const update = event.payload;
       if (update.status === "batch-finished") {
-        setBatchId(null);
+        finishedBatchIds.current.add(update.id);
+        setBatchId(previous => previous === update.id ? null : previous);
         return;
       }
       setRows(current => current.map(row => row.id === update.id ? {
@@ -214,7 +217,11 @@ function App() {
         })),
         destination,
       });
-      setBatchId(id);
+      if (finishedBatchIds.current.delete(id)) {
+        setBatchId(null);
+      } else {
+        setBatchId(id);
+      }
     } catch (error) {
       setRows(current => current.map(row => pending.some(p => p.id === row.id) ? { ...row, status: "ready" } : row));
       setNotice(String(error));
@@ -274,7 +281,7 @@ function App() {
             <div><h2>Files <span className="count">{rows.length}</span></h2><p>Choose what each file should become.</p></div>
             {rows.length > 0 && !busy && <div className="row-actions">
               {processed > 0 && <button className="text-action" onClick={() => setRows(current => current.map(row => row.status === "completed"
-                ? { ...row, status: "ready", outputPath: null, error: null } : row))}><ArrowRight size={15}/> Convert again</button>}
+                ? { ...row, id: makeId(), status: "ready", outputPath: null, error: null } : row))}><ArrowRight size={15}/> Convert again</button>}
               <button className="text-action" onClick={() => setRows([])}><Trash2 size={15}/> Clear list</button>
             </div>}
           </div>
