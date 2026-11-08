@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
-  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages, BookOpen, Eye, Volume2,
+  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages, BookOpen, Eye, Volume2, Captions, FileSpreadsheet,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -11,13 +11,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ArchivePanel, DocumentsPanel, MediaPanel, EnginesPanel } from "./ExtraWorkspaces";
 import EbookPanel from "./EbookPanel";
 import MediaToolsPanel from "./MediaToolsPanel";
+import DataToolsPanel from "./DataToolsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
-type Page = "convert" | "media" | "mediaTools" | "archives" | "documents" | "preview" | "ebooks" | "engines" | "activity" | "appearance";
+type Page = "convert" | "media" | "mediaTools" | "archives" | "subtitles" | "spreadsheets" | "documents" | "preview" | "ebooks" | "engines" | "activity" | "appearance";
 
 type ExpandedInputs = { paths: string[]; truncated: boolean };
 type FileInfo = {
@@ -321,6 +322,8 @@ function App() {
           <button className={`nav-button ${page === "mediaTools" ? "selected" : ""}`} onClick={() => setPage("mediaTools")}><Wrench size={18}/> Media tools</button>
           <button className={`nav-button ${page === "archives" ? "selected" : ""}`} onClick={() => setPage("archives")}><Archive size={18}/> {tx("archives")}</button>
           <button className={`nav-button ${page === "documents" ? "selected" : ""}`} onClick={() => setPage("documents")}><FileText size={18}/> {tx("documents")}</button>
+          <button className={`nav-button ${page === "subtitles" ? "selected" : ""}`} onClick={() => setPage("subtitles")}><Captions size={18}/> Subtitles</button>
+          <button className={`nav-button ${page === "spreadsheets" ? "selected" : ""}`} onClick={() => setPage("spreadsheets")}><FileSpreadsheet size={18}/> Spreadsheets</button>
           <button className={`nav-button ${page === "preview" ? "selected" : ""}`} onClick={() => setPage("preview")}><Eye size={18}/> Preview</button>
           <button className={`nav-button ${page === "ebooks" ? "selected" : ""}`} onClick={() => setPage("ebooks")}><BookOpen size={18}/> E-books</button>
           <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")}><Clock3 size={18}/> {tx("activity")} {history.length > 0 && <span className="nav-count">{history.length}</span>}</button>
@@ -337,13 +340,15 @@ function App() {
       </aside>
       <main className="main">
         <header className="topbar">
-          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? tx("media") : page === "mediaTools" ? "Media tools" : page === "archives" ? "Archives" : page === "documents" ? tx("documents") : page === "preview" ? "Preview" : page === "ebooks" ? "E-books" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
+          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? tx("media") : page === "mediaTools" ? "Media tools" : page === "archives" ? "Archives" : page === "subtitles" ? "Subtitles" : page === "spreadsheets" ? "Spreadsheets" : page === "documents" ? tx("documents") : page === "preview" ? "Preview" : page === "ebooks" ? "E-books" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
           <span className="topbar-right"><span className="topbar-dot"/> Image conversion · Preview</span>
         </header>
         {page === "media" && <MediaPanel />}
         {page === "mediaTools" && <MediaToolsPanel />}
         {page === "archives" && <ArchivePanel />}
         {page === "documents" && <DocumentsPanel onPreview={showDocument} />}
+        {page === "subtitles" && <DataToolsPanel kind="subtitles" />}
+        {page === "spreadsheets" && <DataToolsPanel kind="spreadsheets" />}
         {page === "preview" && <DocumentPreview initialPath={previewPath} />}
         {page === "ebooks" && <EbookPanel />}
         {page === "engines" && <EnginesPanel />}
