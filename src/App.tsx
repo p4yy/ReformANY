@@ -10,11 +10,12 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ArchivePanel, DocumentsPanel, MediaPanel, EnginesPanel } from "./ExtraWorkspaces";
 import EbookPanel from "./EbookPanel";
+import MediaToolsPanel from "./MediaToolsPanel";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
-type Page = "convert" | "media" | "archives" | "documents" | "ebooks" | "engines" | "activity" | "appearance";
+type Page = "convert" | "media" | "mediaTools" | "archives" | "documents" | "ebooks" | "engines" | "activity" | "appearance";
 
 type ExpandedInputs = { paths: string[]; truncated: boolean };
 type FileInfo = {
@@ -300,6 +301,7 @@ function App() {
         <nav aria-label="Main navigation">
           <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> {tx("images")}</button>
           <button className={`nav-button ${page === "media" ? "selected" : ""}`} onClick={() => setPage("media")}><Clapperboard size={18}/> {tx("media")}</button>
+          <button className={`nav-button ${page === "mediaTools" ? "selected" : ""}`} onClick={() => setPage("mediaTools")}><Wrench size={18}/> Media tools</button>
           <button className={`nav-button ${page === "archives" ? "selected" : ""}`} onClick={() => setPage("archives")}><Archive size={18}/> {tx("archives")}</button>
           <button className={`nav-button ${page === "documents" ? "selected" : ""}`} onClick={() => setPage("documents")}><FileText size={18}/> {tx("documents")}</button>
           <button className={`nav-button ${page === "ebooks" ? "selected" : ""}`} onClick={() => setPage("ebooks")}><BookOpen size={18}/> E-books</button>
@@ -317,10 +319,11 @@ function App() {
       </aside>
       <main className="main">
         <header className="topbar">
-          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? "Audio & video" : page === "archives" ? "Archives" : page === "documents" ? tx("documents") : page === "ebooks" ? "E-books" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
+          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? tx("media") : page === "mediaTools" ? "Media tools" : page === "archives" ? "Archives" : page === "documents" ? tx("documents") : page === "ebooks" ? "E-books" : page === "engines" ? "Engines" : page === "activity" ? "Activity" : "Appearance"}</span>
           <span className="topbar-right"><span className="topbar-dot"/> Image conversion · Preview</span>
         </header>
         {page === "media" && <MediaPanel />}
+        {page === "mediaTools" && <MediaToolsPanel />}
         {page === "archives" && <ArchivePanel />}
         {page === "documents" && <DocumentsPanel />}
         {page === "ebooks" && <EbookPanel />}
