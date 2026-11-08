@@ -174,7 +174,7 @@ body { color: var(--text); }
   --soft:#222f3d;
   --shadow:0 10px 34px rgba(0,0,0,.14);
 }
-:root[data-theme="dark"][data-accent="blue"] { --accent:#5a9bf6; --accent-hover:#4487e9; --accent-soft:#283a51; }
+:root[data-theme="dark"][data-accent="blue"] { --accent:#5a9bf6; --accent-hover:#286bd3; --accent-soft:#283a51; }
 :root[data-theme="dark"][data-accent="indigo"] { --accent-soft:#313148; }
 :root[data-theme="dark"][data-accent="sage"] { --accent-soft:#213b35; }
 :root[data-theme="dark"][data-accent="slate"] { --accent-soft:#2c3b4b; }
@@ -188,8 +188,8 @@ h1 {font-weight:700;letter-spacing:-1.1px}
 .file-table,.settings-card {border-radius:16px;box-shadow:var(--shadow)}
 .file-detail strong {color:var(--text);font-weight:680}
 .button,.target-cell select,.select-field select {border-radius:11px}
-.button.primary {background:#276dde;color:white;box-shadow:0 3px 12px rgba(28,93,190,.20)}
-.button.primary:hover:not(:disabled) {background:#185cc7}
+.button.primary {background:var(--accent-hover);color:white;box-shadow:0 3px 12px rgba(28,93,190,.20)}
+.button.primary:hover:not(:disabled) {background:color-mix(in srgb,var(--accent-hover) 85%,black)}
 .action-bar {
   position:sticky;bottom:14px;z-index:4;
   background:var(--surface);border:1px solid var(--line);
