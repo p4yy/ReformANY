@@ -4,8 +4,14 @@
   WriteRegStr SHCTX "Software\Classes\*\shell\ReformANYOrbit" "MUIVerb" "ReformANY Orbit"
   WriteRegStr SHCTX "Software\Classes\*\shell\ReformANYOrbit" "Icon" "$INSTDIR\ReformANY.exe,0"
   WriteRegStr SHCTX "Software\Classes\*\shell\ReformANYOrbit\command" "" '$\"$INSTDIR\ReformANY.exe$\" orbit $\"%1$\"'
+
+  ; The same compact Orbit works for folders, including ZIP/7z creation.
+  WriteRegStr SHCTX "Software\Classes\Directory\shell\ReformANYOrbit" "MUIVerb" "ReformANY Orbit"
+  WriteRegStr SHCTX "Software\Classes\Directory\shell\ReformANYOrbit" "Icon" "$INSTDIR\ReformANY.exe,0"
+  WriteRegStr SHCTX "Software\Classes\Directory\shell\ReformANYOrbit\command" "" '$\"$INSTDIR\ReformANY.exe$\" orbit $\"%1$\"'
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
   DeleteRegKey SHCTX "Software\Classes\*\shell\ReformANYOrbit"
+  DeleteRegKey SHCTX "Software\Classes\Directory\shell\ReformANYOrbit"
 !macroend
