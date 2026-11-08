@@ -303,4 +303,69 @@ mod tests {
     fn refuses_unsupported_format() {
         assert!(output_format("pdf").is_err());
     }
+    #[test]
+    fn all_supported_raster_routes_create_decodable_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(8, 6, Rgb([20, 88, 190])));
+        let sources = [
+            ("png", ImageFormat::Png),
+            ("jpg", ImageFormat::Jpeg),
+            ("webp", ImageFormat::WebP),
+            ("bmp", ImageFormat::Bmp),
+        ];
+        let cancelled = AtomicBool::new(false);
+        for (extension, source_format) in sources {
+            let source = directory.path().join(format!("sample-{extension}.{extension}"));
+            image.save_with_format(&source, source_format).unwrap();
+            for destination_format in ["png", "jpeg", "webp", "bmp"] {
+                let task = ConversionItem {
+                    id: "matrix".into(),
+                    path: source.to_string_lossy().to_string(),
+                    target: destination_format.into(),
+                    quality: 88,
+                    matte: "white".into(),
+                };
+                let converted = convert_one(&task, None, &cancelled).unwrap();
+                let reader = ImageReader::open(&converted).unwrap().with_guessed_format().unwrap();
+                let expected = output_format(destination_format).unwrap().0;
+                assert_eq!(reader.format(), Some(expected), "{extension} to {destination_format}");
+                assert_eq!(reader.into_dimensions().unwrap(), (8, 6));
+                assert!(source.exists(), "Original file must remain untouched");
+            }
+        }
+    }
+
+    #[test]
+    fn transparent_pixels_use_selected_jpeg_matte() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("transparent.png");
+        DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            4, 4, image::Rgba([255, 0, 0, 0])
+        )).save_with_format(&source, ImageFormat::Png).unwrap();
+        let item = ConversionItem {
+            id: "alpha".into(), path: source.to_string_lossy().to_string(),
+            target: "jpeg".into(), quality: 100, matte: "white".into(),
+        };
+        let output = convert_one(&item, None, &AtomicBool::new(false)).unwrap();
+        let rgb = image::open(output).unwrap().to_rgb8();
+        let pixel = rgb.get_pixel(0, 0);
+        assert!(pixel.0.iter().all(|component| *component >= 240));
+    }
+
+    #[test]
+    fn corrupt_inputs_and_pre_cancelled_jobs_are_rejected() {
+        let directory = tempfile::tempdir().unwrap();
+        let corrupt = directory.path().join("fake.png");
+        std::fs::write(&corrupt, b"not an image").unwrap();
+        assert!(describe(&corrupt).is_err());
+        let item = ConversionItem {
+            id: "cancel".into(), path: corrupt.to_string_lossy().to_string(),
+            target: "png".into(), quality: 85, matte: "white".into(),
+        };
+        assert_eq!(
+            convert_one(&item, None, &AtomicBool::new(true)).unwrap_err(),
+            "cancelled"
+        );
+    }
+
 }
