@@ -7,7 +7,7 @@ import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
 import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
-import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal, Copy, Pin } from "lucide-react";
+import { CheckCircle2, LoaderCircle } from "lucide-react";
 
 type OrbitFile = {
   path: string;
@@ -180,15 +180,6 @@ export default function Orbit() {
       void focusListener.then(unlisten => unlisten());
     };
   }, []);
-
-  function handleOrbitHover(event: ReactPointerEvent<HTMLElement>) {
-    if (event.pointerType !== "mouse" || !(event.target instanceof Element)) return;
-    const button = event.target.closest("button");
-    if (!button || !event.currentTarget.contains(button) || (button as HTMLButtonElement).disabled) return;
-    // React pointerover bubbles when entering icons/spans inside the same button.
-    if (event.relatedTarget instanceof Node && button.contains(event.relatedTarget)) return;
-    playOrbitHover();
-  }
 
   function handleWheel(event: ReactWheelEvent<HTMLElement>) {
     if (!mousePreferences.scrollSections || phase === "processing" || renaming) return;
@@ -431,7 +422,7 @@ export default function Orbit() {
             <button className="orbit-hub-close" onClick={() => void reveal()}>Show result</button>
             <button className="orbit-hub-close" onClick={() => {setPhase("ready"); setError(null);}}>Again</button>
           </> : <>
-            <img className="orbit-logo" src={appIcon} alt="" />
+            <img className="orbit-logo" src={preview || appIcon} alt={preview ? "Selected file preview" : ""} />
             <strong>{tab === "convert" ? "Convert" : tab === "tools" ? "Tools" : "Actions"}</strong>
             <span className="orbit-hub-subtitle" title={file?.name ?? ""}>
               {file?.name ?? (loading ? "Opening…" : "No file")}
