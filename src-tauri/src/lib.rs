@@ -90,7 +90,7 @@ pub fn run() {
                     WebviewUrl::App("index.html".into()),
                 )
                 .title("ReformANY Orbit")
-                .inner_size(580.0, 648.0)
+                .inner_size(560.0, 560.0)
                 .resizable(false)
                 .decorations(false)
                 // Windows 11 draws a square native shadow around transparent, undecorated windows.
