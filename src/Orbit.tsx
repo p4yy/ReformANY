@@ -172,7 +172,6 @@ export default function Orbit() {
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
   const [newName, setNewName] = useState("");
-  const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<Phase>("ready");
   const [output, setOutput] = useState<string | null>(null);
@@ -212,13 +211,12 @@ export default function Orbit() {
     const availableWidth = Math.max(320, window.screen.availWidth - 32);
     const availableHeight = Math.max(350, window.screen.availHeight - 32);
     // Compact native Orbit window, scaling the original better.zip geometry.
-    const factor = Math.min(400 / 560, availableWidth / 560, availableHeight / 560);
+    // Wheel plus dock, scaled as a single transparent native window.
+    const factor = Math.min(420 / 560, availableWidth / 560, availableHeight / 640);
     document.documentElement.style.setProperty("--orbit-fit", String(factor));
-    if (factor < 0.999) {
-      void getCurrentWindow().setSize(new LogicalSize(
-        Math.round(560 * factor), Math.round(560 * factor),
-      )).catch(() => { /* The original window remains usable if resizing is denied. */ });
-    }
+    void getCurrentWindow().setSize(new LogicalSize(
+      Math.round(560 * factor), Math.round(640 * factor),
+    )).catch(() => { /* Keep the original size if Windows rejects the update. */ });
     return () => { document.documentElement.style.removeProperty("--orbit-fit"); };
   }, []);
 
@@ -239,10 +237,6 @@ export default function Orbit() {
     invoke<boolean>("ebook_engine_available")
       .then(ready => { if (mounted) setCalibreReady(ready); })
       .catch(() => { /* Optional e-book routes stay unavailable. */ });
-
-    invoke<string | null>("orbit_preview")
-      .then(src => { if (mounted) setPreview(src); })
-      .catch(() => { /* Preview failure does not prevent conversion. */ });
 
     const subscribed = listen<EventPayload>("reformany:conversion", ({ payload }) => {
       if (payload.id !== requestId.current) return;
@@ -696,7 +690,7 @@ export default function Orbit() {
             <button className="orbit-hub-close" onClick={() => void reveal()}>Show result</button>
             <button className="orbit-hub-close" onClick={() => {setPhase("ready"); setError(null);}}>Again</button>
           </> : <>
-            <img className="orbit-logo" src={preview || appIcon} alt={preview ? "Selected file preview" : ""} />
+            <img className="orbit-logo" src={appIcon} alt="ReformANY" />
             <strong>{tab === "convert" ? "Convert" : tab === "tools" ? "Tools" : "Actions"}</strong>
             <span className="orbit-hub-subtitle" title={file?.name ?? ""}>
               {file?.name ?? (loading ? "Opening…" : "No file")}
@@ -708,10 +702,11 @@ export default function Orbit() {
         {phase === "processing" && mousePreferences.pointerSpinner && cursor && <span
           aria-hidden="true" className="orbit-pointer-spinner"
           style={{ left: cursor.x + 14, top: cursor.y + 11 }} />}
+      </section>
         <nav className="orbit-section-tabs" aria-label="Orbit sections" role="tablist">
           <span className="orbit-tab-indicator" aria-hidden="true"
             style={{ transform: `translateX(${(["convert", "tools", "actions"] as Tab[]).indexOf(tab) * 100}%)` }}/>
-          {(["convert", "tools", "actions"] as Tab[]).map((value, index) =>
+          {(["convert", "tools", "actions"] as Tab[]).map(value =>
             <button type="button" role="tab" aria-selected={tab === value}
               key={value} className={tab === value ? "is-active" : ""}
               disabled={phase === "processing"} onClick={() => {
@@ -719,7 +714,10 @@ export default function Orbit() {
                 setRenaming(false);setSplitting(false);setPasswording(false);
                 setArchivePassword("");setPhase("ready");
               }}>
-              <span>{t(getLanguage(), value)}</span><small aria-hidden="true">{index + 1}</small>
+              {value === "convert" ? <ArrowRightLeft size={15} aria-hidden="true"/> :
+                value === "tools" ? <Wrench size={15} aria-hidden="true"/> :
+                <Zap size={15} aria-hidden="true"/>}
+              <span>{t(getLanguage(), value)}</span>
             </button>)}
         </nav>
         <div className={error ? "orbit-message orbit-message-error" : "orbit-message"}
@@ -727,7 +725,6 @@ export default function Orbit() {
           title={message || file?.name || ""}>
           {message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
         </div>
-      </section>
     </div>
   );
 }
