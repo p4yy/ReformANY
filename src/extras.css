@@ -69,3 +69,10 @@
 
 .document-preview-link-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
 .document-preview-link-row small{font-size:11px;color:var(--muted)}
+
+.media-progress-actions {display:flex;gap:10px;align-items:center}
+.media-progress-indicator{margin-top:14px;background:var(--surface);border:1px solid var(--line);padding:17px;border-radius:13px}
+.media-progress-indicator>div{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px;font-size:12px}
+.media-progress-indicator span{font-variant-numeric:tabular-nums;color:var(--muted)}
+.media-progress-indicator progress{display:block;width:100%;height:7px;accent-color:var(--accent);border-radius:99px}
+@media(max-width:930px){.media-progress-actions{flex-wrap:wrap}}

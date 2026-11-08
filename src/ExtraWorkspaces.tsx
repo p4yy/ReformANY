@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Archive as ArchiveIcon, ArrowRight, CheckCircle2, CircleAlert,
@@ -45,6 +46,14 @@ function outputSelector(output: string | null, resultError: string | null) {
   </div>;
 }
 
+type MediaProgressEvent = {
+  id: string;
+  status: "processing" | "completed" | "failed" | "cancelled";
+  percent: number | null;
+  outputPath: string | null;
+  error: string | null;
+};
+
 export function MediaPanel() {
   const engines = useEngines();
   const [input, setInput] = useState<string | null>(null);
@@ -54,9 +63,38 @@ export function MediaPanel() {
   const [duration, setDuration] = useState("");
   const [destination, setDestination] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [percent, setPercent] = useState<number | null>(null);
+  const jobIdRef = useRef<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ready = Boolean(engines?.ffmpeg && engines?.ffprobe);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let mounted = true;
+    const listener = listen<MediaProgressEvent>("reformany:media-progress", event => {
+      if (!mounted || event.payload.id !== jobIdRef.current) return;
+      const update = event.payload;
+      if (update.status === "processing") {
+        if (typeof update.percent === "number") setPercent(update.percent);
+      } else {
+        jobIdRef.current = null;
+        setBusy(false);
+        if (update.status === "completed") {
+          setResult(update.outputPath);
+          setPercent(100);
+        } else {
+          setPercent(null);
+          setError(update.status === "cancelled" ? "Conversion cancelled" :
+            update.error || "Conversion failed");
+        }
+      }
+    });
+    return () => {
+      mounted = false;
+      void listener.then(unlisten => unlisten());
+    };
+  }, []);
 
   async function chooseInput() {
     try {
@@ -84,20 +122,31 @@ export function MediaPanel() {
 
   async function convert() {
     if (!input || busy || !ready) return;
-    setBusy(true); setError(null); setResult(null);
+    const id = crypto.randomUUID();
+    jobIdRef.current = id;
+    setBusy(true); setError(null); setResult(null); setPercent(null);
     try {
-      const output = await invoke<string>("media_convert", {
+      await invoke<string>("media_convert_tracked", {
+        jobId: id,
         job: {
           path: input, target, profile, destination,
           startSeconds: start.trim() ? Number(start) : null,
           durationSeconds: duration.trim() ? Number(duration) : null,
         },
       });
-      setResult(output);
     } catch (cause) {
+      jobIdRef.current = null;
       setError(String(cause));
-    } finally {
       setBusy(false);
+    }
+  }
+
+  async function cancel() {
+    if (!jobIdRef.current) return;
+    try {
+      await invoke("cancel_media_job", { jobId: jobIdRef.current });
+    } catch {
+      // The job may have finished between the click and the cancel request.
     }
   }
 
@@ -144,12 +193,19 @@ export function MediaPanel() {
     <div className="engine-action-row">
       <div><strong>{ready ? "FFmpeg ready" : "FFmpeg / FFprobe needed"}</strong>
         <small>{ready ? "Conversion occurs locally · originals are kept" : "Install both tools to enable real media conversion."}</small></div>
-      <button className="button primary" disabled={!input || busy || !ready} onClick={() => void convert()}>
-        {busy ? <><LoaderCircle className="engine-spin" size={17}/> Processing…</> : <>Convert media <ArrowRight size={16}/></>}
-      </button>
+      <div className="media-progress-actions">
+        {busy && <button type="button" className="button secondary" onClick={() => void cancel()}>Cancel</button>}
+        <button className="button primary" disabled={!input || busy || !ready} onClick={() => void convert()}>
+          {busy ? <><LoaderCircle className="engine-spin" size={17}/> Processing…</> : <>Convert media <ArrowRight size={16}/></>}
+        </button>
+      </div>
     </div>
+    {busy && <div className="media-progress-indicator" role="status" aria-live="polite">
+      <div><strong>Conversion in progress</strong><span>{percent === null ? "Measuring…" : percent + "%"}</span></div>
+      <progress max={100} {...(percent === null ? {} : { value: percent })} aria-label="Actual FFmpeg conversion progress"/>
+    </div>}
     {outputSelector(result, error)}
-    <p className="engine-footnote">Codec availability depends on the installed FFmpeg build. This preview reports processing state, not invented percentages. Trim is optional.</p>
+    <p className="engine-footnote">The percentage is calculated from FFmpeg's encoded output timestamp when duration is known. Otherwise progress stays indeterminate. Cancel stops FFmpeg and removes unfinished output. Original media is preserved.</p>
   </div>;
 }
 
