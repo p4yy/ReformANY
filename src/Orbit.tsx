@@ -142,7 +142,7 @@ export default function Orbit() {
         Math.round(580 * factor), Math.round(622 * factor),
       )).catch(() => { /* The original window remains usable if resizing is denied. */ });
     }
-    return () => document.documentElement.style.removeProperty("--orbit-fit");
+    return () => { document.documentElement.style.removeProperty("--orbit-fit"); };
   }, []);
 
   useEffect(() => {
