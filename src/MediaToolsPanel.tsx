@@ -54,7 +54,7 @@ export default function MediaToolsPanel() {
     finally{setWorking(false);}
   }
   return <div className="content engine-page">
-    <div className="eyebrow">MEDIA WORKSHOP</div><h1>Edit media, quickly.</h1>
+    <div className="eyebrow">MEDIA WORKSHOP</div><h1>Media tools</h1>
     <p>Practical, local FFmpeg operations. Each tool produces a new file without changing the source.</p>
     <div className="engine-card">
       <div className="engine-card-title"><Clapperboard size={19}/><h2>Select a tool</h2></div>
