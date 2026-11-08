@@ -52,8 +52,8 @@ fn classify_file(path: &Path) -> &'static str {
         .unwrap_or("").to_ascii_lowercase();
     match extension.as_str() {
         "png"|"jpg"|"jpeg"|"webp"|"bmp"|"gif"|"tif"|"tiff"|"ico"|"tga"|"qoi"|"svg" => "Image",
-        "mp4"|"webm"|"mkv"|"mov"|"avi"|"wmv"|"m4v"|"mpeg"|"mpg"|"mts"|"m2ts" => "Video",
-        "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aac"|"aiff"|"wma"|"ac3" => "Audio",
+        "mp4"|"mov"|"mkv"|"webm"|"avi"|"wmv"|"m4v"|"flv"|"mpeg"|"mpg"| "3gp"|"ts"|"mts"|"m2ts"|"vob"|"ogv"|"mxf"|"f4v"|"asf" => "Video",
+        "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aiff"|"aif"|"wma"|"aac"|"ac3"|"mka"|"caf"|"m4b"|"amr"|"au"|"dts" => "Audio",
         "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
         "pdf" => "PDF",
         "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp" => "Office",
