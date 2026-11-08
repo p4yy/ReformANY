@@ -63,6 +63,23 @@ jobs:
             Write-Warning "Transient NSIS HTTP 504 on attempt $attempt; retrying in 30 seconds."
             Start-Sleep -Seconds 30
           }
+      # The real main EXE must open a new Float WebView and render a chosen
+      # picture. Catch the user's blank-white Float regression before release.
+      - name: Verify Float opens a responsive image preview offline
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $exe = (Resolve-Path 'src-tauri/target/release/reformany.exe').Path
+          $picture = (Resolve-Path 'src-tauri/icons/icon.png').Path
+          $policy = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments'
+          New-Item -Path $policy -Force | Out-Null
+          New-ItemProperty -Path $policy -Name 'ReformANY.exe' -Value '--remote-debugging-port=19376 --remote-allow-origins=*' -PropertyType String -Force | Out-Null
+          try {
+            node scripts/test-float-ui.mjs $exe $picture
+            if ($LASTEXITCODE -ne 0) { throw 'Float image playback smoke test failed' }
+          } finally {
+            Remove-ItemProperty -Path $policy -Name 'ReformANY.exe' -ErrorAction SilentlyContinue
+          }
       # Publish a testable EXE as soon as packaging succeeds. Integration
       # tests continue below and may still fail; users must see CI status.
       - name: Upload installer artifact
