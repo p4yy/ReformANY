@@ -120,10 +120,10 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                     "small" => "32", "high" => "18", _ => "24",
                 }).into()]);
                 if job.target == "webm" {
-                    args.extend(["-b:v".into(), "0".into(), "-c:a".into(), "libopus".into()]);
+                    args.extend(["-b:v".into(), "0".into(), "-row-mt".into(), "1".into(), "-cpu-used".into(), "4".into(), "-c:a".into(), "libopus".into()]);
                 } else {
                     args.extend([
-                        "-preset".into(), "medium".into(),
+                        "-preset".into(), "veryfast".into(),
                         "-pix_fmt".into(), "yuv420p".into(),
                         "-c:a".into(), "aac".into(),
                     ]);
