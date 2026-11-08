@@ -18,7 +18,29 @@ if (!(Get-Command cl.exe -ErrorAction SilentlyContinue)) {
   throw "MSVC cl.exe not found. Run from an x64 developer command prompt."
 }
 Copy-Item -LiteralPath $manifest -Destination (Join-Path $layout "AppxManifest.xml") -Force
-Copy-Item -LiteralPath $icon -Destination (Join-Path $layout "Assets/icon.png") -Force
+# Generate accurate package-logo dimensions from the app's existing icon.
+# No unrelated/placeholder branding is introduced.
+Add-Type -AssemblyName System.Drawing
+$originalIcon = [System.Drawing.Image]::FromFile($icon)
+try {
+  foreach ($asset in @(
+    @{ Name = "Square44x44Logo.png"; Size = 44 },
+    @{ Name = "Square150x150Logo.png"; Size = 150 },
+    @{ Name = "StoreLogo.png"; Size = 50 }
+  )) {
+    $bitmap = New-Object System.Drawing.Bitmap -ArgumentList @($asset.Size, $asset.Size)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+      $graphics.Clear([System.Drawing.Color]::Transparent)
+      $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+      $graphics.DrawImage($originalIcon, 0, 0, [int]$asset.Size, [int]$asset.Size)
+      $bitmap.Save((Join-Path $layout "Assets/$($asset.Name)"), [System.Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+      $graphics.Dispose()
+      $bitmap.Dispose()
+    }
+  }
+} finally { $originalIcon.Dispose() }
 
 $dll = Join-Path $layout "OrbitExplorerCommand.dll"
 & cl.exe /nologo /std:c++17 /EHsc /W4 /LD /DUNICODE /D_UNICODE $source /link "/OUT:$dll" shlwapi.lib shell32.lib ole32.lib
