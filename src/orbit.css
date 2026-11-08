@@ -111,3 +111,10 @@ html[data-mode="orbit"] { color-scheme:dark; }
   animation:orbit-spin .7s linear infinite;
 }
 @media(prefers-reduced-motion:reduce) {.orbit-pointer-spinner{animation:none;border-color:#c9e4ff}}
+
+/* Drag target only activates while Explorer is over the Orbit webview. */
+.orbit-drag-over .orbit-disc {
+  border-color:rgba(162,211,255,.8);
+  box-shadow:0 0 0 2px rgba(127,183,244,.24),0 18px 42px rgba(3,8,16,.4);
+}
+.orbit-drag-over .orbit-thumbnail {border-color:#a8d0ff;background:rgba(161,208,252,.17)}
