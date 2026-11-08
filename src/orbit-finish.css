@@ -79,9 +79,10 @@ html[data-mode="orbit"] .orbit-disc {
   padding: 0;
   overflow: hidden;
   border-radius: 50%;
-  background: var(--orb-base);
-  border: 1px solid var(--orb-border);
-  box-shadow: inset 0 1px 1px rgba(255,255,255,.07), 0 3px 16px rgba(0,0,0,.16);
+  /* Only the actual sectors and hub are opaque: no giant black backing disc. */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   box-sizing: border-box;
 }
 html[data-mode="orbit"] .orbit-disc::before,
