@@ -31,7 +31,10 @@ const audioFormats = ["MP3", "WAV", "FLAC", "M4A"];
 const videoFormats = ["MP4", "WebM", "MKV", "MOV"];
 function getKind(file: OrbitFile | null): "image" | "audio" | "video" | "archive" | "other" {
   const value = (file?.detected || "").toLowerCase();
-  if (imageFormats.some(x => x.toLowerCase() === value) || value === "image") return "image";
+  // The image engine accepts ICO, TGA, QOI and validated SVG inputs too.
+  // Keep input classification separate from the quick output preset list.
+  if (imageFormats.some(x => x.toLowerCase() === value) ||
+      ["ico", "tga", "qoi", "svg", "image"].includes(value)) return "image";
   if (value === "audio" || value === "video" || value === "archive") return value;
   return "other";
 }
