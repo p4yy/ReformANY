@@ -3,7 +3,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Archive as ArchiveIcon, ArrowRight, CheckCircle2, CircleAlert,
-  FileArchive, FileVideo, Folder, FolderOpen, LoaderCircle, Lock, Plus, Trash2,
+  FileArchive, FileVideo, FileText, Folder, FolderOpen, LoaderCircle, Lock, Plus, Trash2,
 } from "lucide-react";
 
 type Engines = {
@@ -298,5 +298,106 @@ export function ArchivePanel() {
     {outputSelector(result, error)}
     {extra.length > 0 && <p className="engine-footnote">{extra.length} additional part(s) saved alongside the first volume.</p>}
     <p className="engine-footnote">7-Zip supports many more extraction formats than creation formats. For encrypted archives, filenames in ZIP remain visible; 7z can encrypt filenames. External command-line tools can expose passwords to other local processes during a job. The app does not store passwords.</p>
+  </div>;
+}
+
+type DocumentTask = "images" | "text" | "office";
+
+export function DocumentsPanel() {
+  const [mode, setMode] = useState<DocumentTask>("images");
+  const [sources, setSources] = useState<string[]>([]);
+  const [destination, setDestination] = useState<string | null>(null);
+  const [office, setOffice] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    invoke<boolean>("office_available").then(setOffice).catch(() => setOffice(false));
+  }, []);
+
+  function changeMode(next: DocumentTask) {
+    setMode(next);
+    setSources([]);
+    setResult(null);
+    setError(null);
+  }
+
+  async function choose() {
+    try {
+      const type = mode === "images"
+        ? [{ name: "Raster images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }]
+        : mode === "text" ? [{ name: "PDF documents", extensions: ["pdf"] }]
+        : [{ name: "Office documents", extensions: ["docx", "doc", "rtf", "odt", "pptx", "ppt", "odp", "xlsx", "xls", "ods", "txt", "html", "htm"] }];
+      const response: unknown = await open({ multiple: mode === "images", directory: false, filters: type });
+      const paths: string[] = Array.isArray(response) ? response.filter((p): p is string => typeof p === "string")
+        : typeof response === "string" ? [response] : [];
+      if (paths.length) {
+        setSources(mode === "images" ? paths : paths.slice(0, 1));
+        setResult(null);
+        setError(null);
+      }
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  async function folder() {
+    try {
+      const path = await open({ directory: true, multiple: false });
+      if (typeof path === "string") setDestination(path);
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  async function process() {
+    if (!sources.length || busy) return;
+    setBusy(true);setError(null);setResult(null);
+    try {
+      const path = mode === "images"
+        ? await invoke<string>("images_to_pdf", { paths: sources, destination })
+        : mode === "text"
+          ? await invoke<string>("pdf_to_text", { path: sources[0], destination })
+          : await invoke<string>("office_to_pdf", { path: sources[0], destination });
+      setResult(path);
+    } catch (cause) { setError(String(cause)); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="content engine-page">
+    <div className="eyebrow">DOCUMENT CONVERSION</div><h1>Documents, clearly.</h1>
+    <p>Actual PDF operations, with original files left in place. Office rendering uses LibreOffice if installed.</p>
+    <div className="engine-switch engine-switch-three">
+      <button className={mode === "images" ? "selected" : ""} onClick={() => changeMode("images")}>Images → PDF</button>
+      <button className={mode === "text" ? "selected" : ""} onClick={() => changeMode("text")}>PDF → Text</button>
+      <button className={mode === "office" ? "selected" : ""} onClick={() => changeMode("office")}>Office → PDF</button>
+    </div>
+    <div className="engine-card">
+      <div className="engine-card-title"><FileText size={18}/><h2>Selected source</h2></div>
+      <button className="engine-input" disabled={busy} onClick={() => void choose()}>
+        <FileText size={22}/><span>
+          {sources.length ? sources.length === 1 ? fileName(sources[0]) : String(sources.length) + " images selected"
+            : mode === "images" ? "Choose images to combine into PDF" : mode === "text" ? "Choose a PDF" : "Choose a document"}
+          <small>{sources.length ? sources.join(" · ") : "Only the formats supported by this operation are accepted."}</small>
+        </span><Plus size={17}/>
+      </button>
+      <div className="engine-directory">
+        <div><strong>Output location</strong><small>{destination || "Alongside the source file"}</small></div>
+        {destination && <button className="text-action" onClick={() => setDestination(null)}>Reset</button>}
+        <button className="button secondary" disabled={busy} onClick={() => void folder()}><Folder size={16}/> Choose folder</button>
+      </div>
+    </div>
+    <div className="engine-action-row">
+      <div><strong>{mode === "office" ? office ? "LibreOffice available" : "LibreOffice is required" : "Local PDF tools"}</strong>
+        <small>{mode === "text" ? "Extract selectable PDF text. Scans require separate OCR."
+          : mode === "images" ? "One page per image · A4 layout"
+          : "Document layout fidelity depends on LibreOffice."}</small>
+      </div>
+      <button className="button primary" disabled={!sources.length || busy || (mode === "office" && !office)}
+        onClick={() => void process()}>
+        {busy ? <><LoaderCircle size={17} className="engine-spin"/> Processing…</>
+          : <>Convert <ArrowRight size={16}/></>}
+      </button>
+    </div>
+    {outputSelector(result, error)}
+    <p className="engine-footnote">This preview does not recreate editable DOCX from PDF, remove PDF passwords, or perform OCR. Each operation verifies its output before reporting success.</p>
   </div>;
 }

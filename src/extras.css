@@ -42,3 +42,6 @@
 .engine-source-list p {font-size:11px;padding:9px}
 .engine-spin {animation:spin 1.5s linear infinite}
 @media(max-width:930px) {.engine-form-grid{grid-template-columns:1fr}.engine-directory{flex-wrap:wrap}}
+
+.engine-switch-three{max-width:515px}
+.engine-switch-three button{font-size:10.5px}

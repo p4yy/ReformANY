@@ -2,17 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
-  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive,
+  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
-import { ArchivePanel, MediaPanel } from "./ExtraWorkspaces";
+import { ArchivePanel, DocumentsPanel, MediaPanel } from "./ExtraWorkspaces";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
-type Page = "convert" | "media" | "archives" | "activity" | "appearance";
+type Page = "convert" | "media" | "archives" | "documents" | "activity" | "appearance";
 
 type ExpandedInputs = { paths: string[]; truncated: boolean };
 type FileInfo = {
@@ -283,6 +283,7 @@ function App() {
           <button className={`nav-button ${page === "convert" ? "selected" : ""}`} onClick={() => setPage("convert")}><Layers3 size={18}/> Images</button>
           <button className={`nav-button ${page === "media" ? "selected" : ""}`} onClick={() => setPage("media")}><Clapperboard size={18}/> Audio & video</button>
           <button className={`nav-button ${page === "archives" ? "selected" : ""}`} onClick={() => setPage("archives")}><Archive size={18}/> Archives</button>
+          <button className={`nav-button ${page === "documents" ? "selected" : ""}`} onClick={() => setPage("documents")}><FileText size={18}/> Documents</button>
           <button className={`nav-button ${page === "activity" ? "selected" : ""}`} onClick={() => setPage("activity")}><Clock3 size={18}/> Activity {history.length > 0 && <span className="nav-count">{history.length}</span>}</button>
         </nav>
         <div className="nav-label nav-label-spaced">PREFERENCES</div>
@@ -296,11 +297,12 @@ function App() {
       </aside>
       <main className="main">
         <header className="topbar">
-          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? "Audio & video" : page === "archives" ? "Archives" : page === "activity" ? "Activity" : "Appearance"}</span>
+          <span className="breadcrumb">Workspace <span>/</span> {page === "convert" ? "Images" : page === "media" ? "Audio & video" : page === "archives" ? "Archives" : page === "documents" ? "Documents" : page === "activity" ? "Activity" : "Appearance"}</span>
           <span className="topbar-right"><span className="topbar-dot"/> Image conversion · Preview</span>
         </header>
         {page === "media" && <MediaPanel />}
         {page === "archives" && <ArchivePanel />}
+        {page === "documents" && <DocumentsPanel />}
         {page === "convert" && <div className="content">
           <div className="page-intro">
             <div><div className="eyebrow">YOUR WORKSPACE</div><h1>Make it another format.</h1><p>Simple, reliable conversion. No uploads, no unnecessary steps.</p></div>
