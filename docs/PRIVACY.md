@@ -10,7 +10,7 @@ ReformANY conversions run on the user's own PC. The application does not require
 
 **Windows setup:** the NSIS installer includes an offline WebView2 installer, instead of downloading a runtime on the destination PC. Packaging may need to download the vendor runtime on the build server, not the installed user's machine.
 
-**Updates:** No background update checks. No automatic downloading. A user-controlled manual check can be introduced in a later milestone. Windows Defender, certificate verification, and operating-system services are outside the application's network boundary.
+**Updates:** No background update checks. No automatic downloading. The **Check for updates** button in Engines only opens the official GitHub release page in an external browser after a user click; it does not automatically download software. Windows Defender, certificate verification, and operating-system services are outside the application's network boundary.
 
 **Local security limitation:** external 7-Zip and WinRAR processes can expose password arguments to other sufficiently privileged local processes. Built-in encrypted ZIP avoids this CLI exposure. Passwords are not saved to settings.
 

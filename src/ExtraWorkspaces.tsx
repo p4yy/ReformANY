@@ -475,6 +475,15 @@ export function EnginesPanel() {
       </div>)}
     </div>
     {error && <p className="engine-error">{error}</p>}
+    <div className="engine-action-row">
+      <div><strong>Updates are always your choice</strong>
+        <small>No background checks or downloads. Opens the official release page only when clicked.</small>
+      </div>
+      <button className="button secondary" type="button"
+        onClick={() => void invoke("open_manual_updates").catch(cause => setError(String(cause)))}>
+        Check for updates
+      </button>
+    </div>
     <p className="engine-footnote">To install a missing engine, copy its command, open Windows Terminal and paste it. You control the installation; ReformANY does not silently download or install third-party programs. Restart ReformANY after changing PATH.</p>
   </div>;
 }
