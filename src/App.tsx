@@ -13,6 +13,7 @@ type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
 type Page = "convert" | "activity" | "appearance";
 
+type ExpandedInputs = { paths: string[]; truncated: boolean };
 type FileInfo = {
   path: string;
   name: string;
@@ -118,7 +119,13 @@ function App() {
   const addPaths = useCallback(async (paths: string[]) => {
     if (!paths.length) return;
     try {
-      const info = await invoke<FileInfo[]>("inspect_files", { paths: paths.slice(0, 300) });
+      const expanded = await invoke<ExpandedInputs>("expand_inputs", { paths: paths.slice(0, 300) });
+      if (expanded.truncated) setNotice("Import limited to 300 images or 20,000 scanned folder entries.");
+      if (!expanded.paths.length) {
+        setNotice("No supported images were found in this folder.");
+        return;
+      }
+      const info = await invoke<FileInfo[]>("inspect_files", { paths: expanded.paths });
       setRows(current => {
         const seen = new Set(current.map(row => row.path));
         const appended: Row[] = info.filter(entry => !seen.has(entry.path)).map(entry => ({
@@ -179,6 +186,13 @@ function App() {
       const paths = await open({ multiple: true, directory: false,
         filters: [{ name: "Supported images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }] });
       if (paths) await addPaths(Array.isArray(paths) ? paths : [paths]);
+    } catch (error) { setNotice(String(error)); }
+  }
+  async function chooseFolder() {
+    if (!desktop) { setNotice("Open the desktop app to import a folder."); return; }
+    try {
+      const folder = await open({ directory: true, multiple: false });
+      if (typeof folder === "string") await addPaths([folder]);
     } catch (error) { setNotice(String(error)); }
   }
   async function chooseDestination() {
@@ -244,13 +258,16 @@ function App() {
         {page === "convert" && <div className="content">
           <div className="page-intro">
             <div><div className="eyebrow">YOUR WORKSPACE</div><h1>Make it another format.</h1><p>Simple, reliable conversion. No uploads, no unnecessary steps.</p></div>
-            <button className="button secondary add-top" onClick={() => void chooseFiles()}><Plus size={17}/> Add files</button>
+            <div className="import-actions">
+              <button className="button secondary add-top" onClick={() => void chooseFolder()}><Folder size={17}/> Add folder</button>
+              <button className="button secondary add-top" onClick={() => void chooseFiles()}><Plus size={17}/> Add files</button>
+            </div>
           </div>
 
           <button className={`dropzone ${dragging ? "dragging" : ""}`} onClick={() => void chooseFiles()} aria-label="Choose images to convert">
             <div className="drop-icon"><ArrowDownToLine size={24} strokeWidth={1.7}/></div>
             <strong>Drop your files here</strong><span>or <u>browse your device</u> to get started</span>
-            <small>{supported} · Up to 150 MB per file</small>
+            <small>{supported} · Drag individual files or folders · 150 MB per file</small>
           </button>
 
           <div className="section-header">

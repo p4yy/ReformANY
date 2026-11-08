@@ -146,3 +146,6 @@ body { color: var(--text); }
 .activity-heading .text-action {padding-top:8px}
 .activity-item > .text-action {white-space:nowrap;flex-shrink:0}
 @media(max-width:860px){.activity-heading{align-items:center}.activity-item{flex-wrap:wrap}}
+
+.import-actions {display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:920px) {.page-intro{flex-direction:column}.import-actions{justify-content:flex-start}}
