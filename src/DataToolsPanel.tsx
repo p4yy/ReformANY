@@ -54,7 +54,7 @@ export default function DataToolsPanel({ kind }: { kind: Kind }) {
 
   return <div className="content engine-page" aria-labelledby="data-workspace-heading">
     <div className="eyebrow">{subtitles ? "SUBTITLE CONVERSION" : "SPREADSHEET CONVERSION"}</div>
-    <h1 id="data-workspace-heading">{subtitles ? "Captions, in sync." : "Data, without surprises."}</h1>
+    <h1 id="data-workspace-heading">{subtitles ? "Subtitles" : "Spreadsheets"}</h1>
     <p>{subtitles ? "Convert SRT and WebVTT captions while preserving cue text and timestamps."
       : "Convert CSV, TSV, JSON and XLSX locally, with XLS/ODS import. Text identifiers keep their leading zeros."}</p>
     <div className="engine-card">
