@@ -16,7 +16,7 @@ This is a **preview**, not an "any file" converter yet. Audio, video, PDF, Offic
 
 ## Windows download
 
-Open [Actions → Windows build](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml), select a **successful** run for the commit/version you want, and download its **ReformANY-Windows-preview** artifact. Unzip and run the NSIS installer. This preview is not code-signed.
+Open [Actions → Windows build](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml), select a **successful** run for the commit/version you want, and download its **ReformANY-0.3.0-Windows-preview** artifact. Unzip and run the NSIS installer. This preview is not code-signed.
 
 Windows 11 may display the classic **ReformANY Orbit** entry under **Show more options**.
 
