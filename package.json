@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
-    "prebuild": "node scripts/prepare-pdf-assets.mjs"
+    "prebuild": "node scripts/prepare-pdf-assets.mjs",
+    "privacy:check": "node scripts/audit-offline.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
