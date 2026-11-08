@@ -305,9 +305,11 @@ html[data-mode="orbit"] .orbit-action-dialog {
   justify-content:center;
   padding:30px;
   box-sizing:border-box;
-  background:rgba(16,25,18,.38);
-  -webkit-backdrop-filter:blur(7px);
-  backdrop-filter:blur(7px);
+  /* A standalone transparent Tauri window must not darken a square desktop
+     region behind the dialog. The panel itself carries the material. */
+  background:transparent;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
   animation:orbit-ref-dialog-enter .18s ease-out both;
 }
 @keyframes orbit-ref-dialog-enter {
