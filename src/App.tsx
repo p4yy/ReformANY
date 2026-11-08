@@ -16,7 +16,7 @@ import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
 import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePreferences } from "./orbitMousePreferences";
-import DesktopChrome, { type DesktopPage } from "./DesktopChrome";
+import DesktopChrome, { isWorkspacePage as isWorkspaceSection, isPreferencesPage as isPreferencesSection, type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
 import ThemePicker from "./ThemePicker";
 import ActivityPage from "./ActivityPage";
@@ -326,9 +326,8 @@ function App() {
   const failed = rows.filter(row => row.status === "failed").length;
   const busy = Boolean(batchId) || rows.some(row => row.status === "processing");
   const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.bytes, 0), [rows]);
-  const isWorkspacePage = ["convert", "media", "mediaTools", "archives", "documents",
-    "subtitles", "spreadsheets", "preview", "ebooks"].includes(page);
-  const isPreferencesPage = page === "appearance" || page === "engines";
+  const isWorkspacePage = isWorkspaceSection(page);
+  const isPreferencesPage = isPreferencesSection(page);
   const sectionLabel = isWorkspacePage ? "Workspace" : isPreferencesPage ? "Preferences" :
     page === "activity" ? "Activity" : "Guide";
 
@@ -451,7 +450,7 @@ function App() {
                 {LANGUAGE_OPTIONS.map(item=><option key={item.code} value={item.code}>{item.label}</option>)}
               </select>
             </label>
-            <p className="language-hint">{tx("autoThemeInfo")}</p>
+            <p className="language-hint">Translations are used where available. Automatic appearance follows your Windows theme.</p>
           </div>
           <div className="preference-group preference-sounds">
             <div className="preference-sound-copy">
