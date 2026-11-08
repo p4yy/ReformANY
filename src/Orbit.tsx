@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
+import { readOrbitMousePreferences } from "./orbitMousePreferences";
+import { appIcon } from "./brand";
 import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal, Copy, Pin } from "lucide-react";
 
 type OrbitFile = {
@@ -41,7 +43,8 @@ function formatSize(bytes: number): string {
 
 export default function Orbit() {
   const [file, setFile] = useState<OrbitFile | null>(null);
-  const [tab, setTab] = useState<Tab>("convert");
+  const [mousePreferences] = useState(readOrbitMousePreferences);
+  const [tab, setTab] = useState<Tab>(() => readOrbitMousePreferences().firstSection);
   const [engines, setEngines] = useState<EngineStatus | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -54,7 +57,12 @@ export default function Orbit() {
   const [selected, setSelected] = useState<string | null>(null);
   const requestId = useRef<string | null>(null);
   const batchId = useRef<string | null>(null);
+  const wheelSum = useRef(0);
+  const lastWheelAction = useRef(0);
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const kind = getKind(file);
+  const isFolder = file?.detected === "Folder";
+  const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
 
   useEffect(() => {
     let mounted = true;
@@ -109,6 +117,30 @@ export default function Orbit() {
     playOrbitHover();
   }
 
+  function handleWheel(event: ReactWheelEvent<HTMLElement>) {
+    if (!mousePreferences.scrollSections || phase === "processing" || renaming) return;
+    if (!Number.isFinite(event.deltaY)) return;
+    const now = performance.now();
+    if (now - lastWheelAction.current < 240) return;
+    const amount = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * 100 : event.deltaY;
+    if (Math.sign(wheelSum.current) !== Math.sign(amount)) wheelSum.current = 0;
+    wheelSum.current += amount;
+    if (Math.abs(wheelSum.current) < 42) return;
+    const direction = wheelSum.current > 0 ? 1 : -1;
+    wheelSum.current = 0;
+    lastWheelAction.current = now;
+    const sections: Tab[] = ["convert", "tools", "actions"];
+    setTab(previous => sections[(sections.indexOf(previous) + direction + sections.length) % sections.length]);
+    setError(null);
+    setNote(null);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLElement>) {
+    if (!mousePreferences.pointerSpinner || event.pointerType !== "mouse") return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCursor({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+  }
+
   async function close() {
     await getCurrentWindow().close();
   }
@@ -158,7 +190,7 @@ export default function Orbit() {
         });
         setOutput(result);
       } else {
-        const name = file.name.replace(/\.[^.]+$/, "") || "Archive";
+        const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
         const result = await invoke<{ outputPaths: string[] }>("archive_create", {
           job: { paths: [file.path], destination: null, name,
             format: action, password: null, splitMegabytes: null, level: 5 },
@@ -238,28 +270,30 @@ export default function Orbit() {
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
   const targets = kind === "image" ? imageFormats : kind === "audio" ? audioFormats : kind === "video" ? videoFormats : [];
   const mediaReady = kind === "image" || Boolean(engines?.ffmpeg && engines?.ffprobe);
-  const description = file?.error ?? (loading ? "Reading file…" : "No direct conversion for this type");
+  const description = file?.error ?? (loading ? "Reading file…" : isFolder ? "Open Tools to archive this folder" : "No direct conversion for this type");
 
   return (
     <div className="orbit-frame">
       <section className="orbit-disc" aria-label="ReformANY Orbit quick converter"
-        onPointerOver={handleOrbitHover} onPointerDownCapture={unlockOrbitAudio}>
+        onPointerOver={handleOrbitHover} onPointerMove={handlePointerMove}
+        onPointerLeave={() => setCursor(null)}
+        onWheel={handleWheel} onPointerDownCapture={unlockOrbitAudio}>
         <button type="button" className="orbit-close" aria-label="Close Orbit" onClick={() => void close()}>
           <X size={16} strokeWidth={2} />
         </button>
 
         <header className="orbit-header">
-          <img src="/brand/reformany-mark.jpg" className="orbit-logo" alt="" />
+          <img src={appIcon} className="orbit-logo" alt="" />
           <span>ReformANY</span><span className="orbit-tag">Orbit</span>
         </header>
 
         <div className="orbit-file">
           <div className="orbit-thumbnail">
-            {preview ? <img src={preview} alt="Selected image preview" /> : <FileImage size={30} strokeWidth={1.6} aria-hidden />}
+            {preview ? <img src={preview} alt="Selected image preview" /> : isFolder ? <FolderOpen size={30} strokeWidth={1.6} aria-hidden /> : <FileImage size={30} strokeWidth={1.6} aria-hidden />}
           </div>
           <strong className="orbit-filename" title={file?.name ?? undefined}>{file?.name ?? (loading ? "Opening file…" : "No file selected")}</strong>
           <span className="orbit-meta">
-            {file?.detected ? `${file.detected} · ${formatSize(file.bytes)}` : canConvert ? "" : "Quick conversion"}
+            {isFolder ? "Folder" : file?.detected ? `${file.detected} · ${formatSize(file.bytes)}` : canConvert ? "" : "Quick conversion"}
           </span>
         </div>
 
@@ -297,7 +331,7 @@ export default function Orbit() {
               <span className="orbit-legend">QUICK TOOLS</span>
               <div className="orbit-options orbit-options-tools">
                 {kind === "archive"
-                  ? <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("extract")}>
+                  ? <button className="orbit-option" disabled={!canConvert || !(isNativeZip || engines?.sevenZip)} onClick={() => void archive("extract")}>
                       <Package size={15}/> Extract
                     </button>
                   : <>
@@ -306,7 +340,7 @@ export default function Orbit() {
                   </>}
                 <button className="orbit-option" onClick={() => void openWorkspace()}><ArrowRight size={15}/> More</button>
               </div>
-              {!engines?.sevenZip && <span className="orbit-inline-note">Install 7-Zip for archive tools.</span>}
+              {!engines?.sevenZip && <span className="orbit-inline-note">7-Zip is needed for 7z and non-ZIP archives.</span>}
             </div>}
             {tab === "actions" && <div className="orbit-controls">
               <span className="orbit-legend">FILE ACTIONS</span>
@@ -317,11 +351,11 @@ export default function Orbit() {
               </form> : <div className="orbit-actions-grid">
                 <button disabled={!file} onClick={() => {setNewName(file?.name || "");setRenaming(true);}}><Pencil size={14}/> Rename</button>
                 <button disabled={!file} onClick={() => void act("copy")}><ClipboardCopy size={14}/> Copy path</button>
-                <button disabled={!file} onClick={() => void act("folder")}><FolderOpen size={14}/> Show file</button>
+                <button disabled={!file} onClick={() => void act("folder")}><FolderOpen size={14}/> {isFolder ? "Open folder" : "Show file"}</button>
                 <button disabled={!file} onClick={() => void act("terminal")}><Terminal size={14}/> Terminal</button>
-                <button disabled={!file} onClick={() => void act("copyFile")}><Copy size={14}/> Copy file</button>
-                <button disabled={!file} onClick={() => void act("float")}><Pin size={14}/> Float</button>
-                <button disabled={!file} onClick={() => void act("bluetooth")}><Bluetooth size={14}/> Bluetooth</button>
+                <button disabled={!file || isFolder} onClick={() => void act("copyFile")}><Copy size={14}/> Copy file</button>
+                <button disabled={!file || isFolder} onClick={() => void act("float")}><Pin size={14}/> Float</button>
+                <button disabled={!file || isFolder} onClick={() => void act("bluetooth")}><Bluetooth size={14}/> Bluetooth</button>
               </div>}
             </div>}
           </>}
@@ -336,6 +370,9 @@ export default function Orbit() {
             </button>)}
         </nav>
 
+        {phase === "processing" && mousePreferences.pointerSpinner && cursor && <span
+          aria-hidden="true" className="orbit-pointer-spinner"
+          style={{ left: cursor.x + 14, top: cursor.y + 11 }} />}
         <footer className="orbit-footer">
           <span className="orbit-footnote">{t(getLanguage(), "localNoUploads")}</span>
           <button type="button" className="orbit-open-app" onClick={() => void openWorkspace()}>

@@ -1,0 +1,117 @@
+ReformANY Source-Available Proprietary License
+Copyright © 2026 Acev Dev Co. All rights reserved.
+
+Effective notice for the ReformANY software, first-party source code,
+original interface design, artwork, logo and documentation.
+
+1. OWNERSHIP AND SCOPE
+
+ReformANY's original materials are proprietary. Acev Dev Co reserves all
+rights that it owns or is authorized to license. Third-party components
+retain their own copyright notices and licenses. Nothing in this license
+revokes permissions granted by those third-party licenses.
+
+This is a source-available license, NOT an open-source license.
+
+2. PUBLIC INSPECTION AND PERSONAL EVALUATION
+
+You may view and inspect the public repository and use GitHub's native
+viewing and forking features in accordance with GitHub's Terms of Service.
+
+You may download, build, and run unmodified ReformANY solely for your own
+personal, noncommercial evaluation, testing, or ordinary use, subject to
+applicable law and any third-party licenses. This limited permission does
+not authorize redistribution, incorporation into another product, hosting
+a public service, sale, sublicensing, or commercial exploitation.
+
+No rights to the ReformANY name, logo or other brand identifiers are
+granted by this section.
+
+3. RESTRICTIONS
+
+An exact, unchanged copy of the ReformANY source code, UI assets, or
+compiled application is still ReformANY proprietary material. Changing
+the product name, replacing the logo, or altering a few lines does not
+automatically grant a license to redistribute it. Visible credit, a
+repository link, or a donation link does not replace written permission.
+
+Unless Acev Dev Co grants separate express written permission, you may not:
+
+- Sell, rent, license, monetize, or commercially exploit ReformANY or any
+  of its proprietary source or original interface assets.
+- Publish or distribute your own copies, installers, repackaged builds,
+  modifications, or derivative products containing protected ReformANY
+  material.
+- Copy original ReformANY source or protected UI/artwork into another
+  product, whether commercial or noncommercial.
+- Remove, conceal or alter ReformANY ownership and legal notices.
+- Present ReformANY or its original materials as independently authored,
+  or falsely suggest an affiliation with or endorsement by Acev Dev Co.
+
+This section does not limit statutory rights, fair use or equivalent
+exceptions, GitHub's required platform rights, or the licenses of
+third-party components.
+
+4. INSPIRATION AND INDEPENDENT WORK
+
+You are free to learn from the general ideas and functional concepts
+shown here and independently implement your own original software,
+subject to applicable law. That permission does not authorize copying
+protected source, artwork or expressive interface elements.
+
+Independent inspiration alone does not require attribution or a
+donation link under this license. A separate agreement cannot impose
+conditions on someone who has not used licensed ReformANY material.
+
+5. EXPRESSLY AUTHORIZED REUSE AND REQUIRED CREDIT
+
+If Acev Dev Co later grants written permission to redistribute or adapt
+specific proprietary ReformANY material, the permission must identify
+the permitted scope and will require, unless the agreement expressly
+states otherwise:
+
+a. Clear credit: "Contains material from ReformANY by Acev Dev Co."
+b. An unobscured link to the canonical project repository:
+   https://github.com/p4yy/ReformANY
+c. A visible clickable link labelled "Support ReformANY / Acev Dev Co"
+   pointing to the official donation page:
+   https://www.paypal.com/paypalme/aceevisuals
+
+d. A visible clickable link to the official Acev Dev Co/ReformANY
+   publisher profile, currently:
+   https://github.com/p4yy
+e. Preservation of copyright and license notices for all copied
+   ReformANY materials, and clear identification of modifications.
+f. A statement that the work is not endorsed by Acev Dev Co unless
+   written approval explicitly says otherwise.
+
+These are conditions for future separately authorized uses. This
+section itself does NOT grant permission to redistribute or adapt
+ReformANY.
+
+You may not demand payment as a substitute for required credit; linking
+to a donation page is not a requirement to make a donation.
+
+6. NO TRADEMARK LICENSE
+
+The ReformANY name and first-party marks are not licensed for use as
+another product's name or branding. This notice does not by itself
+establish or assert a registered trademark.
+
+7. NO WARRANTY
+
+To the fullest extent allowed by applicable law, ReformANY is provided
+"as is", without warranties of merchantability, fitness for a
+particular purpose, or noninfringement. Nothing in this clause overrides
+mandatory consumer protections that cannot lawfully be excluded.
+
+8. PERMISSION REQUESTS
+
+For commercial licensing, authorized redistribution, contributor
+agreements, branding permissions or questions about credited reuse,
+contact Acev Dev Co through the owner account of the official project
+repository: https://github.com/p4yy/ReformANY
+
+Review the repository's dependency provenance before any commercial
+distribution. Legal review is recommended before public release; this
+notice is not a substitute for a complete end-user license agreement.

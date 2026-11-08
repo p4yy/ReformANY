@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   windows:
+    # Produce test installers only for branches owned by this repository.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     steps:
@@ -31,15 +32,21 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build frontend
         run: npm run build
-      # Tauri 2.12 unit-test executables lack Common Controls v6. Embed the
-      # test-only manifest before invoking the real Windows test binaries.
+      # Tauri's Windows unit test EXEs lack Common Controls v6 by default.
+      # Compile, embed the test-only manifest, then run the actual tests.
       - name: Compile Windows Rust tests
         run: cargo test --no-run --manifest-path src-tauri/Cargo.toml
-      - name: Run Windows Rust tests with Common Controls v6 manifest
+      - name: Run Windows Rust tests with Common Controls manifest
         shell: pwsh
         run: ./scripts/run-windows-rust-tests.ps1
       - name: Build Windows installer
         run: npm run tauri build
+      - name: Verify installed Orbit context-menu entries
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (!$installer) { throw "No installer was produced" }
+          ./scripts/test-orbit-installer.ps1 -Installer $installer.FullName
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:

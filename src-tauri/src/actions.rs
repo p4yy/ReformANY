@@ -30,7 +30,8 @@ pub async fn rename_file(path: String, new_name: String) -> Result<RenameResult,
     if !valid_filename(&new_name) { return Err("Invalid Windows filename".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let old = PathBuf::from(&path);
-        crate::external::verify_input(&old, false)?;
+        // Explorer's folder Orbit uses this action too. Symlinks remain blocked.
+        crate::external::verify_input(&old, true)?;
         let parent = old.parent().ok_or("Cannot determine parent folder")?;
         let new = parent.join(&new_name);
         if new.exists() {

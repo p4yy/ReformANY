@@ -59,13 +59,19 @@ fn classify_file(path: &Path) -> &'static str {
     }
 }
 
-#[tauri::command]
-pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
-    let path = state.path.as_ref()?;
+fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
     let name = path.file_name()?.to_string_lossy().into_owned();
     let raw = path.to_string_lossy().into_owned();
     let kind = classify_file(path);
-    let info = match std::fs::metadata(path) {
+    let info = match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => OrbitInfo {
+            path: raw, name, bytes: 0, detected: None,
+            error: Some("Linked files and folders cannot be opened safely".into()),
+        },
+        Ok(metadata) if metadata.is_dir() => OrbitInfo {
+            path: raw, name, bytes: 0,
+            detected: Some("Folder".into()), error: None,
+        },
         Ok(metadata) if metadata.is_file() => {
             if kind == "Image" {
                 match describe(path) {
@@ -86,6 +92,11 @@ pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
             error: Some("Selected file cannot be opened".into()) },
     };
     Some(info)
+}
+
+#[tauri::command]
+pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
+    state.path.as_ref().and_then(|path| orbit_file_info(path))
 }
 
 #[tauri::command]
@@ -256,6 +267,22 @@ mod tests {
         ])
         .is_none());
     }
+    #[test]
+    fn orbit_accepts_regular_folders_for_archiving() {
+        let folder = tempfile::tempdir().unwrap();
+        let info = orbit_file_info(folder.path()).unwrap();
+        assert_eq!(info.detected.as_deref(), Some("Folder"));
+        assert!(info.error.is_none());
+        assert_eq!(info.bytes, 0);
+    }
+
+    #[test]
+    fn orbit_rejects_unavailable_inputs() {
+        let folder = tempfile::tempdir().unwrap();
+        let info = orbit_file_info(&folder.path().join("missing.bin")).unwrap();
+        assert!(info.error.is_some());
+    }
+
     #[test]
     fn orbit_classifies_media_archive_and_images() {
         assert_eq!(classify_file(Path::new("video.MP4")), "Video");

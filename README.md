@@ -1,59 +1,73 @@
+<img src="https://raw.githubusercontent.com/p4yy/ReformANY/main/src-tauri/icons/icon.png" alt="ReformANY app icon" width="72" height="72">
+
 # ReformANY
 
-A local-first Windows desktop converter written in **Rust + Tauri 2 + React + TypeScript**.
+**Convert anything. Effortlessly.**
 
-## Current capabilities (0.3.0 preview)
+A focused, privacy-first file conversion workspace for Windows.  
+**Designed and developed by Acev Dev Co.**
 
-- Convert static PNG, JPEG, WebP, BMP, GIF and single-page TIFF images between each other (36 raster routes).
-- Scale images down to 2,048 / 1,024 / 512 px maximum edge, rotate 90°/180°/270°, and produce grayscale copies.
-- Keep original images untouched; avoid overwriting existing outputs.
-- Import multiple files or folders (recursive image discovery with limits); drag-and-drop supported.
-- Choose a destination directory or save beside originals.
-- Local conversion history in the UI (last 100 entries); no server uploads or telemetry.
-- **ReformANY Orbit**: right-click a file in Explorer, choose ReformANY Orbit, then convert from a compact circular floating panel.
+ReformANY brings useful conversion, preview and file actions into one restrained desktop experience. Work stays on your computer—no account, cloud upload or telemetry required.
 
-This is still a **preview**, not a universal converter. The repository now includes additional dedicated workspaces:
+## What it does
 
-- **Audio and video:** FFmpeg/FFprobe-based conversion, trimming, compression, normalization, video rotation/flipping, and joining clips when the installed codecs support them.
-- **Archives:** built-in ZIP create/extract (including AES-256 encrypted ZIP), plus 7-Zip-driven 7z creation, split volumes, and broad extraction. RAR creation requires a locally installed WinRAR.
-- **Documents and e-books:** images → PDF, PDF text export to TXT/Markdown/HTML, Office → PDF with LibreOffice, and e-book conversion with Calibre, including an imperfect PDF → DOCX route.
-- **Preview:** local PDF page renderer displaying original page graphics/pictures, plus TXT and Markdown readers.
-- **Windows utilities:** Orbit's three sections (Convert, Tools, Actions), rename, file copy, Terminal, Bluetooth wizard and always-on-top Float.
-- **Preferences:** language selection (14 locales including Arabic/Persian/Urdu with initial RTL layout) and automatic system appearance.
+**Convert**  
+Transform supported images, audio and video files. Process supported Office documents, PDFs and e-books using local engines where required.
 
-Media, LibreOffice, Calibre, and 7-Zip engines are **not all bundled** in the current installer: local installation of the corresponding executable may be necessary. Availability is shown in the Engines tab. Optional speech-to-text, AI background removal, more robust PDF editing and additional archive formats remain unfinished. We do not claim unverified formats work.
+**Preview**  
+Read PDFs as rendered pages—including embedded imagery—and view TXT and Markdown files in a clean document reader.
 
-All file conversion is local, with no account or telemetry. See [privacy and offline limitations](docs/PRIVACY.md).
+**Archive**  
+Create and extract ZIP files, including encrypted ZIP. Use supported locally installed 7-Zip and WinRAR tools for additional archive formats.
 
-## Windows download
+**Orbit**  
+Right-click a file in Windows Explorer to open a compact circular shortcut with three sections: **Convert · Tools · Actions**. Orbit also offers optional navigation sounds.
 
-Open [Actions → Windows build](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml), select a **successful** run for the commit/version you want, and download its **ReformANY-0.3.0-Windows-preview** artifact. Unzip and run the black ReformANY NSIS installer. It carries an offline WebView2 runtime and offers **Launch ReformANY** when finished. This preview is not code-signed.
+The exact routes depend on the file and the local engines available. [See supported formats and limitations](docs/FORMAT_SUPPORT.md).
 
-Windows 11 may display the classic **ReformANY Orbit** entry under **Show more options**.
+## Built to stay local
 
-## Local developer build
+- **No account.** No login, subscription connection or cloud workspace.
+- **No uploads or app telemetry.** First-party conversion commands are local, not API-backed.
+- **Original files preserved.** Results are written separately, with output collision protection.
+- **Source visible.** This repository is public for independent inspection and accountability.
 
-Requires Node.js 22+, Rust stable, and native [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+Some features require locally installed FFmpeg, 7-Zip, WinRAR, LibreOffice or Calibre. The current preview does **not** bundle every engine. We are still completing end-to-end Windows and security testing; publishing source code alone is not a security certification.
+
+Read the [offline and privacy contract](docs/PRIVACY.md), [dependency provenance](docs/PROVENANCE.md) and [development verification notes](docs/DEVELOPMENT.md).
+
+## Try the Windows preview
+
+Open [Windows builds on GitHub Actions](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml), choose a **successful** build and download its installer artifact.
+
+The current build is a **preview (0.3.0)** and is **not code-signed**. Windows may display a security warning. Download only from this repository, and inspect the workflow and source before installing. Windows 11 may show the Orbit right-click option under **Show more options**.
+
+ReformANY uses a dark branded installer, with an installation progress indicator and a launch option upon completion.
+
+## Build from source
+
+Requires Node.js 22+, a stable Rust toolchain and the [Tauri 2 Windows prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```sh
 npm install
+npm run privacy:check
 npm run tauri dev
 ```
 
-For the Windows installer:
+Build the installer on Windows:
 
 ```sh
-npm run privacy:check
 npm run tauri build
 ```
 
-## Documentation
+For details, see [architecture](docs/ARCHITECTURE.md), [QA guidance](docs/DEVELOPMENT.md) and [the roadmap](docs/ROADMAP.md).
 
-- [Format support and limitations](docs/FORMAT_SUPPORT.md)
-- [Orbit usage / right-click menu](docs/ORBIT.md)
-- [Technical architecture](docs/ARCHITECTURE.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Development and QA](docs/DEVELOPMENT.md)
-- [Dependency provenance and licensing](docs/PROVENANCE.md)
+## License
 
-ReformANY is an independently built application and does not import previous file-conversion application source code.
+© 2026 Acev Dev Co. All rights reserved. ReformANY is source-available, not open source.
+
+[Publisher](https://github.com/p4yy) · [Full license](LICENSE) · [Reuse terms](docs/REUSE_AND_ATTRIBUTION.md)
+
+---
+
+<small>ReformANY is under active development. Features are described according to their current implementation—not promises of universal conversion or guaranteed compatibility.</small>
