@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown,
   CircleAlert, Clock3, Copy, FileImage, Folder, Layers3,
-  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages, BookOpen, Eye,
+  Moon, Palette, Plus, Settings2, Sun, Trash2, X, Clapperboard, Archive, FileText, Wrench, Monitor, Languages, BookOpen, Eye, Volume2,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -13,6 +13,7 @@ import EbookPanel from "./EbookPanel";
 import MediaToolsPanel from "./MediaToolsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
+import { getOrbitSoundsEnabled, setOrbitSoundsEnabled } from "./orbitAudio";
 
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
@@ -132,6 +133,12 @@ function App() {
   const [systemDark, setSystemDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [language, setLanguage] = useState<LanguageCode>(getLanguage);
+  const [orbitSounds, setOrbitSounds] = useState(getOrbitSoundsEnabled);
+  function toggleOrbitSounds() {
+    const next = !orbitSounds;
+    setOrbitSounds(next);
+    setOrbitSoundsEnabled(next);
+  }
   const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "blue");
   const [batchId, setBatchId] = useState<string | null>(null);
   // A very fast batch may finish before its Tauri command promise resolves.
@@ -447,6 +454,21 @@ function App() {
               </select>
             </label>
             <p className="language-hint">{tx("autoThemeInfo")}</p>
+          </div>
+          <div className="preference-group preference-sounds">
+            <div className="preference-sound-copy">
+              <h2><Volume2 size={18} aria-hidden="true"/> {tx("orbitSounds")}</h2>
+              <p id="orbit-sounds-help">{tx("orbitSoundsDescription")}</p>
+            </div>
+            <button type="button" role="switch"
+              className={`orbit-sound-switch ${orbitSounds ? "is-on" : ""}`}
+              aria-label={tx("orbitSounds")}
+              aria-describedby="orbit-sounds-help"
+              aria-checked={orbitSounds}
+              onClick={toggleOrbitSounds}>
+              <span className="orbit-switch-track" aria-hidden="true"><span className="orbit-switch-thumb"/></span>
+              <span className="orbit-switch-state">{tx(orbitSounds ? "enabled" : "disabled")}</span>
+            </button>
           </div>
           <div className="preference-group"><h2>{tx("accent")}</h2><p>A small touch of color for important actions.</p>
             <div className="accent-grid">{[{key:"blue",color:"#3679e9",name:"Blue"},{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>

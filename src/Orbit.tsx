@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
+import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
 import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal, Copy, Pin } from "lucide-react";
 
 type OrbitFile = {
@@ -98,6 +99,15 @@ export default function Orbit() {
       window.removeEventListener("keydown", onKey);
     };
   }, []);
+
+  function handleOrbitHover(event: ReactPointerEvent<HTMLElement>) {
+    if (event.pointerType !== "mouse" || !(event.target instanceof Element)) return;
+    const button = event.target.closest("button");
+    if (!button || !event.currentTarget.contains(button) || (button as HTMLButtonElement).disabled) return;
+    // React pointerover bubbles when entering icons/spans inside the same button.
+    if (event.relatedTarget instanceof Node && button.contains(event.relatedTarget)) return;
+    playOrbitHover();
+  }
 
   async function close() {
     await getCurrentWindow().close();
@@ -232,7 +242,8 @@ export default function Orbit() {
 
   return (
     <div className="orbit-frame">
-      <section className="orbit-disc" aria-label="ReformANY Orbit quick converter">
+      <section className="orbit-disc" aria-label="ReformANY Orbit quick converter"
+        onPointerOver={handleOrbitHover} onPointerDownCapture={unlockOrbitAudio}>
         <button type="button" className="orbit-close" aria-label="Close Orbit" onClick={() => void close()}>
           <X size={16} strokeWidth={2} />
         </button>
