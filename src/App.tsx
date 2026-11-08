@@ -161,6 +161,24 @@ function App() {
   const desktop = isTauri();
 
   useEffect(() => {
+    if (!desktop) return;
+    let mounted = true;
+    void invoke<void>("configure_orbit_gestures", {
+      shake: orbitMouse.gestureShake,
+      scroll: orbitMouse.gestureScroll,
+    }).catch(reason => {
+      if (!mounted) return;
+      setNotice("Orbit mouse gestures could not start: " + String(reason));
+      setOrbitMouse(previous => {
+        const next = { ...previous, gestureShake: false, gestureScroll: false };
+        saveOrbitMousePreferences(next);
+        return next;
+      });
+    });
+    return () => { mounted = false; };
+  }, [desktop, orbitMouse.gestureShake, orbitMouse.gestureScroll]);
+
+  useEffect(() => {
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     const changed = (event: MediaQueryListEvent) => setSystemDark(event.matches);
     query.addEventListener("change", changed);
@@ -507,7 +525,20 @@ function App() {
                 <input type="checkbox" checked={orbitMouse.pointerSpinner}
                   onChange={event => updateOrbitMouse({ pointerSpinner: event.target.checked })}/>
               </label>
+              <label className="orbit-mouse-setting">
+                <span><strong>Mouse shake</strong><small>While dragging with the left button, shake to open a file-drop Orbit.</small></span>
+                <input type="checkbox" aria-label="Enable experimental mouse shake" disabled={!desktop}
+                  checked={orbitMouse.gestureShake}
+                  onChange={event => updateOrbitMouse({ gestureShake: event.target.checked })}/>
+              </label>
+              <label className="orbit-mouse-setting">
+                <span><strong>Drag scroll</strong><small>Scroll while holding a dragged item to open a file-drop Orbit.</small></span>
+                <input type="checkbox" aria-label="Enable experimental drag scroll" disabled={!desktop}
+                  checked={orbitMouse.gestureScroll}
+                  onChange={event => updateOrbitMouse({ gestureScroll: event.target.checked })}/>
+              </label>
             </div>
+            <p className="orbit-mouse-warning">Experimental · Windows only · ReformANY must be running. Drop the file into Orbit after it opens. Other drags may also trigger it.</p>
           </div>
           <div className="preference-group"><h2>{tx("accent")}</h2><p>A small touch of color for important actions.</p>
             <div className="accent-grid">{[{key:"blue",color:"#3679e9",name:"Blue"},{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
