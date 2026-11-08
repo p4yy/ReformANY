@@ -133,9 +133,21 @@ jobs:
         shell: pwsh
         timeout-minutes: 4
         run: |
+          # WebView2 Runtime 150 can ignore the remote-debugging environment
+          # variable in elevated hosts. The GitHub runner is elevated, so use
+          # a scoped Microsoft-documented WebView2 policy only during this test.
+          # It is NEVER embedded in, installed by, or applied on users' PCs.
           $premium = (Resolve-Path 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe').Path
-          node scripts/test-premium-setup-ui.mjs $premium
-          if ($LASTEXITCODE -ne 0) { throw 'Premium setup UI failed startup smoke test' }
+          $policy = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments'
+          $exeName = 'reformany-setup.exe'
+          New-Item -Path $policy -Force | Out-Null
+          New-ItemProperty -Path $policy -Name $exeName -Value '--remote-debugging-port=19375 --remote-allow-origins=*' -PropertyType String -Force | Out-Null
+          try {
+            node scripts/test-premium-setup-ui.mjs $premium
+            if ($LASTEXITCODE -ne 0) { throw 'Premium setup UI failed startup smoke test' }
+          } finally {
+            Remove-ItemProperty -Path $policy -Name $exeName -ErrorAction SilentlyContinue
+          }
       - name: Upload premium frameless setup EXE
         uses: actions/upload-artifact@v4
         with:
