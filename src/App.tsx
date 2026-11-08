@@ -22,6 +22,16 @@ import ThemePicker from "./ThemePicker";
 import ActivityPage from "./ActivityPage";
 import Welcome, { shouldShowWelcome } from "./Welcome";
 
+const MEDIA_INPUT_EXTENSIONS = new Set([
+  "mp4", "mkv", "mov", "avi", "webm", "wmv", "m4v", "mpeg", "mpg",
+  "mts", "m2ts", "3gp", "ts", "mp3", "wav", "flac", "ogg", "opus",
+  "aac", "m4a", "wma", "aiff", "ac3", "ape", "alac", "amr", "caf",
+]);
+function isMediaInput(path: string): boolean {
+  const ext = path.split(/[\\/.]/).pop()?.toLowerCase() || "";
+  return MEDIA_INPUT_EXTENSIONS.has(ext);
+}
+
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
 type Page = DesktopPage;
@@ -165,6 +175,7 @@ function App() {
   const finishedBatchIds = useRef(new Set<string>());
   const mainScrollRef = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [droppedMediaPath, setDroppedMediaPath] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const desktop = isTauri();
@@ -243,7 +254,19 @@ function App() {
       if (event.payload.type === "leave") setDragging(false);
       if (event.payload.type === "drop") {
         setDragging(false);
-        void addPaths(event.payload.paths);
+        const paths = event.payload.paths;
+        const media = paths.filter(isMediaInput);
+        if (media.length > 0) {
+          // Media has a separate FFmpeg-backed workspace; passing it into the
+          // image importer produced the previous "unsupported image" error.
+          setDroppedMediaPath(media[0]);
+          setPage("media");
+          if (media.length !== paths.length || media.length > 1) {
+            setNotice("Opened the first media file. Use Add files in the relevant workspace for additional files.");
+          }
+        } else {
+          void addPaths(paths);
+        }
       }
     }).then(unlisten => { if (cancelled) unlisten(); else stopDrop = unlisten; })
       .catch(error => setNotice(String(error)));
@@ -348,7 +371,7 @@ function App() {
           <span className="topbar-right"><span className="topbar-dot"/> Local processing · Preview</span>
         </header>
         {page === "guide" && <GuidePage onOpenWorkspace={() => setPage("convert")}/>}
-        {page === "media" && <MediaPanel />}
+        {page === "media" && <MediaPanel droppedPath={droppedMediaPath} />}
         {page === "mediaTools" && <MediaToolsPanel />}
         {page === "archives" && <ArchivePanel />}
         {page === "documents" && <DocumentsPanel onPreview={showDocument} />}
