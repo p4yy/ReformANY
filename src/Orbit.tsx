@@ -67,8 +67,10 @@ function OrbitRing({ items, inner, outer, label }: {
   return <g aria-label={label}>
     {items.map((item, index) => {
       const sector = 360 / items.length;
-      const start = index * sector + 1.15;
-      const end = (index + 1) * sector - 1.15;
+      // One-action rings render as a deliberate top arc, not a nearly
+      // complete 360° click target with a barely visible seam.
+      const start = items.length === 1 ? -68 : index * sector + 1.15;
+      const end = items.length === 1 ? 68 : (index + 1) * sector - 1.15;
       const midpoint = orbitPoint((inner + outer) / 2, (start + end) / 2);
       const words = item.label.split(" ");
       const split = words.length > 1 && item.label.length > 11;
@@ -356,7 +358,6 @@ export default function Orbit() {
               { label: "ZIP", run: () => void archive("zip") },
               ...(engines?.sevenZip ? [{ label: "7z", run: () => void archive("7z") }] : []),
             ] : []),
-        { label: "More tools", run: () => void openWorkspace() },
       ] : file ? [
         { label: "Rename", run: () => { setNewName(file.name); setRenaming(true); } },
         { label: "Copy path", run: () => void act("copy") },
@@ -367,7 +368,7 @@ export default function Orbit() {
     ? (canConvert && mediaReady ? targets.slice(4).map(target => ({
         label: target, run: () => void convert(target),
       })) : [])
-    : tab === "tools" ? []
+    : tab === "tools" ? [{ label: "More tools", run: () => void openWorkspace() }]
     : file ? [
         { label: isFolder ? "Open folder" : "Show in Explorer", run: () => void act("folder") },
         ...(!isFolder ? [
