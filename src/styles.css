@@ -120,3 +120,23 @@ h2{font-size:15px;letter-spacing:-.3px;font-weight:680;margin:0}.button{display:
 /* Fix inherited text contrast in dark mode; no dark-on-dark headings. */
 body { color: var(--text); }
 :root[data-theme="dark"] { color: var(--text); }
+
+/* Image processing controls and visual clarity */
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] .brand,
+:root[data-theme="dark"] .settings-head,
+:root[data-theme="dark"] .file-detail strong,
+:root[data-theme="dark"] .destination-row strong,
+:root[data-theme="dark"] .action-summary strong {
+  color:var(--text);
+}
+.row-actions {display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.advanced-grid .select-field small {color:var(--muted);font-size:10px}
+.check-field {display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:11px;line-height:1.5}
+.check-field input {width:15px;height:15px;flex-shrink:0;margin:1px 0 0;accent-color:var(--accent)}
+.check-field span {display:flex;flex-direction:column;gap:4px}
+.check-field small {font-size:10px;color:var(--muted)}
+.options-note {font-size:10px;line-height:1.6;padding-top:3px}
+@media(max-width:950px) {.advanced-grid {grid-template-columns:1fr} .row-actions {gap:9px}}

@@ -9,7 +9,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 
-type Target = "png" | "jpeg" | "webp" | "bmp";
+type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
 type Page = "convert" | "activity" | "appearance";
 
@@ -38,8 +38,10 @@ const targets: { key: Target; name: string; detail: string }[] = [
   { key: "jpeg", name: "JPEG", detail: "Compact · photographs" },
   { key: "webp", name: "WebP", detail: "Efficient · lossless" },
   { key: "bmp", name: "BMP", detail: "Uncompressed · compatibility" },
+  { key: "gif", name: "GIF", detail: "Static images · limited colors" },
+  { key: "tiff", name: "TIFF", detail: "Single-page · high fidelity" },
 ];
-const supported = "PNG, JPEG, WebP and BMP";
+const supported = "PNG, JPEG, WebP, BMP, GIF (static) and TIFF (single-page)";
 const fmtBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 * 1024
   ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`;
 const makeId = () => crypto.randomUUID();
@@ -55,6 +57,9 @@ function App() {
   const [destination, setDestination] = useState<string | null>(null);
   const [quality, setQuality] = useState(86);
   const [matte, setMatte] = useState<"white" | "black">("white");
+  const [maxDimension, setMaxDimension] = useState<number | null>(null);
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
+  const [grayscale, setGrayscale] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     localStorage.getItem("reformany.theme") === "dark" ? "dark" : "light");
   const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "indigo");
@@ -133,7 +138,7 @@ function App() {
     if (!desktop) { setNotice("Open the desktop app to import files."); return; }
     try {
       const paths = await open({ multiple: true, directory: false,
-        filters: [{ name: "Supported images", extensions: ["png", "jpg", "jpeg", "webp", "bmp"] }] });
+        filters: [{ name: "Supported images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }] });
       if (paths) await addPaths(Array.isArray(paths) ? paths : [paths]);
     } catch (error) { setNotice(String(error)); }
   }
@@ -152,6 +157,7 @@ function App() {
       const id = await invoke<string>("convert_batch", {
         files: pending.map(row => ({
           id: row.id, path: row.path, target: row.target, quality, matte,
+          options: { maxDimension, rotation, grayscale },
         })),
         destination,
       });
@@ -210,7 +216,11 @@ function App() {
 
           <div className="section-header">
             <div><h2>Files <span className="count">{rows.length}</span></h2><p>Choose what each file should become.</p></div>
-            {rows.length > 0 && !busy && <button className="text-action" onClick={() => setRows([])}><Trash2 size={15}/> Clear list</button>}
+            {rows.length > 0 && !busy && <div className="row-actions">
+              {processed > 0 && <button className="text-action" onClick={() => setRows(current => current.map(row => row.status === "completed"
+                ? { ...row, status: "ready", outputPath: null, error: null } : row))}><ArrowRight size={15}/> Convert again</button>}
+              <button className="text-action" onClick={() => setRows([])}><Trash2 size={15}/> Clear list</button>
+            </div>}
           </div>
 
           {rows.length ? <div className="file-table">
@@ -242,6 +252,23 @@ function App() {
             {expanded && <div className="advanced-grid">
               <label className="range-field"><span>JPEG quality <strong>{quality}%</strong></span><input type="range" min="30" max="100" value={quality} onChange={e => setQuality(Number(e.target.value))}/><small>Only affects JPEG output.</small></label>
               <label className="select-field"><span>Background for formats without transparency</span><select value={matte} onChange={event => setMatte(event.target.value as "white" | "black")}><option value="white">White</option><option value="black">Black</option></select></label>
+              <label className="select-field"><span>Resize to maximum edge</span>
+                <select value={maxDimension === null ? "original" : String(maxDimension)} onChange={event => setMaxDimension(event.target.value === "original" ? null : Number(event.target.value))}>
+                  <option value="original">Original size</option><option value="2048">2,048 px</option>
+                  <option value="1024">1,024 px</option><option value="512">512 px</option>
+                </select>
+                <small>No upscaling · Keeps aspect ratio</small>
+              </label>
+              <label className="select-field"><span>Rotate clockwise</span>
+                <select value={rotation} onChange={event => setRotation(Number(event.target.value) as 0 | 90 | 180 | 270)}>
+                  <option value={0}>No rotation</option><option value={90}>90 degrees</option>
+                  <option value={180}>180 degrees</option><option value={270}>270 degrees</option>
+                </select>
+              </label>
+              <label className="check-field"><input type="checkbox" checked={grayscale} onChange={event => setGrayscale(event.target.checked)} />
+                <span>Convert to grayscale <small>Applies to every file in this batch</small></span>
+              </label>
+              <p className="options-note">Animated images and multipage TIFFs are rejected to prevent silent data loss. Metadata may not be preserved.</p>
             </div>}
           </div>
           <div className="action-bar"><div className="action-summary"><strong>{active.length} ready to convert</strong><span>{rows.length ? `${fmtBytes(totalBytes)} added · ${processed} completed ${failed ? `· ${failed} errors` : ""}` : "Add some images to begin"}</span></div>
