@@ -522,8 +522,6 @@ html[data-mode="main"] .workspace-scroll.is-visible {
 html[data-mode="main"] .workspace-scroll:hover { background: var(--soft); }
 html[data-mode="main"] .workspace-scroll-prev { left: 2px; }
 html[data-mode="main"] .workspace-scroll-next { right: 2px; }
-html[dir="rtl"][data-mode="main"] .workspace-scroll-prev { left: auto; right: 2px; }
-html[dir="rtl"][data-mode="main"] .workspace-scroll-next { right: auto; left: 2px; }
 html[data-mode="main"] .activity-symbol.completed {
   color: #75b69b;
   background: color-mix(in srgb, #75b69b 11%, var(--surface));
