@@ -9,6 +9,7 @@ import "./styles.css";
 import "./orbit.css";
 import "./extras.css";
 import "./float.css";
+import "./product-ui.css";
 
 const label = isTauri() ? getCurrentWindow().label : "main";
 const orbit = label === "orbit";
