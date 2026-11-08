@@ -55,6 +55,8 @@ export default function Orbit() {
   const requestId = useRef<string | null>(null);
   const batchId = useRef<string | null>(null);
   const kind = getKind(file);
+  const isFolder = file?.detected === "Folder";
+  const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
 
   useEffect(() => {
     let mounted = true;
@@ -158,7 +160,7 @@ export default function Orbit() {
         });
         setOutput(result);
       } else {
-        const name = file.name.replace(/\.[^.]+$/, "") || "Archive";
+        const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
         const result = await invoke<{ outputPaths: string[] }>("archive_create", {
           job: { paths: [file.path], destination: null, name,
             format: action, password: null, splitMegabytes: null, level: 5 },
@@ -297,7 +299,7 @@ export default function Orbit() {
               <span className="orbit-legend">QUICK TOOLS</span>
               <div className="orbit-options orbit-options-tools">
                 {kind === "archive"
-                  ? <button className="orbit-option" disabled={!canConvert || !engines?.sevenZip} onClick={() => void archive("extract")}>
+                  ? <button className="orbit-option" disabled={!canConvert || !(isNativeZip || engines?.sevenZip)} onClick={() => void archive("extract")}>
                       <Package size={15}/> Extract
                     </button>
                   : <>
@@ -306,7 +308,7 @@ export default function Orbit() {
                   </>}
                 <button className="orbit-option" onClick={() => void openWorkspace()}><ArrowRight size={15}/> More</button>
               </div>
-              {!engines?.sevenZip && <span className="orbit-inline-note">Install 7-Zip for archive tools.</span>}
+              {!engines?.sevenZip && <span className="orbit-inline-note">7-Zip is needed for 7z and non-ZIP archives.</span>}
             </div>}
             {tab === "actions" && <div className="orbit-controls">
               <span className="orbit-legend">FILE ACTIONS</span>
@@ -317,11 +319,11 @@ export default function Orbit() {
               </form> : <div className="orbit-actions-grid">
                 <button disabled={!file} onClick={() => {setNewName(file?.name || "");setRenaming(true);}}><Pencil size={14}/> Rename</button>
                 <button disabled={!file} onClick={() => void act("copy")}><ClipboardCopy size={14}/> Copy path</button>
-                <button disabled={!file} onClick={() => void act("folder")}><FolderOpen size={14}/> Show file</button>
+                <button disabled={!file} onClick={() => void act("folder")}><FolderOpen size={14}/> {isFolder ? "Open folder" : "Show file"}</button>
                 <button disabled={!file} onClick={() => void act("terminal")}><Terminal size={14}/> Terminal</button>
-                <button disabled={!file} onClick={() => void act("copyFile")}><Copy size={14}/> Copy file</button>
-                <button disabled={!file} onClick={() => void act("float")}><Pin size={14}/> Float</button>
-                <button disabled={!file} onClick={() => void act("bluetooth")}><Bluetooth size={14}/> Bluetooth</button>
+                <button disabled={!file || isFolder} onClick={() => void act("copyFile")}><Copy size={14}/> Copy file</button>
+                <button disabled={!file || isFolder} onClick={() => void act("float")}><Pin size={14}/> Float</button>
+                <button disabled={!file || isFolder} onClick={() => void act("bluetooth")}><Bluetooth size={14}/> Bluetooth</button>
               </div>}
             </div>}
           </>}
