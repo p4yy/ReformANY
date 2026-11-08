@@ -77,7 +77,7 @@ jobs:
           New-Item -ItemType Directory -Path $frontend -Force | Out-Null
           Copy-Item -Path (Join-Path $reference '*') -Destination $frontend -Recurse -Force
           Get-ChildItem -LiteralPath $overrides -File -Recurse | ForEach-Object {
-            $relative = $_.FullName.Substring($overrides.Length).TrimStart([char[]]@('\\','/'))
+            $relative = $_.FullName.Substring($overrides.Length).TrimStart([char]92, [char]47)
             $target = Join-Path $frontend $relative
             New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
             Copy-Item -LiteralPath $_.FullName -Destination $target -Force
