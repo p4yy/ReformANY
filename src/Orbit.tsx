@@ -48,7 +48,7 @@ function getKind(file: OrbitFile | null): FileKind {
   if (["srt", "vtt"].includes(extension)) return "subtitle";
   if (["epub", "mobi", "fb2", "fbz", "azw", "azw3", "cbz", "cbr", "cb7", "htmlz"].includes(extension)) return "ebook";
   if (value === "pdf") return "pdf";
-  if (value === "office") return "office";
+  if (value === "office" || ["txt", "htm", "html"].includes(extension)) return "office";
   if (["spreadsheet", "subtitle", "ebook"].includes(value)) return value as FileKind;
   if (value === "shortcut") return "shortcut";
   if (value === "application") return "application";
@@ -177,7 +177,14 @@ export default function Orbit() {
   const [archivePassword, setArchivePassword] = useState("");
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(true);
-  const [phase, setPhase] = useState<Phase>("ready");
+  const [phase, setPhaseState] = useState<Phase>("ready");
+  // The native Orbit window must outlive the job even when Explorer takes focus.
+  // Keep a synchronously updated ref: onFocusChanged is registered once.
+  const phaseRef = useRef<Phase>("ready");
+  const setPhase = (next: Phase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  };
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -271,7 +278,7 @@ export default function Orbit() {
     const focusListener = windowHandle.onFocusChanged(({ payload: focused }) => {
       if (focused) {
         ignoreInitialFocus.current = false;
-      } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current) {
+      } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current && phaseRef.current !== "processing") {
         void windowHandle.close();
       }
     });
