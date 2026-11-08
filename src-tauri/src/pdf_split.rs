@@ -81,7 +81,7 @@ fn split(path: &str, destination: Option<&str>, mode: &str, value: u32) -> Resul
     }
     let original = Document::load(source).map_err(|e| format!("Cannot open source PDF: {e}"))?;
     let count = original.get_pages().len();
-    if count < 2 || count > MAX_PAGES {
+    if !(2..=MAX_PAGES).contains(&count) {
         return Err("Split PDF requires 2 to 200 pages".into());
     }
     drop(original);
