@@ -20,12 +20,13 @@ ManifestDPIAwareness PerMonitorV2
 {{/if}}
 
 !include MUI2.nsh
-; ReformANY dark installer branding. NSIS native progress and rollback remain intact.
-!define MUI_BGCOLOR "11151B"
-!define MUI_TEXTCOLOR "F3F6FC"
-!define MUI_INSTFILESPAGE_COLORS "DDE7F6 11151B"
+; Match native NSIS pages instead of mixing dark artwork with white controls.
+; Installer behavior, progress, rollback and registry integration remain unchanged.
+!define MUI_BGCOLOR "F6F7F9"
+!define MUI_TEXTCOLOR "202B37"
+!define MUI_INSTFILESPAGE_COLORS "202B37 F6F7F9"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "colored"
-!define MUI_INSTALLCOLORS "5294F4 11151B"
+!define MUI_INSTALLCOLORS "397DDD F6F7F9"
 !define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH "FitControl"
 !include FileFunc.nsh
 !include x64.nsh
