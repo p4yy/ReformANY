@@ -178,6 +178,178 @@ pub async fn media_convert(job: MediaJob) -> Result<String, String> {
         .map_err(|_| "Media conversion worker exited unexpectedly".to_owned())?
 }
 
+
+/// Tracks cancellable FFmpeg conversions. Separate from the original Orbit
+/// command so the existing quick-convert contract remains compatible.
+#[derive(Default)]
+pub struct MediaJobs {
+    pending: std::sync::Mutex<std::collections::HashMap<String,
+        std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaProgress {
+    id: String,
+    status: &'static str,
+    percent: Option<u8>,
+    output_path: Option<String>,
+    error: Option<String>,
+}
+
+fn media_event(app: &tauri::AppHandle, id: &str, status: &'static str,
+    percent: Option<u8>, output_path: Option<String>, error: Option<String>) {
+    use tauri::Emitter;
+    let _ = app.emit("reformany:media-progress", MediaProgress {
+        id: id.to_owned(), status, percent, output_path, error,
+    });
+}
+
+/// FFmpeg emits real out_time_us=... values; progress never extrapolates from
+/// arbitrary wall-clock time, and is omitted for media with unknown duration.
+fn parse_progress(value: &str, duration: Option<f64>) -> Option<u8> {
+    let duration = duration.filter(|v| v.is_finite() && *v > 0.0)?;
+    let micros = value.strip_prefix("out_time_us=")?.parse::<u64>().ok()?;
+    let seconds = micros as f64 / 1_000_000.0;
+    Some(((seconds / duration) * 100.0).clamp(0.0, 99.0) as u8)
+}
+
+fn probe_duration(ffprobe: &Path, input: &Path) -> Option<f64> {
+    let result = Command::new(ffprobe).args([
+        "-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
+        "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+    ]).arg(input).output().ok()?;
+    if !result.status.success() { return None; }
+    String::from_utf8_lossy(&result.stdout).trim().parse::<f64>()
+        .ok().filter(|n| n.is_finite() && *n > 0.0)
+}
+
+fn convert_tracked(job: MediaJob, app: &tauri::AppHandle, id: &str,
+    cancelled: &std::sync::atomic::AtomicBool) -> Result<String, String> {
+    use std::io::{BufRead, Read, Seek, SeekFrom};
+    use std::process::Stdio;
+    use std::sync::atomic::Ordering;
+
+    let kind = validate_job(&job)?;
+    let ffmpeg = find_binary("ffmpeg").ok_or("FFmpeg is not installed")?;
+    let ffprobe = find_binary("ffprobe").ok_or("FFprobe is not installed")?;
+    let input = PathBuf::from(&job.path);
+    verify_input(&input, false)?;
+    probe(&input, kind, &ffprobe)?;
+    let total_duration = job.duration_seconds.or_else(|| {
+        probe_duration(&ffprobe, &input).map(|full| (full - job.start_seconds.unwrap_or(0.0)).max(0.0))
+    });
+    let directory = output_dir(&input, job.destination.as_deref())?;
+    let stage = tempfile::Builder::new().prefix(".reformany-media-")
+        .tempdir_in(&directory).map_err(|e| e.to_string())?;
+    let intermediate = stage.path().join(format!("converted.{}", target_extension(&job.target)));
+    let mut args = media_args(&job, &input, &intermediate)?;
+    let file = args.pop().ok_or("Missing media output argument")?;
+    args.extend(["-stats_period".into(), "0.2".into(),
+        "-progress".into(), "pipe:1".into(), file]);
+
+    if cancelled.load(Ordering::Relaxed) { return Err("cancelled".into()); }
+    let stderr = tempfile::tempfile().map_err(|e| e.to_string())?;
+    let mut child = Command::new(ffmpeg).args(args).stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(stderr.try_clone().map_err(|e| e.to_string())?)
+        .spawn().map_err(|e| format!("FFmpeg could not start: {e}"))?;
+    let output = child.stdout.take().ok_or("Could not read FFmpeg progress")?;
+    let app_for_progress = app.clone();
+    let job_id = id.to_owned();
+    let reader = std::thread::spawn(move || {
+        let mut last_percent = None;
+        for line in std::io::BufReader::new(output).lines().map_while(Result::ok) {
+            if let Some(percent) = parse_progress(&line, total_duration) {
+                if last_percent != Some(percent) {
+                    last_percent = Some(percent);
+                    media_event(&app_for_progress, &job_id, "processing", Some(percent), None, None);
+                }
+            }
+        }
+    });
+
+    let status = loop {
+        if cancelled.load(Ordering::Relaxed) {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = reader.join();
+            return Err("cancelled".into());
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(90)),
+            Err(e) => { let _ = child.kill(); let _ = reader.join(); return Err(e.to_string()); }
+        }
+    };
+    let _ = reader.join();
+    if !status.success() {
+        let mut stderr = stderr;
+        let mut detail = String::new();
+        stderr.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+        stderr.take(3000).read_to_string(&mut detail).map_err(|e| e.to_string())?;
+        return Err(format!("FFmpeg failed: {}", detail.trim()));
+    }
+    if cancelled.load(Ordering::Relaxed) { return Err("cancelled".into()); }
+    if !intermediate.is_file() || fs::metadata(&intermediate)
+        .map_err(|e| e.to_string())?.len() == 0 {
+        return Err("FFmpeg did not produce a media file".into());
+    }
+    probe(&intermediate, kind, &ffprobe)?;
+    if cancelled.load(Ordering::Relaxed) { return Err("cancelled".into()); }
+    let name = format_name(&input)?;
+    publish(&intermediate, &directory, &name, target_extension(&job.target))
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn media_convert_tracked(app: tauri::AppHandle,
+    state: tauri::State<'_, MediaJobs>, job: MediaJob, job_id: String) -> Result<String, String> {
+    if uuid::Uuid::parse_str(&job_id).is_err() {
+        return Err("Invalid conversion job identifier".into());
+    }
+    validate_job(&job)?;
+    let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    {
+        let mut jobs = state.pending.lock().map_err(|_| "Job state unavailable")?;
+        if jobs.contains_key(&job_id) { return Err("A job with this ID is already running".into()); }
+        if jobs.len() >= 2 { return Err("At most two media jobs may run at once".into()); }
+        jobs.insert(job_id.clone(), cancelled.clone());
+    }
+    let id = job_id.clone();
+    let worker_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        media_event(&worker_app, &id, "processing", None, None, None);
+        let token = cancelled;
+        let for_job = worker_app.clone();
+        let current_id = id.clone();
+        let outcome = tauri::async_runtime::spawn_blocking(move ||
+            convert_tracked(job, &for_job, &current_id, &token)
+        ).await;
+        match outcome {
+            Ok(Ok(path)) => media_event(&worker_app, &id, "completed", Some(100), Some(path), None),
+            Ok(Err(error)) if error == "cancelled" =>
+                media_event(&worker_app, &id, "cancelled", None, None, None),
+            Ok(Err(error)) => media_event(&worker_app, &id, "failed", None, None, Some(error)),
+            Err(error) => media_event(&worker_app, &id, "failed", None, None, Some(error.to_string())),
+        }
+        use tauri::Manager;
+        if let Ok(mut jobs) = worker_app.state::<MediaJobs>().pending.lock() {
+            jobs.remove(&id);
+        }
+    });
+    Ok(job_id)
+}
+
+#[tauri::command]
+pub fn cancel_media_job(state: tauri::State<'_, MediaJobs>, job_id: String) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    let jobs = state.pending.lock().map_err(|_| "Job state unavailable")?;
+    let cancelled = jobs.get(&job_id).ok_or("This media job already finished")?;
+    cancelled.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,6 +358,14 @@ mod tests {
         MediaJob { path: "C:\\input.mov".into(), target: target.into(),
             destination: None, profile: "standard".into(), start_seconds: None,
             duration_seconds: None }
+    }
+
+    #[test]
+    fn progress_uses_measured_ffmpeg_timestamps() {
+        assert_eq!(parse_progress("out_time_us=5000000", Some(10.0)), Some(50));
+        assert_eq!(parse_progress("out_time_us=20000000", Some(10.0)), Some(99));
+        assert_eq!(parse_progress("out_time_us=5000000", None), None);
+        assert_eq!(parse_progress("out_time_us=not-a-time", Some(10.0)), None);
     }
 
     #[test]

@@ -11,15 +11,12 @@ mod ebooks;
 mod media_tools;
 mod preview;
 mod update;
-mod subtitles;
-mod spreadsheets;
-mod advanced_images;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
 use scan::expand_inputs;
 use external::engine_status;
-use media::media_convert;
+use media::{media_convert, media_convert_tracked, cancel_media_job, MediaJobs};
 use archives::{archive_create, archive_extract};
 use actions::{rename_file, open_terminal, send_bluetooth, float_file, float_file_context, copy_file_to, FloatRegistry};
 use documents::{images_to_pdf, pdf_to_text, pdf_to_text_format, office_to_pdf, office_available};
@@ -27,9 +24,6 @@ use ebooks::{ebook_convert_file, ebook_engine_available};
 use media_tools::media_edit;
 use preview::document_preview;
 use update::open_manual_updates;
-use subtitles::subtitle_convert;
-use spreadsheets::table_convert;
-use advanced_images::advanced_image_convert;
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -39,6 +33,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(BatchRegistry::default())
+        .manage(MediaJobs::default())
         .manage(OrbitLaunch::new(orbit_path))
         .manage(FloatRegistry::default())
         .plugin(tauri_plugin_dialog::init())
@@ -54,6 +49,8 @@ pub fn run() {
             reveal_output,
             engine_status,
             media_convert,
+            media_convert_tracked,
+            cancel_media_job,
             archive_create,
             archive_extract,
             rename_file,
@@ -71,10 +68,7 @@ pub fn run() {
             ebook_engine_available,
             media_edit,
             document_preview,
-            open_manual_updates,
-            subtitle_convert,
-            table_convert,
-            advanced_image_convert
+            open_manual_updates
         ])
         .setup(move |app| {
             if orbit_mode {
