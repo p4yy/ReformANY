@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, Clock3, Copy, FileImage, Folder, Layers3, Moon, Plus, Settings2, Sun, Trash2, X, Monitor, Languages, Volume2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert,
+  Clock3, Copy, FileImage, Folder, Layers3, Moon, Plus, Settings2,
+  Sun, Trash2, X, Monitor, Languages, Volume2,
+} from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
