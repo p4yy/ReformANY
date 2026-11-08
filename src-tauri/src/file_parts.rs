@@ -57,8 +57,13 @@ fn staged_publish(source: &Path, destination: &Path) -> Result<(), String> {
     std::io::copy(&mut File::open(source).map_err(|e| e.to_string())?, staging.as_file_mut())
         .map_err(|e| e.to_string())?;
     staging.as_file_mut().sync_all().map_err(|e| e.to_string())?;
-    staging.persist_noclobber(destination).map_err(|e| format!("Could not save output: {}", e.error))?;
-    Ok(())
+    match staging.persist_noclobber(destination) {
+        Ok(_) => Ok(()),
+        Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err("Output name is already taken".into())
+        }
+        Err(error) => Err(format!("Could not save output: {}", error.error)),
+    }
 }
 
 fn split(input_path: &str, destination: Option<&str>, part_megabytes: u32) -> Result<SplitResult, String> {
@@ -162,9 +167,13 @@ fn join(manifest_path: &str, destination: Option<&str>) -> Result<String, String
     }
     let meta = fs::metadata(source).map_err(|e| e.to_string())?;
     if meta.len() > 64 * 1024 { return Err("Parts manifest is too large".into()); }
-    let manifest: PartsManifest = serde_json::from_slice(
-        &fs::read(source).map_err(|e| e.to_string())?
-    ).map_err(|_| "Parts manifest is invalid".to_owned())?;
+    let mut manifest_data = Vec::new();
+    File::open(source).map_err(|e| e.to_string())?
+        .take(64 * 1024 + 1).read_to_end(&mut manifest_data)
+        .map_err(|e| e.to_string())?;
+    if manifest_data.len() > 64 * 1024 { return Err("Parts manifest is too large".into()); }
+    let manifest: PartsManifest = serde_json::from_slice(&manifest_data)
+        .map_err(|_| "Parts manifest is invalid".to_owned())?;
     if manifest.version != 1 || !safe_name(&manifest.original_name)
         || !safe_name(&manifest.part_base)
         || manifest.part_count == 0 || manifest.part_count > MAX_PARTS
