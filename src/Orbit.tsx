@@ -115,7 +115,8 @@ function OrbitRing({ items, inner, outer, label, tab, kind }: {
       const iconSize = outer > 200 ? 20 : 23;
       const iconY = point.y - (lines.length * 17 + iconSize + 9) / 2;
       const Icon = hovered === item.label ? Check : orbitActionIcon(item.label, tab, kind);
-      const isActive = hovered === item.label || (hovered === null && focused === index);
+      // Hover or keyboard focus highlights a single wedge; an idle menu stays neutral.
+      const isActive = hovered === item.label;
       const disabled = Boolean(item.unavailable);
       return <g key={item.label}
         className="orbit-ref-sector"
