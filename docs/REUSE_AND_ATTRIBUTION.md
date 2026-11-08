@@ -33,25 +33,27 @@ Credits screen), as well as in redistributed documentation:
 >
 > Official repository: https://github.com/p4yy/ReformANY
 >
+> Official publisher profile / website: https://github.com/p4yy
+>
 > Support ReformANY / Acev Dev Co: https://www.paypal.com/paypalme/aceevisuals
 
 Also include a clearly labelled, clickable **Support ReformANY / Acev Dev Co**
 donation link: https://www.paypal.com/paypalme/aceevisuals.
 
-Include the official ReformANY website once Acev Dev Co publishes and
-identifies it. The credit and donation link must remain visible, working and
-not be buried in source comments.
+Also include a visible, clickable link to the official publisher profile:
+https://github.com/p4yy. This GitHub profile serves as the project's website until Acev Dev Co
+designates a separate domain. The credit, publisher profile, project repository,
+and donation link must remain visible, working, and not be buried in source comments.
 List meaningful modifications and don't imply official endorsement.
 
 | Official reference | Current verified destination |
 | --- | --- |
 | Product | ReformANY by Acev Dev Co |
 | Canonical source | https://github.com/p4yy/ReformANY |
-| Official website | Not provided yet |
+| Official website / publisher profile | https://github.com/p4yy |
 | Official donation/support page | https://www.paypal.com/paypalme/aceevisuals |
 
-The donation URL was provided by Acev Dev Co. The official website has not
-been provided; do not invent or imply a website address.
+The publisher profile and donation URL were provided or designated by Acev Dev Co. A separate custom domain has not been supplied.
 
 ## Independent inspiration
 
