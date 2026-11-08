@@ -4,13 +4,17 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauri } from "@tauri-apps/api/core";
 import App from "./App";
 import Orbit from "./Orbit";
+import FloatView from "./FloatView";
 import "./styles.css";
 import "./orbit.css";
 import "./extras.css";
+import "./float.css";
 
-const orbit = isTauri() && getCurrentWindow().label === "orbit";
-document.documentElement.dataset.mode = orbit ? "orbit" : "main";
+const label = isTauri() ? getCurrentWindow().label : "main";
+const orbit = label === "orbit";
+const floating = label === "float";
+document.documentElement.dataset.mode = floating ? "float" : orbit ? "orbit" : "main";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>{orbit ? <Orbit /> : <App />}</React.StrictMode>
+  <React.StrictMode>{floating ? <FloatView /> : orbit ? <Orbit /> : <App />}</React.StrictMode>
 );

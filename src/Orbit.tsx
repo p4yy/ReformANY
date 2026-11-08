@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { getLanguage, setDocumentLanguage, t } from "./localization";
+import { ArrowRight, CheckCircle2, FileImage, FolderOpen, LoaderCircle, X, Package, Bluetooth, ClipboardCopy, Pencil, Terminal, Copy, Pin } from "lucide-react";
 
 type OrbitFile = {
   path: string;
@@ -55,6 +57,7 @@ export default function Orbit() {
 
   useEffect(() => {
     let mounted = true;
+    setDocumentLanguage(getLanguage());
     invoke<OrbitFile | null>("orbit_context")
       .then(info => { if (mounted) setFile(info); })
       .catch(reason => { if (mounted) setError(String(reason)); })
@@ -159,7 +162,7 @@ export default function Orbit() {
     }
   }
 
-  async function act(action: "copy" | "folder" | "terminal" | "bluetooth") {
+  async function act(action: "copy" | "folder" | "terminal" | "bluetooth" | "copyFile" | "float") {
     if (!file) return;
     setNote(null);
     setError(null);
@@ -167,6 +170,14 @@ export default function Orbit() {
       if (action === "copy") {
         await navigator.clipboard.writeText(file.path);
         setNote("Path copied");
+      } else if (action === "copyFile") {
+        const destination = await open({ directory: true, multiple: false });
+        if (typeof destination !== "string") return;
+        const result = await invoke<string>("copy_file_to", { path: file.path, destination });
+        setNote("Copied: " + result.split(/[\\/]/).pop());
+      } else if (action === "float") {
+        await invoke("float_file", { path: file.path });
+        await getCurrentWindow().close();
       } else if (action === "folder") {
         await invoke("reveal_output", { path: file.path });
         setNote("Opened in Explorer");
@@ -297,6 +308,8 @@ export default function Orbit() {
                 <button disabled={!file} onClick={() => void act("copy")}><ClipboardCopy size={14}/> Copy path</button>
                 <button disabled={!file} onClick={() => void act("folder")}><FolderOpen size={14}/> Show file</button>
                 <button disabled={!file} onClick={() => void act("terminal")}><Terminal size={14}/> Terminal</button>
+                <button disabled={!file} onClick={() => void act("copyFile")}><Copy size={14}/> Copy file</button>
+                <button disabled={!file} onClick={() => void act("float")}><Pin size={14}/> Float</button>
                 <button disabled={!file} onClick={() => void act("bluetooth")}><Bluetooth size={14}/> Bluetooth</button>
               </div>}
             </div>}
@@ -308,12 +321,12 @@ export default function Orbit() {
           {(["convert", "tools", "actions"] as Tab[]).map(value =>
             <button key={value} className={tab === value ? "is-active" : ""}
               disabled={phase === "processing"} onClick={() => {setTab(value);setError(null);setNote(null);setRenaming(false);setPhase("ready");}}>
-              {value[0].toUpperCase() + value.slice(1)}
+              {t(getLanguage(), value === "convert" ? "convert" : value === "tools" ? "tools" : "actions")}
             </button>)}
         </nav>
 
         <footer className="orbit-footer">
-          <span className="orbit-footnote">Local · No uploads</span>
+          <span className="orbit-footnote">{t(getLanguage(), "localNoUploads")}</span>
           <button type="button" className="orbit-open-app" onClick={() => void openWorkspace()}>
             Full app <ArrowRight size={13}/>
           </button>

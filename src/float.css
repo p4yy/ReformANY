@@ -1,0 +1,22 @@
+
+html[data-mode="float"],html[data-mode="float"] body,html[data-mode="float"] #root {
+  width:100%;height:100%;margin:0;min-width:0;min-height:0;overflow:hidden;
+}
+.float-shell {height:100%;display:flex;flex-direction:column;color:#f3f7fc;background:#172231;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;overflow:hidden;}
+.float-topbar {height:52px;flex:0 0 52px;display:flex;align-items:center;gap:9px;padding:0 17px;border-bottom:1px solid #354253;background:#1b2a3b;}
+.float-logo {width:23px;height:23px;object-fit:cover;border-radius:7px}
+.float-topbar strong {font-size:12px;letter-spacing:-.15px}
+.float-pin {color:#9cbfea;margin-inline-start:auto}
+.float-topbar button {border:0;background:transparent;color:#a7b7c8;display:grid;place-items:center}
+.float-content {flex:1;min-height:0;padding:20px;display:flex;align-items:center;flex-direction:column;gap:9px}
+.float-preview {width:min(100%,220px);height:190px;display:grid;place-items:center;background:#253449;color:#8fb4df;border:1px solid #3a4b60;border-radius:17px;overflow:hidden}
+.float-preview img {width:100%;height:100%;object-fit:contain}
+.float-content strong {font-size:13px;font-weight:700;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.float-content small {font-size:11px;color:#b6c4d4}
+.float-content p {font-size:10px;color:#8497ad;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.float-actions {display:flex;gap:9px;padding:13px;border-top:1px solid #354253}
+.float-actions button {flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:10px;height:37px;border:1px solid #475974;background:#24364a;color:white;font-weight:600;font-size:11px}
+.float-actions button:hover {background:#365578}
+.float-actions button:disabled {opacity:.5}
+.float-error,.float-note {font-size:10px;line-height:1.4;padding:5px 13px 11px}
+.float-error {color:#ffaca0}.float-note {color:#a7ddca}
