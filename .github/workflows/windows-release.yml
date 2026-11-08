@@ -31,12 +31,13 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build frontend
         run: npm run build
-      # Windows Tauri 2.12 library test binaries can fail at process startup
-      # with 0xc0000139 (TaskDialogIndirect/ComCtl32 v6 manifest is not linked
-      # into unit-test executables). Compile tests here; execute all tests
-      # through the Linux Source verification job until upstream fixes it.
-      - name: Compile Windows Rust tests (Tauri manifest loader workaround)
+      # Tauri 2.12 unit-test executables lack Common Controls v6. Embed the
+      # test-only manifest before invoking the real Windows test binaries.
+      - name: Compile Windows Rust tests
         run: cargo test --no-run --manifest-path src-tauri/Cargo.toml
+      - name: Run Windows Rust tests with Common Controls v6 manifest
+        shell: pwsh
+        run: ./scripts/run-windows-rust-tests.ps1
       - name: Build Windows installer
         run: npm run tauri build
       - name: Upload installer artifact
