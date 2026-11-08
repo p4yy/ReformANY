@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ClipboardCopy, FileImage, FolderOpen, Pin, X } from "lucide-react";
 import { getLanguage, setDocumentLanguage } from "./localization";
+import { appIcon } from "./brand";
 
 type FloatInfo = { path: string; name: string; bytes: number };
 
@@ -46,7 +47,7 @@ export default function FloatView() {
 
   return <div className="float-shell">
     <header className="float-topbar">
-      <img src="/brand/reformany-mark.jpg" alt="" className="float-logo"/>
+      <img src={appIcon} alt="" className="float-logo"/>
       <strong>ReformANY Float</strong><Pin size={14} className="float-pin"/>
       <button aria-label="Close floating preview" onClick={() => void getCurrentWindow().close()}><X size={17}/></button>
     </header>
