@@ -6,7 +6,7 @@ const focusable =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export default function OrbitActionDialog({
-  kind, name, bytes, value, onValue, onSubmit, onClose,
+  kind, name, bytes, value, onValue, onSubmit, onClose, busy = false, error,
 }: {
   kind: OrbitDialogKind;
   name: string;
@@ -15,6 +15,8 @@ export default function OrbitActionDialog({
   onValue: (value: string) => void;
   onSubmit: () => void;
   onClose: () => void;
+  busy?: boolean;
+  error?: string;
 }) {
   const titleId = useId();
   const panel = useRef<HTMLElement>(null);
@@ -60,12 +62,12 @@ export default function OrbitActionDialog({
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (valid) onSubmit();
+    if (valid && !busy) onSubmit();
   }
 
   return <div data-orbit-dialog className="orbit-action-dialog" role="presentation"
     onPointerDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section ref={panel} className="orbit-action-panel" role="dialog" aria-modal="true"
+    <section ref={panel} className="orbit-action-panel" role="dialog" aria-modal="true" aria-busy={busy}
       aria-labelledby={titleId} aria-label={title} tabIndex={-1}>
       <button type="button" className="orbit-dialog-close" aria-label="Close dialog" onClick={onClose}>
         <X size={21} aria-hidden="true"/>
@@ -111,10 +113,11 @@ export default function OrbitActionDialog({
           {confirm && value !== confirm && <p className="orbit-dialog-error">Passwords do not match.</p>}
           <p className="orbit-dialog-hint">At least 8 characters. The password is not saved.</p>
         </>}
+        {error && <p className="orbit-dialog-error" role="alert">{error}</p>}
         <div className="orbit-dialog-footer">
           <button type="button" className="orbit-dialog-cancel" onClick={onClose}>Cancel</button>
-          <button type="submit" className="orbit-dialog-submit" disabled={!valid}>
-            {kind === "rename" ? "Save" : kind === "split" ? "Split file" : "Create ZIP"}
+          <button type="submit" className="orbit-dialog-submit" disabled={!valid || busy}>
+            {busy ? "Renaming…" : kind === "rename" ? "Save" : kind === "split" ? "Split file" : "Create ZIP"}
           </button>
         </div>
       </form>

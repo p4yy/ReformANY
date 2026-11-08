@@ -170,6 +170,7 @@ export default function Orbit() {
   const [calibreReady, setCalibreReady] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
+  const [renameBusy, setRenameBusy] = useState(false);
   const [splitting, setSplitting] = useState(false);
   const [partSize, setPartSize] = useState("100");
   const [passwording, setPasswording] = useState(false);
@@ -494,8 +495,10 @@ export default function Orbit() {
   }
 
   async function rename() {
-    if (!file) return;
+    if (!file || renameBusy) return;
+    setRenameBusy(true);
     setError(null);
+    setNote(null);
     try {
       const result = await invoke<{ path: string; name: string }>("rename_file", {
         path: file.path, newName,
@@ -503,7 +506,12 @@ export default function Orbit() {
       setFile({ ...file, path: result.path, name: result.name });
       setRenaming(false);
       setNote("Renamed successfully");
-    } catch (reason) { setError(String(reason)); }
+    } catch (reason) {
+      // Keep the dialog editable with the actual filesystem error visible.
+      setError(String(reason));
+    } finally {
+      setRenameBusy(false);
+    }
   }
 
   async function reveal() {
@@ -712,6 +720,7 @@ export default function Orbit() {
       {(renaming || splitting || passwording) && file && <OrbitActionDialog
         kind={renaming ? "rename" : splitting ? "split" : "password"}
         name={file.name} bytes={formatSize(file.bytes)}
+        busy={renaming && renameBusy} error={error || undefined}
         value={renaming ? newName : splitting ? partSize : archivePassword}
         onValue={renaming ? setNewName : splitting ? setPartSize : setArchivePassword}
         onClose={() => {

@@ -250,8 +250,13 @@ pub fn position_near_cursor(window: &WebviewWindow) {
         let top = info.rcWork.top;
         let max_x = info.rcWork.right.saturating_sub(size.width as i32);
         let max_y = info.rcWork.bottom.saturating_sub(size.height as i32);
-        let x = (cursor.x + 14).clamp(left, max_x.max(left));
-        let y = (cursor.y - (size.height as i32 / 2)).clamp(top, max_y.max(top));
+        // The selection is under the context-menu invocation point in normal
+        // Explorer/desktop right clicks. Anchor the wheel *around* that point,
+        // rather than opening the whole window to the far right of the file.
+        let x = cursor.x.saturating_sub(size.width as i32 / 2)
+            .clamp(left, max_x.max(left));
+        let y = cursor.y.saturating_sub(size.height as i32 / 2)
+            .clamp(top, max_y.max(top));
         let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
     }
 }

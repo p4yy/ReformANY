@@ -25,25 +25,40 @@ fn valid_filename(name: &str) -> bool {
         "LPT1"|"LPT2"|"LPT3"|"LPT4"|"LPT5"|"LPT6"|"LPT7"|"LPT8"|"LPT9")
 }
 
+fn rename_file_on_disk(old: &Path, new_name: &str) -> Result<RenameResult, String> {
+    if !valid_filename(new_name) {
+        return Err("Invalid Windows filename".into());
+    }
+    // Explorer's folder Orbit uses this action too. Symlinks remain blocked.
+    crate::external::verify_input(old, true)?;
+    let parent = old.parent().ok_or("Cannot determine parent folder")?;
+    let new = parent.join(new_name);
+    let existing_name = old.file_name().and_then(|part| part.to_str()).unwrap_or("");
+    if old == new {
+        return Ok(RenameResult {
+            path: old.to_string_lossy().into_owned(),
+            name: new_name.to_owned(),
+        });
+    }
+    // NTFS paths are normally case-insensitive: changing photo.PNG to photo.png
+    // is not a collision with a different file.
+    let case_only = cfg!(windows) && existing_name.eq_ignore_ascii_case(new_name);
+    if new.exists() && !case_only {
+        return Err("A file with that name already exists".into());
+    }
+    fs::rename(old, &new).map_err(|e| format!("Rename failed: {e}"))?;
+    Ok(RenameResult {
+        path: new.to_string_lossy().into_owned(),
+        name: new_name.to_owned(),
+    })
+}
+
 #[tauri::command]
 pub async fn rename_file(path: String, new_name: String) -> Result<RenameResult, String> {
-    if !valid_filename(&new_name) { return Err("Invalid Windows filename".into()); }
-    tauri::async_runtime::spawn_blocking(move || {
-        let old = PathBuf::from(&path);
-        // Explorer's folder Orbit uses this action too. Symlinks remain blocked.
-        crate::external::verify_input(&old, true)?;
-        let parent = old.parent().ok_or("Cannot determine parent folder")?;
-        let new = parent.join(&new_name);
-        if new.exists() {
-            return Err("A file with that name already exists".into());
-        }
-        // On Windows, rename across the same folder is atomic if no collision.
-        fs::rename(&old, &new).map_err(|e| format!("Rename failed: {e}"))?;
-        Ok(RenameResult {
-            path: new.to_string_lossy().into_owned(),
-            name: new_name,
-        })
-    }).await.map_err(|_| "Rename worker failed".to_owned())?
+    // Disk work runs outside WebView's event loop, keeping Orbit responsive.
+    tauri::async_runtime::spawn_blocking(move ||
+        rename_file_on_disk(Path::new(&path), &new_name)
+    ).await.map_err(|_| "Rename worker failed".to_owned())?
 }
 
 #[tauri::command]
@@ -165,5 +180,31 @@ mod tests {
         }
         assert!(valid_filename("Reformed photo.png"));
         assert!(valid_filename("échantillon.webp"));
+    }
+
+    #[test]
+    fn rename_changes_disk_name_and_rejects_collisions_without_touching_source() {
+        let root = tempfile::tempdir().unwrap();
+        let old = root.path().join("old name.txt");
+        fs::write(&old, b"original").unwrap();
+        let renamed = rename_file_on_disk(&old, "new name.txt").unwrap();
+        assert_eq!(renamed.name, "new name.txt");
+        assert!(!old.exists());
+        assert_eq!(fs::read(renamed.path).unwrap(), b"original");
+        let second = root.path().join("another.txt");
+        fs::write(&second, b"second").unwrap();
+        let existing = root.path().join("new name.txt");
+        assert!(rename_file_on_disk(&second, "new name.txt").is_err());
+        assert_eq!(fs::read(&second).unwrap(), b"second");
+        assert_eq!(fs::read(&existing).unwrap(), b"original");
+    }
+
+    #[test]
+    fn rename_to_same_name_is_noop_not_a_collision() {
+        let root = tempfile::tempdir().unwrap();
+        let input = root.path().join("stays.txt");
+        fs::write(&input, b"same").unwrap();
+        assert!(rename_file_on_disk(&input, "stays.txt").is_ok());
+        assert_eq!(fs::read(input).unwrap(), b"same");
     }
 }
