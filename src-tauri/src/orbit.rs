@@ -1,4 +1,5 @@
-use crate::conversion::{describe, inspect_files, FileInfo};
+use crate::conversion::describe;
+use serde::Serialize;
 use base64::Engine;
 use image::{ImageFormat, ImageReader};
 use std::ffi::OsString;
@@ -36,13 +37,55 @@ pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<Path
     Some(path)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrbitInfo {
+    path: String,
+    name: String,
+    bytes: u64,
+    detected: Option<String>,
+    error: Option<String>,
+}
+
+fn classify_file(path: &Path) -> &'static str {
+    let extension = path.extension().and_then(|x| x.to_str())
+        .unwrap_or("").to_ascii_lowercase();
+    match extension.as_str() {
+        "png"|"jpg"|"jpeg"|"webp"|"bmp"|"gif"|"tif"|"tiff" => "Image",
+        "mp4"|"webm"|"mkv"|"mov"|"avi"|"wmv"|"m4v"|"mpeg"|"mpg"|"mts"|"m2ts" => "Video",
+        "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aac"|"aiff"|"wma"|"ac3" => "Audio",
+        "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
+        _ => "File",
+    }
+}
+
 #[tauri::command]
-pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<FileInfo> {
-    state.path.as_ref().and_then(|path| {
-        inspect_files(vec![path.to_string_lossy().into_owned()])
-            .into_iter()
-            .next()
-    })
+pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
+    let path = state.path.as_ref()?;
+    let name = path.file_name()?.to_string_lossy().into_owned();
+    let raw = path.to_string_lossy().into_owned();
+    let kind = classify_file(path);
+    let info = match std::fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => {
+            if kind == "Image" {
+                match describe(path) {
+                    Ok((bytes, format)) => OrbitInfo {
+                        path: raw, name, bytes,
+                        detected: Some(format!("{format:?}")),
+                        error: None,
+                    },
+                    Err(error) => OrbitInfo { path: raw, name, bytes: metadata.len(),
+                        detected: Some(kind.to_owned()), error: Some(error) },
+                }
+            } else {
+                OrbitInfo { path: raw, name, bytes: metadata.len(),
+                    detected: Some(kind.to_owned()), error: None }
+            }
+        }
+        _ => OrbitInfo { path: raw, name, bytes: 0, detected: None,
+            error: Some("Selected file cannot be opened".into()) },
+    };
+    Some(info)
 }
 
 #[tauri::command]
@@ -211,4 +254,13 @@ mod tests {
         ])
         .is_none());
     }
+    #[test]
+    fn orbit_classifies_media_archive_and_images() {
+        assert_eq!(classify_file(Path::new("video.MP4")), "Video");
+        assert_eq!(classify_file(Path::new("voice.FLAC")), "Audio");
+        assert_eq!(classify_file(Path::new("backup.RAR")), "Archive");
+        assert_eq!(classify_file(Path::new("photo.webp")), "Image");
+        assert_eq!(classify_file(Path::new("notes.txt")), "File");
+    }
+
 }
