@@ -68,7 +68,9 @@ For details, see [architecture](docs/ARCHITECTURE.md), [QA guidance](docs/DEVELO
 
 The original ReformANY source, interface design and first-party brand materials are **publicly viewable but proprietary**. **Exact copying of the code is not automatically permitted.** You may inspect the code and independently learn from its ideas, but commercial resale, repackaging and redistribution of protected ReformANY material require written permission. Authorized reuse must give prominent credit and the official project link, plus the official website and donation link once published. GitHub's platform permissions and third-party dependency licenses still apply.
 
-Read [LICENSE](LICENSE), [reuse and attribution rules](docs/REUSE_AND_ATTRIBUTION.md), and [brand principles](docs/BRAND.md) for the product identity. Public visibility is intentional; the repository will remain public.
+Read [LICENSE](LICENSE), [reuse and attribution rules](docs/REUSE_AND_ATTRIBUTION.md), and [brand principles](docs/BRAND.md) for the product identity.
+
+If you'd like to support development, use the official [Support ReformANY / Acev Dev Co](https://www.paypal.com/paypalme/aceevisuals) donation page. Contributions are voluntary and do not grant a software redistribution license. Public visibility is intentional; the repository will remain public.
 
 ---
 

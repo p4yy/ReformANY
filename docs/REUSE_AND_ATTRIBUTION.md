@@ -32,10 +32,15 @@ Credits screen), as well as in redistributed documentation:
 > Contains material from ReformANY by Acev Dev Co. Used with permission.
 >
 > Official repository: https://github.com/p4yy/ReformANY
+>
+> Support ReformANY / Acev Dev Co: https://www.paypal.com/paypalme/aceevisuals
 
-Also include the official ReformANY website and official support/donation
-link **once those exact URLs are supplied and approved by Acev Dev Co**.
-The credit must remain visible, working and not buried in source comments.
+Also include a clearly labelled, clickable **Support ReformANY / Acev Dev Co**
+donation link: https://www.paypal.com/paypalme/aceevisuals.
+
+Include the official ReformANY website once Acev Dev Co publishes and
+identifies it. The credit and donation link must remain visible, working and
+not be buried in source comments.
 List meaningful modifications and don't imply official endorsement.
 
 | Official reference | Current verified destination |
@@ -43,10 +48,10 @@ List meaningful modifications and don't imply official endorsement.
 | Product | ReformANY by Acev Dev Co |
 | Canonical source | https://github.com/p4yy/ReformANY |
 | Official website | Not provided yet |
-| Official donation/support page | Not provided yet |
+| Official donation/support page | https://www.paypal.com/paypalme/aceevisuals |
 
-The website and donation URLs have deliberately not been invented. Once Acev
-Dev Co supplies them, update this table and written licensing templates.
+The donation URL was provided by Acev Dev Co. The official website has not
+been provided; do not invent or imply a website address.
 
 ## Independent inspiration
 

@@ -73,9 +73,12 @@ states otherwise:
 a. Clear credit: "Contains material from ReformANY by Acev Dev Co."
 b. An unobscured link to the canonical project repository:
    https://github.com/p4yy/ReformANY
-c. Links to the official ReformANY website and official support/donation
-   page, once Acev Dev Co identifies those destinations in the project's
-   REUSE_AND_ATTRIBUTION.md documentation or written permission.
+c. A visible clickable link labelled "Support ReformANY / Acev Dev Co"
+   pointing to the official donation page:
+   https://www.paypal.com/paypalme/aceevisuals
+   and a link to the official ReformANY website when Acev Dev Co
+   publishes and identifies that destination in REUSE_AND_ATTRIBUTION.md
+   or in the written permission.
 d. Preservation of copyright and license notices for all copied
    ReformANY materials, and clear identification of modifications.
 e. A statement that the work is not endorsed by Acev Dev Co unless
