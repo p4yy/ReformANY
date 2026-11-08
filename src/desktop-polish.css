@@ -474,3 +474,66 @@ html[data-mode="main"] .toast button:hover { color: var(--accent); }
     transition: none;
   }
 }
+
+
+/* Explicit, accessible horizontal controls: workspaces stay reachable
+   at 750px widths even with a conventional mouse and no trackpad. */
+html[data-mode="main"] .workspace-navigation {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+html[data-mode="main"] .workspace-navigation > nav[aria-label="Workspace tools"] {
+  align-self: stretch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding-inline: 35px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+html[data-mode="main"] .workspace-scroll {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  width: 30px;
+  height: 35px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease, background-color .12s ease;
+}
+html[data-mode="main"] .workspace-scroll.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+html[data-mode="main"] .workspace-scroll:hover { background: var(--soft); }
+html[data-mode="main"] .workspace-scroll-prev { left: 2px; }
+html[data-mode="main"] .workspace-scroll-next { right: 2px; }
+html[dir="rtl"][data-mode="main"] .workspace-scroll-prev { left: auto; right: 2px; }
+html[dir="rtl"][data-mode="main"] .workspace-scroll-next { right: auto; left: 2px; }
+html[data-mode="main"] .activity-symbol.completed {
+  color: #75b69b;
+  background: color-mix(in srgb, #75b69b 11%, var(--surface));
+}
+html[data-mode="main"] .activity-symbol.failed {
+  color: #e28f85;
+  background: color-mix(in srgb, #e28f85 11%, var(--surface));
+}
+@media (max-width: 960px) {
+  html[data-mode="main"] .workspace-navigation > nav[aria-label="Workspace tools"] {
+    padding-inline: 35px;
+  }
+}
