@@ -9,6 +9,7 @@ import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
 import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
+import OrbitNotice from "./OrbitNotice";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
 import {
   Archive, ArrowRightLeft, Bluetooth, Check, CheckCircle2, Clapperboard,
@@ -624,9 +625,9 @@ export default function Orbit() {
         ] : []),
       ] : [];
 
-  const message = error || note || (phase === "ready" && tab === "convert" &&
+  const message = phase === "ready" && tab === "convert" &&
     (convertActions.length === 0 || convertActions.every(a => Boolean(a.unavailable)))
-    ? description : null);
+    ? description : null;
   const ringVisible = phase === "ready" || phase === "failed";
 
   return (
@@ -701,11 +702,13 @@ export default function Orbit() {
               <span>{t(getLanguage(), value)}</span>
             </button>)}
         </nav>
-        <div className={error ? "orbit-message orbit-message-error" : "orbit-message"}
-          role={error ? "alert" : "status"} aria-live="polite"
+        <div className="orbit-message" role="status" aria-live="polite"
           title={message || file?.name || ""}>
           {message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
         </div>
+      {(error || note) && <OrbitNotice key={error || note}
+        message={error || note || ""} error={Boolean(error)}
+        onDismiss={() => { setError(null);setNote(null); }}/>}
       {(renaming || splitting || passwording) && file && <OrbitActionDialog
         kind={renaming ? "rename" : splitting ? "split" : "password"}
         name={file.name} bytes={formatSize(file.bytes)}
