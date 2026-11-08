@@ -167,8 +167,11 @@ export function ArchivePanel() {
   const [result, setResult] = useState<string | null>(null);
   const [extra, setExtra] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const supported = format === "rar" ? Boolean(engines?.winrar) : Boolean(engines?.sevenZip);
-  const canRun = mode === "extract" ? Boolean(engines?.sevenZip) : supported;
+  const supported = format === "rar" ? Boolean(engines?.winrar)
+    : format === "zip" && split === "0" ? true : Boolean(engines?.sevenZip);
+  const canRun = mode === "extract"
+    ? (sources[0]?.toLowerCase().endsWith(".zip") || Boolean(engines?.sevenZip))
+    : supported;
 
   async function addFiles() {
     try {
