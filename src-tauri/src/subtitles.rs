@@ -66,7 +66,7 @@ fn parse_cues(input: &str, from_webvtt: bool) -> Result<Vec<Cue>, String> {
         let (start, end) = times.split_once("-->")
             .ok_or("Subtitle cue missing timing arrow")?;
         let end = end.trim();
-        if end.contains([' ', '\t']) {
+        if end.contains(' ') || end.contains('\t') {
             return Err("WebVTT cue positioning settings are not supported by SRT".into());
         }
         let start_ms = parse_time(start)?;

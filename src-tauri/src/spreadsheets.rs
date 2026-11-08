@@ -26,8 +26,10 @@ fn valid_format(ext: &str) -> bool {
 fn safe_cell(cell: &str) -> String {
     // CSV injection defence when users later open exports in Excel.
     let trimmed = cell.trim_start();
-    if trimmed.starts_with(['=', '+', '@', '\t', '\r'])
-        || trimmed.starts_with('-') && trimmed.parse::<f64>().is_err() {
+    if trimmed.starts_with('=') || trimmed.starts_with('+') ||
+        trimmed.starts_with('@') || trimmed.starts_with('\t') ||
+        trimmed.starts_with('\r') ||
+        (trimmed.starts_with('-') && trimmed.parse::<f64>().is_err()) {
         format!("'{cell}")
     } else {
         cell.to_owned()

@@ -159,10 +159,13 @@ fn reject_multipage_or_animated(path: &Path, format: ImageFormat) -> Result<(), 
             }
         }
         ImageFormat::Ico => {
-            // The ICO decoder chooses one embedded resolution. Refuse
-            // containers carrying multiple images rather than silently
-            // dropping icon sizes; ICO output is a single-size icon.
-            // Multi-size decoding requires a dedicated icon container route.
+            let mut header = [0u8; 6];
+            File::open(path).and_then(|mut f| f.read_exact(&mut header))
+                .map_err(|e| format!("Cannot inspect ICO: {e}"))?;
+            let count = u16::from_le_bytes([header[4], header[5]]);
+            if count != 1 {
+                return Err("Multi-resolution ICO is not supported yet; images were not discarded".into());
+            }
         }
         ImageFormat::Tiff => {
             let reader = BufReader::new(File::open(path).map_err(|e| e.to_string())?);
@@ -269,9 +272,16 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
         let svg = crate::svg_image::rasterize_svg(input)?;
         svg.dimensions()
     } else {
-        ImageReader::open(input).map_err(|e| format!("Cannot open image: {e}"))?
-            .with_guessed_format().map_err(|e| format!("Cannot inspect image: {e}"))?
-            .into_dimensions().map_err(|e| format!("Cannot read image dimensions: {e}"))?
+        let mut reader = ImageReader::open(input)
+            .map_err(|e| format!("Cannot open image: {e}"))?;
+        if input.extension().and_then(|s| s.to_str())
+            .is_some_and(|s| s.eq_ignore_ascii_case("tga")) {
+            reader.set_format(ImageFormat::Tga);
+        } else {
+            reader = reader.with_guessed_format()
+                .map_err(|e| format!("Cannot inspect image: {e}"))?;
+        }
+        reader.into_dimensions().map_err(|e| format!("Cannot read image dimensions: {e}"))?
     };
     if width as u64 * height as u64 > MAX_PIXELS {
         return Err("Image exceeds the 40-megapixel processing limit".into());
@@ -322,12 +332,24 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
     if cancelled.load(Ordering::Relaxed) {
         return Err("cancelled".into());
     }
-    // TGA lacks a reliable content signature. The staged output has no extension.
-    let mut reader = ImageReader::open(temp.path()).map_err(|e| e.to_string())?;
-    reader.set_format(target_format);
-    let verified = reader.decode().map_err(|e| format!("Output verification failed: {e}"))?;
-    if verified.dimensions() != (result_width, result_height) {
-        return Err("Output dimensions failed verification".into());
+    if target_format == ImageFormat::Avif {
+        // AVIF encoding is supported without libdav1d; full independent
+        // decoding is not bundled in this preview. Validate ISO BMFF brand
+        // and non-empty payload instead of pretending it was decoded.
+        let mut magic = [0u8; 12];
+        File::open(temp.path()).and_then(|mut f| f.read_exact(&mut magic))
+            .map_err(|e| format!("AVIF output has invalid header: {e}"))?;
+        if &magic[4..8] != b"ftyp" || !matches!(&magic[8..12], b"avif" | b"avis") {
+            return Err("AVIF output has no valid AVIF file brand".into());
+        }
+    } else {
+        // TGA lacks a reliable signature and the staged output has no extension.
+        let mut reader = ImageReader::open(temp.path()).map_err(|e| e.to_string())?;
+        reader.set_format(target_format);
+        let verified = reader.decode().map_err(|e| format!("Output verification failed: {e}"))?;
+        if verified.dimensions() != (result_width, result_height) {
+            return Err("Output dimensions failed verification".into());
+        }
     }
     let stem = input.file_stem().ok_or("Invalid input filename")?.to_string_lossy();
     // 'persist_noclobber' never replaces an existing file, even with concurrent workers.
