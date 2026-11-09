@@ -174,6 +174,8 @@ pub fn run() {
                 .title("ReformANY")
                 .inner_size(1120.0, 760.0)
                 .min_inner_size(750.0, 580.0)
+                .decorations(false)
+                .shadow(false)
                 .center()
                 .build()?;
             }
