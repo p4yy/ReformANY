@@ -35,6 +35,11 @@ fn encrypt(path:&str,password:&str,destination:Option<&str>)->Result<String,Stri
     let stage=tempfile::Builder::new().prefix(".reformany-protect-")
         .tempdir_in(&folder).map_err(|e|e.to_string())?;
     let file=stage.path().join("protected.pdf");
+    // lopdf 0.38's encrypted cross-reference streams can load with zero
+    // resolved objects even when the password authenticates. Emit a classic
+    // cross-reference table so external PDF readers can resolve the catalog.
+    doc.reference_table.cross_reference_type = lopdf::xref::XrefType::CrossReferenceTable;
+    doc.trailer.remove(b"Type");
     doc.save(&file).map_err(|e|e.to_string())?;
     let mut probe=Document::load(&file).map_err(|e|e.to_string())?;
     if !probe.is_encrypted(){
