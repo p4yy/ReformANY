@@ -71,6 +71,6 @@ try {
     }
     foreach ($Entry in $PngEntries) { $Writer.Write($Entry) }
   } finally { $Writer.Dispose() }
-  Write-Host "Official logo updated in main UI, Orbit, Float, welcome and Windows/installer resources."
+  Write-Host "Official logo updated in main UI, Orbit, HoveR, welcome and Windows/installer resources."
   Write-Host "Run npm run tauri build on Windows to package the updated app and installer."
 } finally { $Image.Dispose() }
