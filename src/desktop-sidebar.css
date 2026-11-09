@@ -121,7 +121,6 @@ html[data-mode="main"] .reformany-sidebar nav[aria-label="Preferences"] {
   align-items:stretch;
   justify-content:flex-start;
   flex-wrap:nowrap;
-  float:none;
   width:100%;
   min-width:0;
   height:auto;
