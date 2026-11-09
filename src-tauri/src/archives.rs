@@ -365,9 +365,81 @@ pub async fn archive_extract(job: ArchiveExtract) -> Result<String, String> {
         .await.map_err(|_| "Archive extraction worker failed".to_owned())?
 }
 
+/// Repackage an archive by *extracting verified members first*. Wrapping
+/// another archive as a single file is not a format conversion.
+fn repack(path: &str, target: &str, destination: Option<&str>) -> Result<ArchiveCreated, String> {
+    if !matches!(target, "zip" | "7z" | "tar") {
+        return Err("Repack supports ZIP, 7Z or TAR output only".into());
+    }
+    let source = Path::new(path);
+    verify_input(source, false)?;
+    let original = source.file_stem().and_then(|s| s.to_str())
+        .ok_or("Archive filename is not supported")?;
+    // Extraction is confined to a private tempdir and all extracted paths
+    // undergo the existing path traversal, symlink and size checks.
+    let scratch = tempfile::Builder::new().prefix("reformany-repack-")
+        .tempdir().map_err(|e| e.to_string())?;
+    let extracted = extract(ArchiveExtract {
+        path: path.into(),
+        destination: Some(scratch.path().to_string_lossy().into_owned()),
+        password: None,
+    })?;
+    let inputs = fs::read_dir(&extracted).map_err(|e| e.to_string())?
+        .map(|item| item.map(|entry| entry.path().to_string_lossy().into_owned())
+            .map_err(|e| e.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    if inputs.is_empty() {
+        return Err("The source archive has no files to convert".into());
+    }
+    let result = create(ArchiveCreate {
+        paths: inputs,
+        destination: destination.map(str::to_owned),
+        name: original.to_owned(),
+        format: target.into(),
+        password: None,
+        split_megabytes: None,
+        level: 5,
+    })?;
+    if result.output_paths.is_empty() {
+        return Err("Archive conversion did not create an output file".into());
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn archive_repack(path: String, target: String, destination: Option<String>)
+    -> Result<ArchiveCreated, String>
+{
+    tauri::async_runtime::spawn_blocking(move || {
+        repack(&path, &target, destination.as_deref())
+    }).await.map_err(|_| "Archive repack worker failed unexpectedly".to_owned())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_zip_repack_is_real_archive_conversion() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("Original.txt");
+        fs::write(&original, "Real original content").unwrap();
+        let source = crate::native_zip::create_native_zip(
+            &[original.to_string_lossy().into_owned()], "Source", None, None, 5,
+        ).unwrap();
+        let result = repack(&source, "zip", None).unwrap();
+        assert_eq!(result.output_paths.len(), 1);
+        assert_ne!(result.output_paths[0], source);
+        let target = Path::new(&result.output_paths[0]);
+        assert!(target.exists());
+        let saved = crate::native_zip::extract_native_zip(
+            &result.output_paths[0], None, None,
+        ).unwrap();
+        assert_eq!(
+            fs::read_to_string(Path::new(&saved).join("Original.txt")).unwrap(),
+            "Real original content"
+        );
+    }
+
 
     fn sample(format: &str) -> ArchiveCreate {
         ArchiveCreate { paths: vec!["C:\\example\\doc.txt".into()],
