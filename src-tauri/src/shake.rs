@@ -62,9 +62,15 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 #[cfg(any(windows,test))]
 enum Phase { Idle, ButtonHeld, PotentialDrag, Handled, WaitingForDrop }
+#[derive(Debug,Clone,Copy)]
+#[cfg(any(windows,test))]
+struct PollSample{
+    x:i32,y:i32,time:u32,primary_down:bool,
+    eligible:bool,drag_threshold:u32,
+}
 #[derive(Debug)]
 #[cfg(any(windows,test))]
-pub struct Detector {
+struct Detector {
     phase:Phase,
     origin:(i32,i32),
     direction:Option<i8>,
@@ -87,8 +93,8 @@ impl Detector{
     /// Eligible is established only once, at initial button down, by native
     /// Explorer/Desktop hit-testing. Native passes SM_CXDRAG from Windows.
     /// Return true once per press after 3 real horizontal 40px reversals.
-    pub fn sample(&mut self,x:i32,y:i32,time:u32,primary_down:bool,
-        eligible:bool,drag_threshold:u32,sensitivity:u8)->bool {
+    fn sample(&mut self,poll:PollSample,sensitivity:u8)->bool {
+        let PollSample{x,y,time,primary_down,eligible,drag_threshold}=poll;
         if !primary_down {self.reset();return false;}
         if self.handled {return false;}
         if !eligible {self.reset();return false;}
@@ -180,7 +186,7 @@ extern "C" fn tick(x:i32,y:i32,time:u32,primary:bool,eligible:bool,
     let Ok(mut detector)=SENSOR.get_or_init(||Mutex::new(Detector::default())).try_lock()
         else{return 0};
     if !config.enabled {detector.reset();return 0;}
-    if detector.sample(x,y,time,primary,eligible,threshold,config.sensitivity){2}
+    if detector.sample(PollSample{x,y,time,primary_down:primary,eligible,drag_threshold:threshold},config.sensitivity){2}
     else if detector.phase==Phase::PotentialDrag && detector.reversals>=2{1}
     else{0}
 }
@@ -297,7 +303,7 @@ pub fn stop_listener(){}
 mod tests {
     use super::*;
     fn step(d:&mut Detector,x:i32,y:i32,ms:u32)->bool{
-        d.sample(x,y,ms,true,true,4,3)
+        d.sample(PollSample{x,y,time:ms,primary_down:true,eligible:true,drag_threshold:4},3)
     }
     fn completed(d:&mut Detector,start:u32)->bool{
         let mut count=0;
@@ -359,7 +365,7 @@ mod tests {
     fn button_release_resets_handled_and_history(){
         let mut d=Detector::default();
         assert!(completed(&mut d,0));
-        assert!(!d.sample(0,0,450,false,true,4,3));
+        assert!(!d.sample(PollSample{x:0,y:0,time:450,primary_down:false,eligible:true,drag_threshold:4},3));
         assert_eq!(d.phase,Phase::Idle);
         assert_eq!(d.reversals,0);
         assert!(!d.handled);
@@ -379,7 +385,7 @@ mod tests {
     fn only_eligible_shell_initial_press_is_tracked(){
         let mut d=Detector::default();
         for (i,x) in [0,55,0,55,0].into_iter().enumerate(){
-            assert!(!d.sample(x,0,i as u32*100,true,false,4,3));
+            assert!(!d.sample(PollSample{x,y:0,time:i as u32*100,primary_down:true,eligible:false,drag_threshold:4},3));
         }
         assert_eq!(d.phase,Phase::Idle);
     }
@@ -409,7 +415,7 @@ mod tests {
     fn physical_button_mapping_is_the_native_pollers_responsibility(){
         let mut d=Detector::default();
         assert!(completed(&mut d,0));
-        d.sample(0,0,500,false,true,4,3);
+        d.sample(PollSample{x:0,y:0,time:500,primary_down:false,eligible:true,drag_threshold:4},3);
         assert!(!d.handled);
     }
 }
