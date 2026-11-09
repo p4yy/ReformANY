@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState,type FormEvent,type PointerEvent} from "react";
 import {invoke} from "@tauri-apps/api/core";
+import RangeSlider from "./RangeSlider";
 import {GlobalWorkerOptions,getDocument} from "pdfjs-dist/legacy/build/pdf.mjs";
 import worker from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import {ChevronLeft,ChevronRight,FileSignature,RotateCcw,Stamp,ZoomIn,ZoomOut,X} from "lucide-react";
@@ -164,21 +165,15 @@ export default function PdfMarkDialog({path,name,signature,working,error,onSave,
             onChange={e=>setText(e.target.value)}/>
           <label htmlFor="mark-color">Color</label>
           <input id="mark-color" type="color" value={color} onChange={e=>setColor(e.target.value)}/>
-          <div className="orbit-range-label"><label htmlFor="mark-size">Size</label><output htmlFor="mark-size">{size} pt</output></div>
-          <input id="mark-size" type="range" min={8} max={108} step={1} value={size}
-            onChange={e=>setSize(Number(e.target.value))}/>
-          <div className="orbit-range-label"><label htmlFor="mark-angle">Rotation</label><output htmlFor="mark-angle">{rotation}°</output></div>
-          <input id="mark-angle" type="range" min={-180} max={180} step={5} value={rotation}
-            onChange={e=>setRotation(Number(e.target.value))}/>
-          <div className="orbit-range-label"><label htmlFor="mark-opacity">Opacity</label><output htmlFor="mark-opacity">{opacity}%</output></div>
-          <input id="mark-opacity" type="range" min={5} max={100} step={5} value={opacity}
-            onChange={e=>setOpacity(Number(e.target.value))}/>
-          <div className="orbit-range-label"><label htmlFor="mark-x">Horizontal position</label><output htmlFor="mark-x">{x}%</output></div>
-          <input id="mark-x" type="range" min={10} max={90} step={1} value={x}
-            onChange={e=>setX(Number(e.target.value))}/>
-          <div className="orbit-range-label"><label htmlFor="mark-y">Vertical position</label><output htmlFor="mark-y">{y}%</output></div>
-          <input id="mark-y" type="range" min={10} max={90} step={1} value={y}
-            onChange={e=>setY(Number(e.target.value))}/>
+          <RangeSlider id="mark-size" label="Size" min={8} max={108} value={size} unit=" pt" onChange={setSize}/>
+          <RangeSlider id="mark-angle" label="Rotation" min={-180} max={180} step={5}
+            value={rotation} unit="°" onChange={setRotation}/>
+          <RangeSlider id="mark-opacity" label="Opacity" min={5} max={100} step={5}
+            value={opacity} unit="%" onChange={setOpacity}/>
+          <RangeSlider id="mark-x" label="Horizontal position" min={10} max={90}
+            value={x} unit="%" onChange={setX}/>
+          <RangeSlider id="mark-y" label="Vertical position" min={10} max={90}
+            value={y} unit="%" onChange={setY}/>
           <button type="button" className="orbit-mark-reset" onClick={reset}>
             <RotateCcw size={14}/> Reset size and placement
           </button>
