@@ -19,6 +19,7 @@ mod file_parts;
 mod pdf_split;
 mod pdf_ops;
 mod pdf_raster;
+mod pdf_images;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -40,6 +41,7 @@ use file_parts::{file_split, file_join};
 use pdf_split::pdf_split;
 use pdf_ops::{pdf_page_count, pdf_extract_pages, pdf_rotate_pages};
 use pdf_raster::pdf_save_rendered_pages;
+use pdf_images::pdf_extract_images;
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -92,6 +94,7 @@ pub fn run() {
             pdf_extract_pages,
             pdf_rotate_pages,
             pdf_save_rendered_pages,
+            pdf_extract_images,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
