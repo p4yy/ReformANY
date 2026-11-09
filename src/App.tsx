@@ -720,7 +720,7 @@ function App() {
               }}>Reset section shortcuts</button>
               <div className="orbit-mouse-setting">
                 <span><strong>Hold-and-shake in Explorer</strong>
-                  <small>After a deliberate hold, reverse mouse direction rapidly while holding a selected file. The native listener checks a Windows Shell IDataObject before opening Orbit.</small></span>
+                  <small>Hold a file in Explorer, then reverse direction rapidly. After the completed shake, ReformANY captures the live OLE drag data to identify the actual dragged file. Only one file is supported in this gesture.</small></span>
                 <input type="checkbox" checked={shakeConfig.enabled} disabled={!desktop||shakeBusy}
                   aria-label="Enable hold-and-shake Orbit gesture"
                   onChange={event=>void saveShakeConfig(event.target.checked,shakeConfig.sensitivity)}/>
@@ -732,7 +732,7 @@ function App() {
                   aria-label="Shake sensitivity" disabled={!shakeConfig.enabled||shakeBusy}
                   onChange={event=>void saveShakeConfig(true,Number(event.target.value))}/>
               </label>
-              <p>Opt-in Windows background listener. No selected files are read unless a qualifying hold/shake gesture occurs. This requires real Windows Explorer/Desktop testing before final release.</p>
+              <p>Opt-in Windows listener. Ordinary dragging is unaffected until a qualifying shake. A temporary drop target reads CF_HDROP from the active drag; unsupported or multiple-file drags are ignored. Real Explorer/Desktop testing is still required.</p>
               {shakeError&&<p role="alert" className="orbit-dialog-error">{shakeError}</p>}
               <label className="orbit-mouse-setting">
                 <span><strong>Pointer loading ring</strong><small>Show a small progress indicator beside the cursor while Orbit is processing.</small></span>
