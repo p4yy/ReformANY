@@ -226,8 +226,8 @@ export default function Welcome({ onFinish }: { onFinish: () => void }) {
               {demoDone && <span className="welcome-orbit-done"><CheckCircle2 size={14}/> Example completed — no files were changed.</span>}
             </div>
             <div className="welcome-orbit-demo-controls">
-              <button type="button" disabled={!selected} onClick={() => setDemoDone(true)}>
-                {demoDone ? "Replay demo" : "Try sample"}
+              <button type="button" disabled={!selected} onClick={() => setDemoDone(value => !value)}>
+                {demoDone ? "Reset demo" : "Try sample"}
               </button>
               <button type="button" className="welcome-orbit-real" disabled={openingReal}
                 onClick={() => void tryRealOrbit()}>
