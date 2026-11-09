@@ -133,7 +133,7 @@ fn apply(path:&str,mark:PdfMark,visual_signature:bool,destination:Option<&str>)
             Operation::new("Tf",vec![Object::Name(b"RAVisualMark".to_vec()),mark.size.into()]),
             Operation::new("Tm",vec![cos.into(),sin.into(),(-sin).into(),cos.into(),
                 (x+dx*cos).into(),(y+dx*sin).into()]),
-            Operation::new("Tj",vec![Object::string_literal(&mark.text)]),
+            Operation::new("Tj",vec![Object::string_literal(mark.text.as_str())]),
             Operation::new("ET",vec![]),
             Operation::new("Q",vec![]),
         ];
