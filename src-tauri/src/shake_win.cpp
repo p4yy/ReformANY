@@ -294,6 +294,21 @@ extern "C" void reformany_stop_shake_listener() {
     HANDLE stop = OpenEventW(EVENT_MODIFY_STATE, FALSE, kStopName);
     if (stop) { SetEvent(stop); CloseHandle(stop); }
 }
+// When upgrading ReformANY, an older opt-in shake listener may still own
+// the per-user mutex. Wait for its graceful stop before starting the new
+// listener; otherwise the old selection-based implementation stays active.
+extern "C" bool reformany_wait_shake_listener_exit(unsigned int timeout_ms) {
+    HANDLE mutex = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, kMutexName);
+    if (!mutex) return GetLastError() == ERROR_FILE_NOT_FOUND;
+    const DWORD wait = WaitForSingleObject(mutex, timeout_ms);
+    if (wait == WAIT_OBJECT_0 || wait == WAIT_ABANDONED) {
+        ReleaseMutex(mutex);
+        CloseHandle(mutex);
+        return true;
+    }
+    CloseHandle(mutex);
+    return false;
+}
 extern "C" bool reformany_reload_shake_listener() {
     HANDLE change = OpenEventW(EVENT_MODIFY_STATE, FALSE, kReloadName);
     if (!change) return false;
