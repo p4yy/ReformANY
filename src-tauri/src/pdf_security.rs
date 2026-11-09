@@ -46,7 +46,8 @@ fn encrypt(path:&str,password:&str,destination:Option<&str>)->Result<String,Stri
     }
     probe.decrypt(password).map_err(|e|format!("PDF cannot be opened with the chosen password: {e}"))?;
     if probe.get_pages().is_empty(){
-        return Err("Encrypted result contains no readable pages".into());
+        return Err(format!("Encrypted result has no readable pages after decryption: source_pages={}, encrypted_obj_count={}, is_encrypted_after={}, trailer={:?}",
+            doc.get_pages().len(),probe.objects.len(),probe.is_encrypted(),probe.trailer));
     }
     let name=format!("{}_protected",format_name(input)?);
     let saved=publish(&file,&folder,&name,"pdf")?;
