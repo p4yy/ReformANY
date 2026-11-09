@@ -80,7 +80,8 @@ impl Detector{
             self.phase=Phase::Hold;self.down_time=time;self.origin=(x,y);
             self.last=(x,y);return false;
         }
-        let dx=x.saturating_sub(self.last.0),dy=y.saturating_sub(self.last.1);
+        let dx=x.saturating_sub(self.last.0);
+        let dy=y.saturating_sub(self.last.1);
         self.last=(x,y);
         match self.phase {
             Phase::Hold=>{
