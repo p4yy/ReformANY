@@ -73,6 +73,16 @@ export default function HoveRView() {
     } catch (reason) { setError("Cannot change HoveR pin state: " + String(reason)); }
   }
 
+  async function closeHoveR() {
+    try {
+      // Force native disposal. A close-request listener must not leave an
+      // invisible HoveR window or prevent a later preview from opening.
+      await getCurrentWindow().destroy();
+    } catch (reason) {
+      setError("Could not close HoveR: " + String(reason));
+    }
+  }
+
   async function show() {
     if (!file) return;
     try { await invoke("reveal_output", { path: file.path }); }
@@ -133,7 +143,9 @@ export default function HoveRView() {
       <button type="button" aria-label={pinned ? "Unpin HoveR" : "Keep HoveR on top"} aria-pressed={pinned}
         title={pinned ? "Always on top · click to unpin" : "Pin HoveR above other windows"}
         onClick={() => void togglePin()}><Pin size={15} fill={pinned ? "currentColor" : "none"}/></button>
-      <button aria-label="Close hovering preview" onClick={() => void getCurrentWindow().close()}><X size={17}/></button>
+      <button type="button" aria-label="Close hovering preview" title="Close HoveR"
+        onPointerDown={event => event.stopPropagation()}
+        onClick={() => void closeHoveR()}><X size={17}/></button>
     </header>
     <nav className="hover-tabs" aria-label="HoveR view">
       <button aria-current={mode === "preview" ? "page" : undefined} onClick={() => { setMode("preview"); setError(null); }}><FileImage size={14}/> File</button>
