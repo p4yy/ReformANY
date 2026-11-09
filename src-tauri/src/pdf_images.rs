@@ -59,18 +59,19 @@ fn extract(path:&str,destination:Option<&str>) -> Result<ExtractedPdfImages,Stri
         }
         let depth=stream.dict.get(b"BitsPerComponent").ok().and_then(|v|v.as_i64().ok()).unwrap_or(0);
         let space=stream.dict.get(b"ColorSpace").ok().and_then(as_name);
-        if depth!=8 || !matches!(space,Some(b"DeviceRGB")|Some(b"DeviceGray")) {
+        if depth!=8 || !space.is_some_and(|n|n==b"DeviceRGB"||n==b"DeviceGray") {
             skipped+=1;continue;
         }
         let pixels=if stream.dict.get(b"Filter").is_ok() {
             match stream.decompressed_content(){Ok(p)=>p,Err(_)=>{skipped+=1;continue}}
         } else {stream.content.clone()};
         let mut buffer=Vec::<u8>::new();
+        let is_rgb=space.is_some_and(|n|n==b"DeviceRGB");
         let expected=(width as usize).saturating_mul(height as usize)
-            .saturating_mul(if space==Some(b"DeviceRGB"){3}else{1});
+            .saturating_mul(if is_rgb{3}else{1});
         if pixels.len()!=expected {skipped+=1;continue;}
         let mut writer=std::io::Cursor::new(&mut buffer);
-        let color=if space==Some(b"DeviceRGB"){
+        let color=if is_rgb{
             image::ExtendedColorType::Rgb8
         }else{image::ExtendedColorType::L8};
         use image::ImageEncoder;
@@ -144,7 +145,7 @@ mod tests {
             "Contents"=>contents
         });
         pdf.objects.insert(pages,Object::Dictionary(dictionary! {
-            "Type"=>"Pages","Kids"=>vec![page],"Count"=>1
+            "Type"=>"Pages","Kids"=>vec![Object::Reference(page)],"Count"=>1
         }));
         let cat=pdf.add_object(dictionary!{"Type"=>"Catalog","Pages"=>pages});
         pdf.trailer.set("Root",cat);
