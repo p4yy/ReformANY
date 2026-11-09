@@ -182,7 +182,7 @@ mod tests{
         pdf.save(&path).unwrap();
         let mark=PdfMark{
             text:"CONFIDENTIAL".into(),color:"#C8D4A2".into(),size:42.0,
-            opacity:.22,rotation:-45.0,x:.5,y:.5,pages:None
+            opacity:0.22,rotation:-45.0,x:0.5,y:0.5,pages:None
         };
         let watermark=apply(path.to_str().unwrap(),mark,false,None).unwrap();
         let reread=Document::load(&watermark).unwrap();
@@ -195,7 +195,7 @@ mod tests{
         }
         let signature=apply(path.to_str().unwrap(),PdfMark{
             text:"APPROVED".into(),color:"#273B2E".into(),size:20.0,
-            opacity:1.0,rotation:0.0,x:.5,y:.2,pages:Some("2".into())
+            opacity:1.0,rotation:0.0,x:0.5,y:0.2,pages:Some("2".into())
         },true,None).unwrap();
         let signed=Document::load(signature).unwrap();
         assert_eq!(signed.get_pages().len(),2);
