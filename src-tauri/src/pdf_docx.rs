@@ -4,7 +4,6 @@
 use crate::external::{format_name,output_dir,publish};
 use base64::Engine;
 use image::{ImageFormat,GenericImageView};
-use lopdf::Document;
 use std::{fs,io::{Read,Write},path::Path};
 use zip::{CompressionMethod,ZipArchive,ZipWriter,write::SimpleFileOptions};
 
