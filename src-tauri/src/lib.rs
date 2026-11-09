@@ -26,6 +26,7 @@ mod pdf_security;
 mod shred;
 mod job_settings;
 mod auto_convert;
+mod shake;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -54,11 +55,18 @@ use pdf_security::{pdf_protect,pdf_unlock};
 use shred::{shred_preview,shred_confirm};
 use job_settings::{get_queue_policy,set_queue_policy};
 use auto_convert::{WatchRegistry,get_watch_rules,add_watch_rule,remove_watch_rule};
+use shake::{get_shake_settings,set_shake_settings};
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Background gesture watcher has no WebView, console, or main window.
+    // A separate user-session process can remain active after the UI exits.
+    let command = std::env::args_os().nth(1)
+        .map(|arg| arg.to_string_lossy().into_owned()).unwrap_or_default();
+    if command == "--shake-listener" { shake::run_listener(); return; }
+    if command == "--shake-stop" { shake::stop_listener(); return; }
     let orbit_path = orbit::parse_orbit_args(std::env::args_os().skip(1));
     let orbit_mode = orbit_path.is_some();
 
@@ -119,6 +127,8 @@ pub fn run() {
             get_watch_rules,
             add_watch_rule,
             remove_watch_rule,
+            get_shake_settings,
+            set_shake_settings,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
@@ -147,6 +157,7 @@ pub fn run() {
                 orbit::position_near_cursor(&window);
             } else {
                 auto_convert::restore(app.handle());
+                shake::start_when_enabled();
                 WebviewWindowBuilder::new(
                     app,
                     "main",
