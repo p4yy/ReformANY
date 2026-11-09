@@ -59,6 +59,34 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
 
 /// Deterministic gesture detector. Native side polls physical coordinates
 /// every 20ms from a standalone STA, never the UI thread.
+/// Orbit sound preferences are mirrored from the main app's Appearance
+/// controls so the separate native shake listener honors mute and volume.
+#[derive(Debug,Clone,Copy,Serialize,Deserialize)]
+#[serde(rename_all="camelCase")]
+struct OrbitSoundSettings{enabled:bool,volume:u8}
+impl Default for OrbitSoundSettings{
+    fn default()->Self{Self{enabled:true,volume:65}}
+}
+fn orbit_sound_path()->PathBuf{crate::job_settings::directory().join("orbit-audio.json")}
+fn read_orbit_sound_settings()->OrbitSoundSettings{
+    fs::read(orbit_sound_path()).ok()
+        .and_then(|data|serde_json::from_slice::<OrbitSoundSettings>(&data).ok())
+        .filter(|config|config.volume<=100)
+        .unwrap_or_default()
+}
+#[tauri::command]
+pub fn set_orbit_sound_preferences(enabled:bool,volume:u8)->Result<(),String>{
+    if volume>100{return Err("Volume must be between 0 and 100".into());}
+    let folder=crate::job_settings::directory();
+    fs::create_dir_all(&folder).map_err(|error|error.to_string())?;
+    let tempfile=tempfile::Builder::new().prefix(".orbit-sound-")
+        .tempfile_in(&folder).map_err(|error|error.to_string())?;
+    serde_json::to_writer(tempfile.as_file(),&OrbitSoundSettings{enabled,volume})
+        .map_err(|error|error.to_string())?;
+    tempfile.persist(orbit_sound_path())
+        .map_err(|error|format!("Could not save Orbit sound settings: {}",error.error))?;
+    Ok(())
+}
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 #[cfg(any(windows,test))]
 enum Phase { Idle, ButtonHeld, PotentialDrag, Handled, WaitingForDrop }
@@ -175,6 +203,7 @@ extern "C"{
     fn reformany_stop_shake_listener();
     fn reformany_reload_shake_listener()->bool;
     fn reformany_wait_shake_listener_exit(timeout_ms:u32)->bool;
+    fn reformany_play_orbit_open_sound(volume:f32);
 }
 
 /// Native polling returns 2 exactly once on a completed gesture.
@@ -227,6 +256,7 @@ extern "C" fn gesture_trace(stage:u8){
         12=>"overlay_expired",
         13=>"listener_stopped",
         14=>"ole_target_registration_failed",
+        15=>"direct_orbit_launch_on_verified_drag_enter",
         _=>return,
     };
     let folder=crate::job_settings::directory().join("logs");
@@ -260,7 +290,14 @@ extern "C" fn open_orbit(wide:*const u16,tab:u8){
         command.arg("orbit").arg(&path);
         match tab {1=>{command.arg("--tab=tools");},2=>{command.arg("--tab=actions");},_=>{}}
         crate::external::hide_subprocess_window(&mut command);
-        let _=command.spawn();
+        if command.spawn().is_ok() {
+            // Sound is an optional cosmetic cue and must never delay opening
+            // the application, depend on WebView autoplay or override mute.
+            let sound=read_orbit_sound_settings();
+            if sound.enabled && sound.volume>0 {
+                unsafe{reformany_play_orbit_open_sound(f32::from(sound.volume)/100.0);}
+            }
+        }
     }
 }
 #[cfg(windows)]
@@ -397,6 +434,13 @@ mod tests {
         assert_eq!(d.phase,Phase::ButtonHeld);
         assert!(!step(&mut d,6,3,40));
         assert_eq!(d.phase,Phase::PotentialDrag);
+    }
+    #[test]
+    fn orbit_sound_preferences_are_bounded(){
+        assert!(OrbitSoundSettings::default().enabled);
+        assert_eq!(OrbitSoundSettings::default().volume,65);
+        assert!(serde_json::from_str::<OrbitSoundSettings>(
+            r#"{"enabled":false,"volume":0}"#).is_ok());
     }
     #[cfg(windows)]
     #[test]
