@@ -410,6 +410,29 @@ html[data-mode="main"] .engine-directory select {
 html[data-mode="main"] .main:has(.guide-page) .topbar {
   display:none;
 }
+html[data-mode="main"] .engine-help-disclosure {
+  max-width:780px;
+  margin:15px 0 2px;
+  padding:10px 0 0;
+  border-top:1px solid var(--line);
+  color:var(--muted);
+  font-size:12px;
+}
+html[data-mode="main"] .engine-help-disclosure summary {
+  display:list-item;
+  cursor:pointer;
+  width:max-content;
+  max-width:100%;
+  font-weight:590;
+  line-height:1.5;
+}
+html[data-mode="main"] .engine-help-disclosure p {
+  max-width:65ch;
+  margin:8px 0 0;
+  color:var(--muted);
+  font-size:12.5px;
+  line-height:1.55;
+}
 @media (max-width:850px) {
   html[data-mode="main"] .shell:not(:has(.reformany-sidebar.is-collapsed)) {
     grid-template-columns:218px minmax(0,1fr);
