@@ -134,8 +134,22 @@ fn create(job: ArchiveCreate) -> Result<ArchiveCreated, String> {
     if job.format == "zip" && job.split_megabytes.is_none() {
         validate_archive_name(&job.name)?;
         validate_password(&job.password)?;
-        let zip = crate::native_zip::create_native_zip(
-            &job.paths, &job.name, job.destination.as_deref(), job.password.as_deref(), job.level)?;
+        // When protecting one existing ZIP, encrypt its entries rather than
+        // packaging the ZIP file as a nested member. No plaintext extraction
+        // staging or original-archive overwrite is permitted.
+        let zip = if job.paths.len() == 1
+            && job.password.is_some()
+            && Path::new(&job.paths[0]).extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
+        {
+            crate::native_zip::repack_native_zip(
+                &job.paths[0], &job.name, job.destination.as_deref(),
+                job.password.as_deref().unwrap_or_default(), job.level)?
+        } else {
+            crate::native_zip::create_native_zip(
+                &job.paths, &job.name, job.destination.as_deref(),
+                job.password.as_deref(), job.level)?
+        };
         return Ok(ArchiveCreated { output_paths: vec![zip], format: "zip".into() });
     }
     for source in &job.paths { verify_input(Path::new(source), true)?; }
