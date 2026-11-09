@@ -152,7 +152,9 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
 }
 
 fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String> {
-    let output = Command::new(ffprobe)
+    let mut command = Command::new(ffprobe);
+    crate::external::hide_subprocess_window(&mut command);
+    let output = command
         .args(["-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
             "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
         .arg(input)
@@ -170,7 +172,9 @@ fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String>
 }
 
 fn media_duration(input: &Path, ffprobe: &Path) -> Option<f64> {
-    let output = Command::new(ffprobe).args([
+    let mut command = Command::new(ffprobe);
+    crate::external::hide_subprocess_window(&mut command);
+    let output = command.args([
         "-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
         "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
     ]).arg(input).output().ok()?;
