@@ -223,6 +223,8 @@ export default function Orbit() {
   const toolEditorIsLarge = Boolean(pdfDialog) || Boolean(pdfMarkMode)
     || arrangingPages || pdfPasswording;
   const radialPosition = useRef<{ x: number; y: number } | null>(null);
+  const toolEditorOpenRef = useRef(toolEditorOpen);
+  toolEditorOpenRef.current = toolEditorOpen;
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -368,7 +370,7 @@ export default function Orbit() {
     const focusListener = windowHandle.onFocusChanged(({ payload: focused }) => {
       if (focused) {
         ignoreInitialFocus.current = false;
-      } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current && phaseRef.current !== "processing") {
+      } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current && !toolEditorOpenRef.current && phaseRef.current !== "processing") {
         void windowHandle.close();
       }
     });
