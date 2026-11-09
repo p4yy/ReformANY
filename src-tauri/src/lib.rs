@@ -29,6 +29,7 @@ mod auto_convert;
 mod shake;
 mod pdf_docx;
 mod qr;
+mod text_convert;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
@@ -38,6 +39,7 @@ use media::media_convert;
 use archives::{archive_create, archive_extract, archive_repack};
 use actions::{rename_file, open_terminal, send_bluetooth, hover_file, hover_file_context, copy_file_to, HoveRRegistry};
 use documents::{images_to_pdf, pdf_to_text, pdf_to_text_format, office_to_pdf, office_available};
+use text_convert::text_convert;
 use ebooks::{ebook_convert_file, ebook_engine_available};
 use media_tools::media_edit;
 use preview::document_preview;
@@ -101,6 +103,7 @@ pub fn run() {
             hover_file_context,
             copy_file_to,
             images_to_pdf,
+            text_convert,
             pdf_to_text,
             pdf_to_text_format,
             office_to_pdf,
