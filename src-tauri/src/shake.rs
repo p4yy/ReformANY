@@ -149,18 +149,27 @@ static SETTINGS:OnceLock<ShakeSettings>=OnceLock::new();
 
 #[cfg(windows)]
 extern "C"{
-    fn reformany_win_shake_listen(tick:extern "C" fn(i32,i32,u32,bool,bool)->bool,
+    fn reformany_win_shake_listen(tick:extern "C" fn(i32,i32,u32,bool,bool)->u8,
         launch:extern "C" fn(*const u16));
     fn reformany_stop_shake_listener();
 }
 
 #[cfg(windows)]
-extern "C" fn tick(x:i32,y:i32,time:u32,left:bool,eligible:bool)->bool {
+/// 0=ordinary drag/no gesture; 1=deliberate shake in progress (two
+/// reversals), 2=completed gesture. The C++ OLE target is NEVER active for
+/// ordinary Explorer dragging and may only receive the live IDataObject
+/// once the user deliberately shakes. No selected-file fallback exists.
+#[cfg(windows)]
+extern "C" fn tick(x:i32,y:i32,time:u32,left:bool,eligible:bool)->u8 {
     let config=SETTINGS.get_or_init(read_settings);
-    if !config.enabled{return false;}
+    if !config.enabled{return 0;}
     if let Ok(mut detector)=SENSOR.get_or_init(||Mutex::new(Detector::default())).try_lock(){
-        detector.sample(x,y,time,left,eligible,config.sensitivity)
-    }else{false}
+        if detector.sample(x,y,time,left,eligible,config.sensitivity) {
+            2
+        } else if detector.phase==Phase::Shake && detector.flips>=2 {
+            1
+        } else { 0 }
+    }else{0}
 }
 #[cfg(windows)]
 extern "C" fn open_orbit(wide:*const u16){
@@ -274,6 +283,21 @@ mod tests{
         for(i,x) in [75,30,78,20,80].iter().enumerate(){
             assert!(!sample(&mut d,*x,50,410+i as u32*25,false));
         }
+    }
+    #[test]
+    fn capture_arming_requires_two_deliberate_flips() {
+        let mut d=Detector::default();
+        sample(&mut d,400,400,0,true);
+        sample(&mut d,400,400,350,true);
+        assert!(!sample(&mut d,414,400,365,true));
+        assert_eq!(d.flips,0);
+        assert!(!sample(&mut d,386,400,390,true));
+        assert_eq!(d.flips,1);
+        assert!(!sample(&mut d,420,400,415,true));
+        assert!(d.flips>=2);
+        // Moving ordinarily, or releasing, must never capture a Shell drag.
+        d.sample(420,400,420,false,true,3);
+        assert_eq!(d.phase,Phase::Idle);
     }
     #[test]
     fn released_button_cancels_pending_gesture(){
