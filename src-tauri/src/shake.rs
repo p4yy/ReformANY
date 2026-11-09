@@ -62,10 +62,16 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
 /// Orbit sound preferences are mirrored from the main app's Appearance
 /// controls so the separate native shake listener honors mute and volume.
 #[derive(Debug,Clone,Copy,Serialize,Deserialize)]
-#[serde(rename_all="camelCase")]
-struct OrbitSoundSettings{enabled:bool,volume:u8}
+#[serde(default,rename_all="camelCase")]
+struct OrbitSoundSettings{
+    enabled:bool,volume:u8,
+    open_enabled:bool,close_enabled:bool,hover_enabled:bool,
+}
 impl Default for OrbitSoundSettings{
-    fn default()->Self{Self{enabled:true,volume:65}}
+    fn default()->Self{
+        Self{enabled:true,volume:55,
+            open_enabled:true,close_enabled:true,hover_enabled:true}
+    }
 }
 fn orbit_sound_path()->PathBuf{crate::job_settings::directory().join("orbit-audio.json")}
 #[cfg(windows)]
@@ -76,16 +82,45 @@ fn read_orbit_sound_settings()->OrbitSoundSettings{
         .unwrap_or_default()
 }
 #[tauri::command]
-pub fn set_orbit_sound_preferences(enabled:bool,volume:u8)->Result<(),String>{
+pub fn set_orbit_sound_preferences(enabled:bool,volume:u8,
+    open_enabled:bool,close_enabled:bool,hover_enabled:bool)->Result<(),String>{
     if volume>100{return Err("Volume must be between 0 and 100".into());}
     let folder=crate::job_settings::directory();
     fs::create_dir_all(&folder).map_err(|error|error.to_string())?;
     let tempfile=tempfile::Builder::new().prefix(".orbit-sound-")
         .tempfile_in(&folder).map_err(|error|error.to_string())?;
-    serde_json::to_writer(tempfile.as_file(),&OrbitSoundSettings{enabled,volume})
+    let settings=OrbitSoundSettings{
+        enabled,volume,open_enabled,close_enabled,hover_enabled,
+    };
+    serde_json::to_writer(tempfile.as_file(),&settings)
         .map_err(|error|error.to_string())?;
     tempfile.persist(orbit_sound_path())
         .map_err(|error|format!("Could not save Orbit sound settings: {}",error.error))?;
+    Ok(())
+}
+
+/// Native playback is deliberately independent of WebView audio permissions.
+/// The Close cue completes on a worker before the Orbit process exits.
+#[tauri::command]
+pub async fn orbit_play_sound(kind:String)->Result<(),String>{
+    let event=match kind.as_str(){
+        "open"=>0u8,"close"=>1u8,"hover"=>2u8,
+        _=>return Err("Unknown Orbit sound event".into()),
+    };
+    #[cfg(windows)]
+    {
+        let config=read_orbit_sound_settings();
+        let allowed=match event{
+            0=>config.open_enabled,1=>config.close_enabled,_=>config.hover_enabled,
+        };
+        if !config.enabled || !allowed || config.volume==0{return Ok(());}
+        let level=f32::from(config.volume)/100.0;
+        tauri::async_runtime::spawn_blocking(move||{
+            unsafe{reformany_play_orbit_sound_sync(event,level);}
+        }).await.map_err(|error|format!("Orbit sound failed: {error}"))?;
+    }
+    #[cfg(not(windows))]
+    let _=event;
     Ok(())
 }
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
@@ -204,7 +239,8 @@ extern "C"{
     fn reformany_stop_shake_listener();
     fn reformany_reload_shake_listener()->bool;
     fn reformany_wait_shake_listener_exit(timeout_ms:u32)->bool;
-    fn reformany_play_orbit_open_sound(volume:f32);
+    fn reformany_play_orbit_sound(event:u8,volume:f32);
+    fn reformany_play_orbit_sound_sync(event:u8,volume:f32);
 }
 
 /// Native polling returns 2 exactly once on a completed gesture.
@@ -295,8 +331,8 @@ extern "C" fn open_orbit(wide:*const u16,tab:u8){
             // Sound is an optional cosmetic cue and must never delay opening
             // the application, depend on WebView autoplay or override mute.
             let sound=read_orbit_sound_settings();
-            if sound.enabled && sound.volume>0 {
-                unsafe{reformany_play_orbit_open_sound(f32::from(sound.volume)/100.0);}
+            if sound.enabled && sound.open_enabled && sound.volume>0 {
+                unsafe{reformany_play_orbit_sound(0,f32::from(sound.volume)/100.0);}
             }
         }
     }
@@ -439,9 +475,13 @@ mod tests {
     #[test]
     fn orbit_sound_preferences_are_bounded(){
         assert!(OrbitSoundSettings::default().enabled);
-        assert_eq!(OrbitSoundSettings::default().volume,65);
+        assert_eq!(OrbitSoundSettings::default().volume,55);
+        assert!(OrbitSoundSettings::default().close_enabled);
+        assert!(OrbitSoundSettings::default().hover_enabled);
         assert!(serde_json::from_str::<OrbitSoundSettings>(
             r#"{"enabled":false,"volume":0}"#).is_ok());
+        assert!(!serde_json::from_str::<OrbitSoundSettings>(
+            r#"{"enabled":false,"volume":0}"#).unwrap().enabled);
     }
     #[cfg(windows)]
     #[test]
