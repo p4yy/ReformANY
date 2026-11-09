@@ -29,10 +29,12 @@ using Tick = unsigned char (*)(int,int,unsigned int,bool,bool,unsigned int);
 using Launch = void (*)(const wchar_t*,unsigned char);
 using Reload = void (*)();
 using Validated = void (*)();
+using Trace = void (*)(unsigned char);
 Tick g_tick=nullptr;
 Launch g_launch=nullptr;
 Reload g_reload=nullptr;
 Validated g_validated=nullptr;
+Trace g_trace=nullptr;
 
 constexpr wchar_t kMutexName[]=L"Local\\ReformANY_OrbitShakeListener_1";
 constexpr wchar_t kStopName[]=L"Local\\ReformANY_OrbitShakeStop_1";
@@ -41,6 +43,7 @@ constexpr wchar_t kPopupClass[]=L"ReformANY_OrbitShakeDropTarget";
 constexpr UINT_PTR kReleaseTimer=0x68;
 constexpr UINT_PTR kExpiryTimer=0x69;
 constexpr UINT kPublishMsg=WM_APP+0x6a;
+constexpr UINT kTraceMsg=WM_APP+0x6b;
 constexpr int kDiameter=340;
 constexpr int kRadius=kDiameter/2;
 constexpr unsigned int kFallbackMs=350;
@@ -61,6 +64,9 @@ std::wstring g_dropPath;
 unsigned char g_tab=0;
 DWORD g_listenerThread=0;
 
+void trace_stage(unsigned char stage){
+    if(g_listenerThread)PostThreadMessageW(g_listenerThread,kTraceMsg,stage,0);
+}
 bool class_is(HWND window,const wchar_t* name){
     if(!window)return false;
     wchar_t value[128]{};
@@ -83,10 +89,15 @@ bool shell_file_area(HWND child,HWND root){
     }
     return root==GetShellWindow()||class_is(root,L"Progman");
 }
+extern "C" unsigned int reformany_native_primary_button_vk(int swapped){
+    return swapped?VK_RBUTTON:VK_LBUTTON;
+}
+extern "C" unsigned int reformany_native_poll_interval_ms(){return kPollMs;}
+extern "C" unsigned int reformany_native_fallback_ms(){return kFallbackMs;}
 bool primary_held(){
     // GetAsyncKeyState always reports PHYSICAL buttons. VK_RBUTTON is the
     // primary button if the user swapped Windows' logical button mapping.
-    const int physical=GetSystemMetrics(SM_SWAPBUTTON)?VK_RBUTTON:VK_LBUTTON;
+    const int physical=static_cast<int>(reformany_native_primary_button_vk(GetSystemMetrics(SM_SWAPBUTTON)));
     return (GetAsyncKeyState(physical)&0x8000)!=0;
 }
 bool source_active(HWND source){
@@ -241,6 +252,7 @@ public:
         if(source_active(g_source)&&exact_single_file(data,path)){
             g_dragEnterPath=std::move(path);
             active_=true;
+            trace_stage(7);
             const POINT position{point.x,point.y};
             g_tab=tab_under_pointer(position);
             if(requested&DROPEFFECT_COPY)*effect=DROPEFFECT_COPY;
@@ -284,10 +296,12 @@ public:
             g_tab=tab_under_pointer(position);
             g_invalidDrop=false;
             *effect=DROPEFFECT_COPY;
+            trace_stage(8);
             PostThreadMessageW(g_listenerThread,kPublishMsg,1,0);
         }else{
             // An invalid / multi-file Drop must never fall back to a cached
             // DragEnter selection, even if that older object was valid.
+            trace_stage(9);
             PostThreadMessageW(g_listenerThread,kPublishMsg,0,0);
         }
         active_=false;
@@ -299,7 +313,7 @@ LRESULT CALLBACK popup_proc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
     if(message==WM_MOUSEACTIVATE)return MA_NOACTIVATE;
     if(message==WM_PAINT){paint_popup(hwnd);return 0;}
     if(message==WM_ERASEBKGND)return 1;
-    if(message==WM_TIMER&&w==kExpiryTimer){reset_target();return 0;}
+    if(message==WM_TIMER&&w==kExpiryTimer){trace_stage(12);reset_target();return 0;}
     if(message==WM_TIMER&&w==kReleaseTimer){
         // Do not guess from the selected files in Explorer. A fallback is
         // legal only when this exact drag previously supplied CF_HDROP,
@@ -308,8 +322,9 @@ LRESULT CALLBACK popup_proc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
             g_hasReleasePoint&&inside_circle(g_releasePoint)
             &&!g_dragEnterPath.empty()){
             g_tab=tab_under_pointer(g_releasePoint);
+            trace_stage(10);
             finish_with_file(false);
-        }else{reset_target();}
+        }else{trace_stage(11);reset_target();}
         return 0;
     }
     return DefWindowProcW(hwnd,message,w,l);
@@ -391,16 +406,22 @@ void poll_mouse(){
             if(foreground)foreground=GetAncestor(foreground,GA_ROOT);
             if(shell_root(foreground)){g_eligible=true;g_source=foreground;}
         }
+        if(g_eligible)trace_stage(2);
     }
     const int dragThreshold=std::max(1,GetSystemMetrics(SM_CXDRAG));
     const auto phase=g_tick(pt.x,pt.y,timestamp,true,g_eligible,
         static_cast<unsigned int>(dragThreshold));
     if(phase==2&&!g_handled){
         g_handled=true; // no repeat even if the SysDragImage check fails.
-        if(!g_eligible||!source_active(g_source)||!visible_shell_drag_image())
+        trace_stage(3);
+        if(!g_eligible||!source_active(g_source)||!visible_shell_drag_image()){
+            trace_stage(4);
             return;
+        }
+        trace_stage(5);
         if(g_validated)g_validated();
-        show_drop_target();
+        if(show_drop_target())trace_stage(6);
+        else trace_stage(14);
     }
 }
 } // namespace
@@ -429,8 +450,8 @@ extern "C" bool reformany_reload_shake_listener(){
     return signaled;
 }
 extern "C" void reformany_win_shake_listen(
-    Tick tick,Launch launch,Reload reload,Validated validated){
-    if(!tick||!launch||!reload||!validated)return;
+    Tick tick,Launch launch,Reload reload,Validated validated,Trace trace){
+    if(!tick||!launch||!reload||!validated||!trace)return;
     HANDLE mutex=CreateMutexW(nullptr,TRUE,kMutexName);
     if(!mutex)return;
     if(GetLastError()==ERROR_ALREADY_EXISTS){CloseHandle(mutex);return;}
@@ -448,12 +469,14 @@ extern "C" void reformany_win_shake_listen(
     g_launch=launch;
     g_reload=reload;
     g_validated=validated;
+    g_trace=trace;
     MSG message{};
     PeekMessageW(&message,nullptr,0,0,PM_NOREMOVE);
     // Thread timers ignore an unallocated requested ID. Use the actual
     // ID returned by SetTimer, otherwise polling never executes.
     const UINT_PTR polling=SetTimer(nullptr,0,kPollMs,nullptr);
     if(polling){
+        trace_stage(1);
         HANDLE events[2]={stop,changed};
         while(true){
             const DWORD status=MsgWaitForMultipleObjects(2,events,FALSE,
@@ -473,6 +496,8 @@ extern "C" void reformany_win_shake_listen(
                 if(!message.hwnd&&message.message==WM_TIMER&&
                    message.wParam==polling){
                     poll_mouse();
+                }else if(!message.hwnd&&message.message==kTraceMsg){
+                    if(g_trace)g_trace(static_cast<unsigned char>(message.wParam));
                 }else if(!message.hwnd&&message.message==kPublishMsg){
                     if(message.wParam==1&&!g_dropPath.empty()){
                         finish_with_file(true);
@@ -485,12 +510,14 @@ extern "C" void reformany_win_shake_listen(
         }
     }
 shutdown:
+    if(g_trace)g_trace(13);
     if(polling)KillTimer(nullptr,polling);
     reset_target();
     g_tick=nullptr;
     g_launch=nullptr;
     g_reload=nullptr;
     g_validated=nullptr;
+    g_trace=nullptr;
     g_source=nullptr;
     g_eligible=false;
     g_handled=false;
