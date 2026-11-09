@@ -1,3 +1,4 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
 /**
  * ReformANY Orbit sound preferences.
  * Native opening/closing cues are produced by Windows so the closing cue
@@ -104,10 +105,16 @@ export function playOrbitHover(): void {
   if (!getOrbitSoundsEnabled() || !getOrbitSoundKindEnabled("hover")) return;
   const now = performance.now();
   if (now - lastHoverAt < HOVER_INTERVAL_MS) return;
-  const audio = getContext();
-  if (audio?.state !== "running") return;
   lastHoverAt = now;
-  playHaptic(audio);
+  // A Windows WebView can begin with AudioContext suspended. Native playback
+  // guarantees the *first hover* is heard without requiring an extra click.
+  // Fast IPC and the 90ms gate preserve responsive navigation.
+  if (isTauri()) {
+    void invoke("orbit_play_sound",{kind:"hover"}).catch(() => {});
+    return;
+  }
+  const audio = getContext();
+  if (audio?.state === "running") playHaptic(audio);
 }
 /** Browser fallback for Preferences (installed Windows app uses native previews). */
 export function previewOrbitSound(kind: OrbitSoundEvent = "hover"): void {
