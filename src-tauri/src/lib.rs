@@ -57,6 +57,7 @@ use pdf_arrange::pdf_arrange_pages;
 use pdf_security::{pdf_protect,pdf_unlock};
 use shred::{shred_preview,shred_confirm};
 use job_settings::{get_queue_policy,set_queue_policy};
+use shake::set_orbit_sound_preferences;
 use auto_convert::{WatchRegistry,get_watch_rules,add_watch_rule,remove_watch_rule};
 use shake::{get_shake_settings,set_shake_settings};
 use pdf_docx::{pdf_docx_editable,pdf_docx_layout};
@@ -94,6 +95,7 @@ pub fn run() {
             orbit_open_workspace,
             orbit_launch_file,
             orbit_initial_tab,
+            set_orbit_sound_preferences,
             reveal_output,
             engine_status,
             media_convert,
