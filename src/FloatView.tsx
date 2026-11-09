@@ -22,9 +22,11 @@ export default function FloatView() {
   const [qrContent, setQrContent] = useState("");
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [qrBusy, setQrBusy] = useState(false);
+  const [pinned, setPinned] = useState(true);
 
   useEffect(() => {
     setDocumentLanguage(getLanguage());
+    void getCurrentWindow().isAlwaysOnTop().then(setPinned).catch(() => { /* use startup default */ });
     let alive = true;
     void invoke<FloatInfo | null>("float_file_context").then(value => {
       if (!alive || !value) return;
@@ -36,6 +38,16 @@ export default function FloatView() {
     }).catch(reason => { if (alive) setError(String(reason)); });
     return () => { alive = false; };
   }, []);
+
+  async function togglePin() {
+    try {
+      const next = !pinned;
+      await getCurrentWindow().setAlwaysOnTop(next);
+      setPinned(next);
+      setError(null);
+      setNote(next ? "Float pinned above other windows" : "Float unpinned");
+    } catch (reason) { setError("Cannot change Float pin state: " + String(reason)); }
+  }
 
   async function show() {
     if (!file) return;
@@ -91,9 +103,12 @@ export default function FloatView() {
   const mediaError = () => setError("This media file could not be decoded by Windows WebView2. Try a supported MP4, MP3, WAV, or image format.");
 
   return <div className="float-shell">
-    <header className="float-topbar">
-      <img src={appIcon} alt="" className="float-logo"/>
-      <strong>ReformANY Float</strong><Pin size={14} className="float-pin"/>
+    <header className="float-topbar" data-tauri-drag-region>
+      <img src={appIcon} alt="" className="float-logo" data-tauri-drag-region/>
+      <strong data-tauri-drag-region>ReformANY Float</strong>
+      <button type="button" aria-label={pinned ? "Unpin Float" : "Keep Float on top"} aria-pressed={pinned}
+        title={pinned ? "Always on top · click to unpin" : "Pin Float above other windows"}
+        onClick={() => void togglePin()}><Pin size={15} fill={pinned ? "currentColor" : "none"}/></button>
       <button aria-label="Close floating preview" onClick={() => void getCurrentWindow().close()}><X size={17}/></button>
     </header>
     <nav className="float-tabs" aria-label="Float view">
