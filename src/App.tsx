@@ -157,6 +157,21 @@ function App() {
   const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
   const [shortcutEditing, setShortcutEditing] = useState<OrbitSection|null>(null);
   const [shortcutError, setShortcutError] = useState<string|null>(null);
+  const [queueMode, setQueueMode] = useState<"sequential"|"balanced">("balanced");
+  const [queueError, setQueueError] = useState<string|null>(null);
+  useEffect(()=>{
+    if(!isTauri())return;
+    void invoke<{mode:"sequential"|"balanced"}>("get_queue_policy")
+      .then(result=>setQueueMode(result.mode))
+      .catch(e=>setQueueError(String(e)));
+  },[]);
+  async function updateQueueMode(mode:"sequential"|"balanced"){
+    setQueueError(null);
+    try{
+      const result=await invoke<{mode:"sequential"|"balanced"}>("set_queue_policy",{mode});
+      setQueueMode(result.mode);
+    }catch(e){setQueueError(String(e));}
+  }
   function updateOrbitMouse(changes: Partial<OrbitMousePreferences>) {
     setOrbitMouse(current => {
       const next = { ...current, ...changes };
@@ -488,6 +503,42 @@ function App() {
           onClear={() => setHistory([])}
           onReveal={path => void invoke("reveal_output", { path }).catch(error => setNotice(String(error)))}
           onOpenWorkspace={() => setPage("convert")} />}
+
+        {page === "files" && <div className="content page-panel">
+          <div className="eyebrow">PREFERENCES</div>
+          <h1>Files & jobs</h1><p>Choose where outputs go and how image conversion batches are scheduled.</p>
+          <div className="preference-group">
+            <h2>Output destination</h2>
+            <p>Used by Orbit and ReformANY when no individual job overrides it. Existing files are never silently overwritten.</p>
+            <label className="orbit-mouse-setting">
+              <span><strong>Save converted files</strong><small>{outputMode==="desktop"?"Windows Desktop":outputMode==="folder"?destination:"Beside the original file"}</small></span>
+              <select aria-label="Default output destination" value={outputMode}
+                onChange={e=>changeOutputMode(e.target.value as OutputMode)}>
+                <option value="alongside">Next to original</option>
+                <option value="desktop">Desktop</option>
+                <option value="folder">Choose folder…</option>
+              </select>
+            </label>
+            {outputMode==="folder"&&<button type="button" className="button subtle" onClick={()=>void chooseDestination()}>Change destination folder</button>}
+          </div>
+          <div className="preference-group">
+            <h2>Conversion queue</h2>
+            <p>Real image conversion workers obey this setting. Sequential runs one at a time; Balanced uses up to two workers.</p>
+            <label className="orbit-mouse-setting">
+              <span><strong>Batch scheduling</strong><small>Saved across application restarts and standalone Orbit processes.</small></span>
+              <select aria-label="Conversion queue behavior" value={queueMode}
+                onChange={e=>void updateQueueMode(e.target.value as "sequential"|"balanced")}>
+                <option value="sequential">Sequential · 1 at a time</option>
+                <option value="balanced">Balanced · 2 in parallel</option>
+              </select>
+            </label>
+            {queueError&&<p role="alert">{queueError}</p>}
+          </div>
+          <div className="preference-group">
+            <h2>Auto Convert</h2>
+            <p>Watched-folder automation is not enabled in this build. It needs a native file watcher and file-copy stabilization; no unverified conversion will run automatically.</p>
+          </div>
+        </div>}
 
         {page === "appearance" && <div className="content page-panel">
           <div className="eyebrow">{tx("preferences").toUpperCase()}</div><h1>{tx("appearance")}</h1><p>Customize the application.</p>
