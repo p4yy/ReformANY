@@ -720,19 +720,19 @@ function App() {
               }}>Reset section shortcuts</button>
               <div className="orbit-mouse-setting">
                 <span><strong>Hold-and-shake in Explorer</strong>
-                  <small>Hold a file in Explorer, then reverse direction rapidly. After the completed shake, ReformANY captures the live OLE drag data to identify the actual dragged file. Only one file is supported in this gesture.</small></span>
+                  <small>Drag a file in Explorer and make three horizontal reversals of at least 40 px within 0.8 seconds. ReformANY checks for a visible Explorer drag image before showing the drop target. Release over Orbit to open that exact file. One file per gesture.</small></span>
                 <input type="checkbox" checked={shakeConfig.enabled} disabled={!desktop||shakeBusy}
                   aria-label="Enable hold-and-shake Orbit gesture"
                   onChange={event=>void saveShakeConfig(event.target.checked,shakeConfig.sensitivity)}/>
               </div>
               <label className="orbit-mouse-setting">
                 <span><strong>Shake sensitivity</strong>
-                  <small>{shakeConfig.sensitivity===1?"Very deliberate":shakeConfig.sensitivity===2?"Deliberate":shakeConfig.sensitivity===3?"Balanced":shakeConfig.sensitivity===4?"Responsive":"Very responsive"} · requires a stationary hold and multiple directional flips</small></span>
+                  <small>{shakeConfig.sensitivity===1?"Very deliberate":shakeConfig.sensitivity===2?"Deliberate":shakeConfig.sensitivity===3?"Balanced":shakeConfig.sensitivity===4?"Responsive":"Very responsive"} · three 40 px horizontal reversals within {800-(5-shakeConfig.sensitivity)*25} ms</small></span>
                 <input type="range" min={1} max={5} step={1} value={shakeConfig.sensitivity}
                   aria-label="Shake sensitivity" disabled={!shakeConfig.enabled||shakeBusy}
                   onChange={event=>void saveShakeConfig(true,Number(event.target.value))}/>
               </label>
-              <p>Opt-in Windows listener. Ordinary dragging is unaffected until a qualifying shake. A temporary drop target reads CF_HDROP from the active drag; unsupported or multiple-file drags are ignored. Real Explorer/Desktop testing is still required.</p>
+              <p>Opt-in 20 ms Windows poller. Respects swapped primary mouse buttons and ignores vertical shakes. The non-activating OLE target reads the active drag, never a potentially different Explorer selection. Single-file Explorer/Desktop acceptance testing is still required.</p>
               {shakeError&&<p role="alert" className="orbit-dialog-error">{shakeError}</p>}
               <label className="orbit-mouse-setting">
                 <span><strong>Pointer loading ring</strong><small>Show a small progress indicator beside the cursor while Orbit is processing.</small></span>
