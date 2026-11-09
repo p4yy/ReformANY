@@ -201,6 +201,19 @@ try {
       await sleep(120);
     }
     if(!actualSource)throw Error("Welcome launched Orbit without the chosen file");
+    // A successful shake now launches the exact same real Orbit file route.
+    // Assert the full first Orbit wheel, not any three-choice intermediate UI.
+    const firstScreen=await evaluate(orbitSocket, `(() => ({
+      selectedTab:document.querySelector(".orbit-section-tabs [role=tab][aria-selected=true]")?.textContent?.trim(),
+      hub:document.querySelector(".orbit-hub strong")?.textContent?.trim(),
+      sectors:document.querySelectorAll(".orbit-ref-sector[role=menuitem]").length,
+      wheel:!!document.querySelector(".orbit-rings[aria-label='Convert to format']")
+    }))()`);
+    if(!firstScreen.wheel||firstScreen.hub!=="Convert"||firstScreen.sectors<4||
+       firstScreen.selectedTab?.toLowerCase()!=="convert") {
+      throw Error("Orbit did not open full first Convert wheel: "+JSON.stringify(firstScreen));
+    }
+
     // Orbit runs in a separate process. Sending "Open workspace" creates a
     // second independent main window and poisons HoveR's single-window check.
     // Exercise Orbit's actual Close control and ensure the launched child
