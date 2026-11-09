@@ -21,7 +21,7 @@ fn read_text(path: &Path) -> Result<String, String> {
     let result = if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
         let le = bytes[0] == 0xFF;
         if (bytes.len() - 2) % 2 != 0 { return Err("Truncated UTF-16".into()); }
-        let units: Vec<u16> = bytes[2..].chunks_exact(2).map(|chunk| {
+        let units: Vec<u16> = bytes[2..].as_chunks::<2>().0.iter().map(|chunk| {
             if le { u16::from_le_bytes([chunk[0], chunk[1]]) }
             else { u16::from_be_bytes([chunk[0], chunk[1]]) }
         }).collect();
@@ -168,8 +168,7 @@ fn render_page(lines: &[String], png: &Path) -> Result<(), String> {
         ));
     }
     svg.push_str("</svg>");
-    let mut options = resvg::usvg::Options::default();
-    options.fontdb = fonts;
+    let options = resvg::usvg::Options { fontdb: fonts, ..Default::default() };
     let tree = resvg::usvg::Tree::from_str(&svg, &options)
         .map_err(|e| format!("Cannot lay out TXT page: {e}"))?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(PAGE_WIDTH, PAGE_HEIGHT)
