@@ -1,4 +1,4 @@
-//! Offline QR-code generation for Float. No file upload or remote endpoint.
+//! Offline QR-code generation for HoveR. No file upload or remote endpoint.
 use qrcodegen::{QrCode, QrCodeEcc};
 use std::fmt::Write as FmtWrite;
 use std::path::Path;
@@ -8,7 +8,7 @@ fn render_svg(value: &str) -> Result<String, String> {
     if content.is_empty() {
         return Err("Enter text or a URL to generate a QR code".into());
     }
-    // Keep the QR legible in the small Float window. Longer content belongs in a file.
+    // Keep the QR legible in the small HoveR window. Longer content belongs in a file.
     if content.len() > 1600 {
         return Err("QR content is too long (maximum 1600 UTF-8 bytes)".into());
     }
