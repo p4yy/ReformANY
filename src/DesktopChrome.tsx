@@ -10,7 +10,7 @@ import { t, type LanguageCode, type LangKey } from "./localization";
 export type DesktopPage =
   | "convert" | "media" | "mediaTools" | "archives" | "documents"
   | "subtitles" | "spreadsheets" | "preview" | "ebooks"
-  | "engines" | "activity" | "appearance" | "guide";
+  | "engines" | "activity" | "appearance" | "files" | "guide";
 
 const workspace: ReadonlyArray<{ id: DesktopPage; icon: LucideIcon; label: string; translation?: LangKey }> = [
   { id: "convert", icon: Layers3, label: "images", translation: "images" },
@@ -25,6 +25,7 @@ const workspace: ReadonlyArray<{ id: DesktopPage; icon: LucideIcon; label: strin
 ];
 const settings: ReadonlyArray<{ id: DesktopPage; icon: LucideIcon; label: string }> = [
   { id: "appearance", icon: Palette, label: "Appearance" },
+  { id: "files", icon: FileText, label: "Files & jobs" },
   { id: "engines", icon: Wrench, label: "Engines" },
 ];
 
@@ -32,7 +33,7 @@ export function isWorkspacePage(page: DesktopPage): boolean {
   return workspace.some(item => item.id === page);
 }
 export function isPreferencesPage(page: DesktopPage): boolean {
-  return page === "appearance" || page === "engines";
+  return page === "appearance" || page === "files" || page === "engines";
 }
 
 function NavButton({ icon: Icon, active, children, onClick }: {
