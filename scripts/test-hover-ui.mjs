@@ -281,6 +281,36 @@ try {
   if (!media) throw new Error("Audio/video workspace did not render from sidebar navigation");
   await screenshot(mainSocket, "03-audio-video.png").catch(error =>
     console.warn("Media screenshot unavailable:",String(error)));
+
+  // The new Orbit audio controls must be interactive on installed Windows.
+  await evaluate(mainSocket,
+    'document.querySelector(\'nav[aria-label="Preferences"] button[aria-label="Appearance"]\').click();true');
+  await sleep(280);
+  const cueCount=await evaluate(mainSocket,
+    'document.querySelectorAll(".orbit-audio-event").length');
+  if(cueCount!==3)throw Error("Orbit sound controls must have Opening, Closing and Hover");
+  const cueLabels=await evaluate(mainSocket,
+    'Array.from(document.querySelectorAll(".orbit-audio-event-setting input")).map(input=>input.getAttribute("aria-label")).join(",")');
+  if(cueLabels!=="Opening sound,Closing sound,Hover sound")
+    throw Error("Orbit sound labels not accessible: "+cueLabels);
+  await evaluate(mainSocket,
+    'document.querySelector(\'input[aria-label="Opening sound"]\').click();true');
+  await sleep(180);
+  const storedMute=await evaluate(mainSocket,
+    'localStorage.getItem("reformany.orbitAudio.open")==="off" && document.querySelector(\'button[aria-label="Preview Orbit opening sound"]\').disabled');
+  if(!storedMute)throw Error("Opening sound mute did not persist");
+  await evaluate(mainSocket,
+    'document.querySelector(\'input[aria-label="Opening sound"]\').click();true');
+  await sleep(180);
+  const nativeCue=await evaluate(mainSocket,
+    'window.__TAURI_INTERNALS__.invoke("orbit_play_sound",{kind:"hover"}).then(()=>true,()=>false)');
+  if(!nativeCue)throw Error("Native hover cue did not run");
+  await screenshot(mainSocket,"03a-orbit-audio-preferences.png").catch(error=>
+    console.warn("Orbit audio screenshot unavailable:",String(error)));
+  await evaluate(mainSocket,
+    'document.querySelectorAll(\'nav[aria-label="Workspace tools"] button\')[1].click();true');
+  await sleep(180);
+  console.log("PASS: three independent Orbit cues, persistent mute and native preview.");
   console.log("PASS: sidebar layout, collapse persistence, Guide and media navigation.");
   const promise = 'window.__TAURI_INTERNALS__.invoke("hover_file", { path:' + JSON.stringify(picture) + '})';
   await evaluate(mainSocket, promise);
