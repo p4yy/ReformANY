@@ -19,8 +19,10 @@
 namespace {
 using Tick = unsigned char (*)(int, int, unsigned int, bool, bool);
 using Launch = void (*)(const wchar_t *);
+using Reload = void (*)();
 Tick g_tick = nullptr;
 Launch g_launch = nullptr;
+Reload g_reload = nullptr;
 HHOOK g_hook = nullptr;
 HWND g_source = nullptr;
 HWND g_captureWindow = nullptr;
@@ -38,6 +40,7 @@ constexpr int kCaptureWidth = 200;
 constexpr wchar_t kCaptureClass[] = L"ReformANY_LiveDragCapture";
 constexpr wchar_t kMutexName[] = L"Local\\ReformANY_OrbitShakeListener_1";
 constexpr wchar_t kStopName[] = L"Local\\ReformANY_OrbitShakeStop_1";
+constexpr wchar_t kReloadName[] = L"Local\\ReformANY_OrbitShakeReload_1";
 
 bool class_is(HWND hwnd, const wchar_t* cls) {
     if (!hwnd) return false;
@@ -291,28 +294,43 @@ extern "C" void reformany_stop_shake_listener() {
     HANDLE stop = OpenEventW(EVENT_MODIFY_STATE, FALSE, kStopName);
     if (stop) { SetEvent(stop); CloseHandle(stop); }
 }
-extern "C" void reformany_win_shake_listen(Tick tick, Launch launch) {
-    if (!tick || !launch) return;
+extern "C" bool reformany_reload_shake_listener() {
+    HANDLE change = OpenEventW(EVENT_MODIFY_STATE, FALSE, kReloadName);
+    if (!change) return false;
+    const bool notified = SetEvent(change) != 0;
+    CloseHandle(change);
+    return notified;
+}
+extern "C" void reformany_win_shake_listen(Tick tick, Launch launch, Reload reload) {
+    if (!tick || !launch || !reload) return;
     HANDLE mutex = CreateMutexW(nullptr, TRUE, kMutexName);
     if (!mutex) return;
     if (GetLastError() == ERROR_ALREADY_EXISTS) { CloseHandle(mutex); return; }
     HANDLE stop = CreateEventW(nullptr, TRUE, FALSE, kStopName);
     if (!stop) { ReleaseMutex(mutex); CloseHandle(mutex); return; }
+    HANDLE changed = CreateEventW(nullptr, FALSE, FALSE, kReloadName);
+    if (!changed) { CloseHandle(stop); ReleaseMutex(mutex); CloseHandle(mutex); return; }
     // RegisterDragDrop requires OleInitialize, not just CoInitializeEx.
     const HRESULT ole = OleInitialize(nullptr);
-    if (FAILED(ole)) { CloseHandle(stop); ReleaseMutex(mutex); CloseHandle(mutex); return; }
+    if (FAILED(ole)) { CloseHandle(changed); CloseHandle(stop); ReleaseMutex(mutex); CloseHandle(mutex); return; }
     g_listenerThread = GetCurrentThreadId();
     g_tick = tick;
     g_launch = launch;
+    g_reload = reload;
     MSG message{};
     PeekMessageW(&message, nullptr, 0, 0, PM_NOREMOVE);
     g_hook = SetWindowsHookExW(WH_MOUSE_LL, hook, GetModuleHandleW(nullptr), 0);
     if (g_hook) {
         while (true) {
+            HANDLE events[2] = { stop, changed };
             const DWORD status = MsgWaitForMultipleObjects(
-                1, &stop, FALSE, INFINITE, QS_ALLINPUT);
+                2, events, FALSE, INFINITE, QS_ALLINPUT);
             if (status == WAIT_OBJECT_0 || status == WAIT_FAILED) break;
-            if (status != WAIT_OBJECT_0 + 1) continue;
+            if (status == WAIT_OBJECT_0 + 1) {
+                if (g_reload) g_reload();
+                continue;
+            }
+            if (status != WAIT_OBJECT_0 + 2) continue;
             while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
                 if (message.message == WM_QUIT) goto finish;
                 if (message.hwnd == nullptr && message.message == kCaptureMsg) {
@@ -336,11 +354,13 @@ finish:
     if (g_hook) { UnhookWindowsHookEx(g_hook); g_hook = nullptr; }
     g_tick = nullptr;
     g_launch = nullptr;
+    g_reload = nullptr;
     g_source = nullptr;
     g_eligible = false;
     g_requested = false;
     g_listenerThread = 0;
     OleUninitialize();
+    CloseHandle(changed);
     CloseHandle(stop);
     ReleaseMutex(mutex);
     CloseHandle(mutex);
