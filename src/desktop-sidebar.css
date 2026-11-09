@@ -376,6 +376,40 @@ html[data-mode="main"] .guide-footer {
 html[data-mode="main"] .guide-footer span {
   display:none;
 }
+/* A compact, wrapping tool switch is clearer than five tiny pill buttons. */
+html[data-mode="main"] .engine-page .engine-switch-three {
+  width:max-content;
+  max-width:100%;
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  margin:13px 0 0;
+  padding:4px;
+  border-radius:11px;
+}
+html[data-mode="main"] .engine-page .engine-switch-three button {
+  flex:0 1 auto;
+  min-height:36px;
+  padding:8px 12px;
+  border-radius:8px;
+  font-size:12.5px;
+}
+html[data-mode="main"] .engine-directory label,
+html[data-mode="main"] .engine-directory strong {
+  font-size:13px;
+}
+html[data-mode="main"] .engine-directory select {
+  min-height:40px;
+  padding:8px 13px;
+  font-size:13px;
+  border:1px solid var(--strong-line);
+  border-radius:8px;
+  background:var(--base);
+  color:var(--text);
+}
+html[data-mode="main"] .main:has(.guide-page) .topbar {
+  display:none;
+}
 @media (max-width:850px) {
   html[data-mode="main"] .shell:not(:has(.reformany-sidebar.is-collapsed)) {
     grid-template-columns:218px minmax(0,1fr);
