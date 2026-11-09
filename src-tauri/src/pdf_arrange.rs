@@ -137,7 +137,7 @@ mod tests{
         let first=result.get_dictionary(*ids.get(&1).unwrap()).unwrap();
         assert_eq!(first.get(b"Rotate").unwrap().as_i64().unwrap(),90);
         assert_eq!(first.get(b"MediaBox").unwrap().as_array().unwrap()[2].as_i64().unwrap(),514);
-        assert_eq!(Document::load(input).unwrap().get_pages().len(),14);
+        assert_eq!(Document::load(&input).unwrap().get_pages().len(),14);
         assert!(apply(input.to_str().unwrap(),
             vec![PageEdit{source_page:2,rotation:0},PageEdit{source_page:2,rotation:0}],None).is_err());
     }
