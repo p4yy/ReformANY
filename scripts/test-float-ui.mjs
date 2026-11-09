@@ -179,17 +179,10 @@ try {
   async function checkMedia(path, kind) {
     await evaluate(mainSocket,
       'window.__TAURI_INTERNALS__.invoke("float_file", {path:' + JSON.stringify(path) + '})');
-    let opened = null;
-    for (let attempt = 0; attempt < 75; attempt++) {
-      const all = await targets().catch(() => []);
-      opened = all.find(target => target.type==="page" && target.id!==main.id &&
-        target.id!==float.id &&
-        (target.url.includes("tauri.localhost") || target.url.startsWith("tauri://")));
-      if (opened) break;
-      await sleep(250);
-    }
-    if (!opened) throw new Error("No Float "+kind+" WebView opened");
-    const mediaSocket = await connect(opened);
+    // Float is intentionally one reusable WebView. A second native window
+    // risks "webview with label float already exists" during async close.
+    // Its React view must replace the previously selected media in place.
+    const mediaSocket = socket;
     let state = null;
     for (let attempt = 0; attempt < 45; attempt++) {
       state = await evaluate(mediaSocket, `(() => {
@@ -215,12 +208,14 @@ try {
       `document.querySelector("${kind}")?.currentTime||0`);
     if (!(position>0)) throw new Error("Float "+kind+" never advanced playback time");
     await evaluate(mediaSocket,`document.querySelector("${kind}").pause()`);
-    return opened.id;
+    const all = await targets();
+    const liveFloats = all.filter(target => target.type==="page" && target.id!==main.id &&
+      (target.url.includes("tauri.localhost") || target.url.startsWith("tauri://")));
+    if (liveFloats.length !== 1 || liveFloats[0].id !== float.id) {
+      throw new Error("Float should reuse exactly one WebView: " + JSON.stringify(liveFloats));
+    }
   }
-  const audioId=await checkMedia(audio,"audio");
-  // The second Float closes the previous audio target. The helper ignores
-  // only the original image page and searches for the newest live Float page.
-  float.id=audioId;
+  await checkMedia(audio,"audio");
   await checkMedia(video,"video");
   console.log("PASS: offline Float image/MP3/MP4 playback, native pin and QR layout.");
 } finally {
