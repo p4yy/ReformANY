@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use std::fs;
 use std::path::Path;
 
@@ -147,7 +147,16 @@ pub async fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: S
     }
     tauri::async_runtime::spawn_blocking(move || {
         if let Some(existing) = app.get_webview_window("float") {
-            existing.close().map_err(|e| e.to_string())?;
+            // Never close/recreate a native WebView with the same label in
+            // one operation: Windows WebView2 can release that label later
+            // than close() returns, causing "label float already exists".
+            // Keep the existing view alive and notify it to load the latest
+            // validated file context (saved above).
+            existing.show().map_err(|e| format!("Cannot show Float: {e}"))?;
+            existing.set_focus().map_err(|e| format!("Cannot focus Float: {e}"))?;
+            existing.emit("reformany:float-file-changed", ())
+                .map_err(|e| format!("Cannot update Float preview: {e}"))?;
+            return Ok::<(), String>(());
         }
         WebviewWindowBuilder::new(&app, "float", WebviewUrl::App("index.html".into()))
             .title("ReformANY Float")
