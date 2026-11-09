@@ -6,7 +6,7 @@ import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
 import WindowChrome from "./WindowChrome";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
-import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
+import { playOrbitHover, unlockOrbitAudio, suppressOrbitHover } from "./orbitAudio";
 import { readOrbitMousePreferences, shortcutFromKeyboard, type OrbitSection } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
@@ -313,6 +313,7 @@ export default function Orbit() {
   useEffect(() => {
     let mounted = true;
     setDocumentLanguage(getLanguage());
+    suppressOrbitHover();
     invoke<OrbitFile | null>("orbit_context")
       .then(info => { if (mounted) setFile(info); })
       .catch(reason => { if (mounted) setError(String(reason)); })
