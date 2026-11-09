@@ -30,6 +30,8 @@ jobs:
           workspaces: "src-tauri -> target"
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
+      - name: Enforce HoveR naming across tracked source and documents
+        run: node scripts/check-hover-terminology.mjs
       - name: Build frontend
         run: npm run build
       # Stage the real FFmpeg and FFprobe executables BEFORE any Tauri/Rust build.
