@@ -157,6 +157,18 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(getLanguage);
   const [orbitSounds, setOrbitSounds] = useState(getOrbitSoundsEnabled);
   const [orbitVolume, setSavedOrbitVolume] = useState(getOrbitVolume);
+  useEffect(() => {
+    if (!isTauri()) return;
+    // Persist once per settled preference change. The standalone shake
+    // listener cannot read Chromium localStorage, so native playback must
+    // receive the same opt-out and volume as the main app.
+    const timer=window.setTimeout(() => {
+      void invoke("set_orbit_sound_preferences",{
+        enabled:orbitSounds,volume:orbitVolume,
+      }).catch(() => { /* Sound must never block the UI. */ });
+    },90);
+    return () => window.clearTimeout(timer);
+  },[orbitSounds,orbitVolume]);
   const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
   const [shortcutEditing, setShortcutEditing] = useState<OrbitSection|null>(null);
   const [shortcutError, setShortcutError] = useState<string|null>(null);
