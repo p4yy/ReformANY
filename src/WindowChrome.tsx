@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState, type MouseEvent} from "react";
+import {useCallback, useEffect, useMemo, useState, type MouseEvent} from "react";
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {Minus, Square, Copy, X} from "lucide-react";
 import {appIcon} from "./brand";
@@ -10,7 +10,7 @@ import {appIcon} from "./brand";
 export default function WindowChrome({title, maximizable=true, compact=false}:{
   title:string; maximizable?:boolean; compact?:boolean;
 }) {
-  const win=getCurrentWindow();
+  const win=useMemo(()=>getCurrentWindow(),[]);
   const [maximized,setMaximized]=useState(false);
   const [failure,setFailure]=useState<string|null>(null);
   const refresh=useCallback(async()=>{
@@ -36,7 +36,7 @@ export default function WindowChrome({title, maximizable=true, compact=false}:{
   }
   return <header className={"reformany-window-chrome"+(compact?" is-compact":"")}
     aria-label={title+" window controls"}>
-    <div className="window-chrome-grip" data-tauri-drag-region
+    <div className="window-chrome-grip"
       onMouseDown={beginDrag} onDoubleClick={event=>event.preventDefault()}>
       <img src={appIcon} alt="" width={19} height={19} draggable={false}/>
       <span className="window-chrome-title">{title}</span>
