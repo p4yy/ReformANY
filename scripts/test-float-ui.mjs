@@ -139,6 +139,13 @@ try {
   // QR must render its actual offline SVG without covering helper text.
   await evaluate(socket,
     'document.querySelectorAll(".float-tabs button")[1].click(); true');
+  let qrReady = false;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    qrReady = await evaluate(socket, 'Boolean(document.querySelector(".float-qr-actions button"))');
+    if (qrReady) break;
+    await sleep(150);
+  }
+  if (!qrReady) throw new Error("Float QR tab did not render");
   await evaluate(socket,
     'document.querySelector(".float-qr-actions button").click(); true');
   let qrStatus;
