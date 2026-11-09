@@ -140,7 +140,7 @@ function OrbitRing({ items, inner, outer, label, tab, kind }: {
         onClick={disabled ? undefined : item.run}
         onPointerEnter={() => { if (disabled) return; setHovered(item.label); setFocused(index); playOrbitHover(); }}
         onPointerLeave={() => setHovered(null)}
-        onFocus={() => { if (!disabled) setFocused(index); }}
+        onFocus={() => { if (!disabled) { setFocused(index); playOrbitHover(); } }}
         onKeyDown={event => {
           if (disabled) return;
           if (event.key === "Enter" || event.key === " ") {
@@ -214,6 +214,8 @@ export default function Orbit() {
   const wheelSum = useRef(0);
   const nativeDialogOpen = useRef(false);
   const ignoreInitialFocus = useRef(true);
+  const closingRef = useRef(false);
+  const openingSoundRequested = useRef(false);
   const lastWheelAction = useRef(0);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const kind = getKind(file);
@@ -320,6 +322,16 @@ export default function Orbit() {
       .then(section => { if (mounted && section) setTab(section); })
       .catch(() => { /* Default Convert section remains available. */ });
 
+    if (!openingSoundRequested.current) {
+      openingSoundRequested.current = true;
+      // Native shake already played its opening cue. Explorer right-click
+      // must get the same sound, but never duplicate the shake cue.
+      void invoke<boolean>("orbit_was_shaken")
+        .then(shaken => {
+          if (mounted && !shaken) void invoke("orbit_play_sound",{kind:"open"}).catch(() => {});
+        }).catch(() => { /* Audio must never interrupt opening Orbit. */ });
+    }
+
     invoke<EngineStatus>("engine_status")
       .then(status => { if (mounted) setEngines(status); })
       .catch(() => { /* External tools remain unavailable. */ });
@@ -379,7 +391,7 @@ export default function Orbit() {
       if (focused) {
         ignoreInitialFocus.current = false;
       } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current && !toolEditorOpenRef.current && phaseRef.current !== "processing") {
-        void windowHandle.close();
+        void close();
       }
     });
 
@@ -418,13 +430,19 @@ export default function Orbit() {
   }
 
   async function close() {
-    // Orbit is a standalone native process when launched from Explorer;
-    // closing it during a job would kill FFmpeg before the file is published.
+    // Native sound plays to completion before this standalone Orbit exits.
     if (phaseRef.current === "processing") {
       setNote("Conversion is running. Cancel it before closing Orbit.");
       return;
     }
-    await getCurrentWindow().close();
+    if (closingRef.current) return;
+    closingRef.current = true;
+    try {
+      await invoke("orbit_play_sound",{kind:"close"}).catch(() => {});
+    } finally {
+      try { await getCurrentWindow().close(); }
+      catch { closingRef.current = false; }
+    }
   }
 
   async function convert(target: string) {
@@ -963,7 +981,7 @@ export default function Orbit() {
         event.clientY - rect.top - rect.height / 2);
       if (distance > rect.width / 2 - 1) void close();
     }}>
-      {toolEditorOpen && <WindowChrome title={pdfMarkMode ? (pdfMarkMode === "signature" ? "Visual PDF signature" : "Watermark PDF") : arrangingPages ? "Arrange PDF pages" : pdfDialog ? (pdfDialog === "extract" ? "Extract PDF pages" : "Rotate PDF pages") : passwording ? "Password-protected ZIP" : "ReformANY Orbit"} maximizable={toolEditorIsLarge} compact />}
+      {toolEditorOpen && <WindowChrome title={pdfMarkMode ? (pdfMarkMode === "signature" ? "Visual PDF signature" : "Watermark PDF") : arrangingPages ? "Arrange PDF pages" : pdfDialog ? (pdfDialog === "extract" ? "Extract PDF pages" : "Rotate PDF pages") : passwording ? "Password-protected ZIP" : "ReformANY Orbit"} maximizable={toolEditorIsLarge} compact onClose={() => void close()} />}
       <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
         onWheel={handleWheel} onPointerMove={handlePointerMove}
         onPointerLeave={() => setCursor(null)} onPointerDownCapture={unlockOrbitAudio}>
@@ -1014,7 +1032,10 @@ export default function Orbit() {
           {(["convert", "tools", "actions"] as Tab[]).map(value =>
             <button type="button" role="tab" aria-selected={tab === value}
               key={value} className={tab === value ? "is-active" : ""}
-              disabled={phase === "processing"} onClick={() => {
+              disabled={phase === "processing"}
+              onPointerEnter={() => { if (phase !== "processing") playOrbitHover(); }}
+              onFocus={() => { if (phase !== "processing") playOrbitHover(); }}
+              onClick={() => {
                 setTab(value);setError(null);setNote(null);
                 setRenaming(false);setSplitting(false);setPasswording(false);
                 setArchivePassword("");setPhase("ready");
