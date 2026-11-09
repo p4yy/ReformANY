@@ -169,6 +169,28 @@ fn make_preview(path: &Path) -> Result<Option<String>, String> {
     )))
 }
 
+/// Explicit onboarding action: the native file picker supplies an exact
+/// source path. Unlike the mouse shake listener, there is no ambiguity about
+/// the chosen file. Reuse the same process command as Explorer's Orbit verb.
+#[tauri::command]
+pub fn orbit_launch_file(path: String) -> Result<(), String> {
+    let source = PathBuf::from(&path);
+    if !source.is_absolute() {
+        return Err("Choose a file using the system file picker".into());
+    }
+    let metadata = std::fs::symlink_metadata(&source)
+        .map_err(|error| format!("The selected file is unavailable: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Orbit preview requires an existing regular file".into());
+    }
+    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+    let mut process = std::process::Command::new(exe);
+    process.arg("orbit").arg(&source);
+    crate::external::hide_subprocess_window(&mut process);
+    process.spawn().map_err(|error| format!("Cannot open Orbit for selected file: {error}"))?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn orbit_open_workspace(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
