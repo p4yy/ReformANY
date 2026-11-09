@@ -462,14 +462,13 @@ export default function Orbit() {
     const isPdf = kind === "pdf";
     const isTxt = kind === "office" && file.name.toLowerCase().endsWith(".txt");
     if (!isPdf && !isTxt && (kind !== "office" || target !== "pdf" || !officeReady)) return;
-    if (isTxt && target === "pdf" && !officeReady) return;
     setSelected(target.toUpperCase());
     setPhase("processing");
     setOutput(null);
     setError(null);
     setNote(null);
     try {
-      if (isTxt && target !== "pdf") {
+      if (isTxt) {
         const results = await invoke<string[]>("text_convert", {
           path: file.path, target, destination: await resolvePreferredDestination(),
         });
@@ -842,12 +841,12 @@ export default function Orbit() {
       })) : []),
     ] :
     kind === "office" ? [
-      ...(ext === "txt" ? (["DOCX","RTF","ODT","HTML","MD","EPUB"] as const).map(label => ({
-        label, run: () => void convertDocument(label.toLowerCase() as "docx"|"rtf"|"odt"|"html"|"md"|"epub"),
+      ...(ext === "txt" ? (["PDF","DOCX","RTF","ODT","HTML","MD","EPUB","PNG","JPG"] as const).map(label => ({
+        label, run: () => void convertDocument(label.toLowerCase() as "pdf"|"docx"|"rtf"|"odt"|"html"|"md"|"epub"|"png"|"jpg"),
       })) : []),
-      { label: "PDF", unavailable: officeReady && ext !== "md" && ext !== "markdown" ? undefined
+      ...(ext === "txt" ? [] : [{ label: "PDF", unavailable: officeReady && ext !== "md" && ext !== "markdown" ? undefined
         : ext === "md" || ext === "markdown" ? "Markdown rendering is not available yet" : "LibreOffice is required",
-        run: () => void convertDocument("pdf") },
+        run: () => void convertDocument("pdf") }]),
       ...(calibreReady && ["docx", "odt", "rtf"].includes(ext)
         ? ebookTargets.filter(label => label !== "PDF").map(label => ({
             label, run: () => void convertOther(label, "ebook_convert_file"),
