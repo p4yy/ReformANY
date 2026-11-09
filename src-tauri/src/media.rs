@@ -182,6 +182,28 @@ fn media_duration(input: &Path, ffprobe: &Path) -> Option<f64> {
     String::from_utf8_lossy(&output.stdout).trim().parse::<f64>()
         .ok().filter(|d| d.is_finite() && *d > 0.0)
 }
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaDetails {
+    pub size_bytes: u64,
+    pub duration_seconds: Option<f64>,
+    pub input_format: String,
+}
+
+#[tauri::command]
+pub async fn media_details(path:String) -> Result<MediaDetails,String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = PathBuf::from(&path);
+        verify_input(&source,false)?;
+        let size_bytes = fs::metadata(&source).map_err(|e| e.to_string())?.len();
+        let input_format = source.extension().and_then(|ext| ext.to_str())
+            .unwrap_or("Unknown").to_ascii_uppercase();
+        let duration_seconds = find_binary("ffprobe")
+            .and_then(|binary| media_duration(&source,&binary));
+        Ok(MediaDetails { size_bytes, duration_seconds, input_format })
+    }).await.map_err(|e| format!("Media probe failed: {e}"))?
+}
+
 fn convert_with_monitor(job: MediaJob, cancellation: Option<Arc<AtomicBool>>,
     app: Option<AppHandle>) -> Result<String, String> {
     let kind = validate_job(&job)?;
@@ -192,6 +214,15 @@ fn convert_with_monitor(job: MediaJob, cancellation: Option<Arc<AtomicBool>>,
     let input = PathBuf::from(&job.path);
     verify_input(&input, false)?;
     probe(&input, kind, &ffprobe)?;
+    if let Some(length) = media_duration(&input,&ffprobe) {
+        let start = job.start_seconds.unwrap_or(0.0);
+        if start >= length { return Err(format!("Trim start exceeds media duration ({length:.1}s)")); }
+        if let Some(duration) = job.duration_seconds {
+            if duration > length - start + 0.02 {
+                return Err(format!("Trim duration exceeds the remaining media length ({:.1}s)",length-start));
+            }
+        }
+    }
     let directory = output_dir(&input, job.destination.as_deref())?;
     let staging = tempfile::Builder::new().prefix(".reformany-media-")
         .tempdir_in(&directory).map_err(|e| e.to_string())?;
