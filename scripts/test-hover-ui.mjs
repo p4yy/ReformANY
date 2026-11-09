@@ -132,6 +132,78 @@ try {
   // Verify the installed desktop UI, not just Vite compilation. This catches
   // the screenshot-reported double navigation and broken sidebar collapse.
   if (await evaluate(mainSocket, 'Boolean(document.querySelector(".welcome-primary"))')) {
+    const initial = await evaluate(mainSocket, `(() => {
+      const wheel=document.querySelector(".welcome-orbit").getBoundingClientRect();
+      const tabs=document.querySelector(".welcome-orbit-tabs").getBoundingClientRect();
+      const sectors=document.querySelectorAll(".welcome-radial-sector[role=button]");
+      return {wheelBottom:wheel.bottom,tabsTop:tabs.top,sectorCount:sectors.length,
+        withinWheel:tabs.top<wheel.bottom-1};
+    })()`);
+    if (initial.withinWheel || initial.sectorCount < 10)
+      throw new Error("Welcome Orbit tabs overlap the wheel or slices are not interactive: "+
+        JSON.stringify(initial));
+    await evaluate(mainSocket,
+      'document.querySelector("#welcome-orbit-tab-tools").click(); true');
+    await sleep(110);
+    const toolsEnabled = await evaluate(mainSocket,
+      'Boolean(document.querySelector("#welcome-orbit-tab-tools[aria-selected=true]") && document.querySelectorAll(".welcome-radial-sector[role=button]").length >= 5)');
+    if (!toolsEnabled) throw new Error("Welcome Tools section did not switch wheel segments");
+    await evaluate(mainSocket, `(() => {
+      const zip=[...document.querySelectorAll(".welcome-radial-sector")]
+        .find(node=>node.querySelector("title")?.textContent==="ZIP");
+      if(!zip)throw Error("ZIP sector missing");
+      zip.dispatchEvent(new MouseEvent("click",{bubbles:true}));
+      return true;
+    })()`);
+    await sleep(110);
+    const zipSelected = await evaluate(mainSocket, `(() => ({
+      title:document.querySelector(".welcome-orbit-action-copy strong")?.textContent,
+      chosen:document.querySelector(".welcome-radial-sector.is-selected title")?.textContent
+    }))()`);
+    if (zipSelected.title!=="ZIP"||zipSelected.chosen!=="ZIP")
+      throw new Error("Welcome Orbit sector click did not select the correct action: "+JSON.stringify(zipSelected));
+    await evaluate(mainSocket,
+      'document.querySelector(".welcome-orbit-demo-controls button").click(); true');
+    await sleep(80);
+    const demoWorked = await evaluate(mainSocket,
+      'Boolean(document.querySelector(".welcome-orbit-done")?.textContent.includes("no files were changed"))');
+    if (!demoWorked) throw new Error("Welcome Orbit sample action has no interactive feedback");
+    await evaluate(mainSocket,`(() => {
+      document.querySelector("#welcome-orbit-tab-tools").dispatchEvent(
+        new KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}));
+      return true;
+    })()`);
+    await sleep(120);
+    const actionsEnabled = await evaluate(mainSocket,
+      'Boolean(document.querySelector("#welcome-orbit-tab-actions[aria-selected=true]"))');
+    if (!actionsEnabled) throw new Error("Welcome Orbit keyboard section switch did not work");
+    await screenshot(mainSocket,"00-welcome-interactive-orbit.png").catch(error =>
+      console.warn("Welcome screenshot unavailable:",String(error)));
+    // Clicking Use my file routes through this exact same command. The
+    // native process must launch Orbit on the chosen file, not a fake overlay.
+    await evaluate(mainSocket,
+      'window.__TAURI_INTERNALS__.invoke("orbit_launch_file",{path:' + JSON.stringify(picture) + '})');
+    let realOrbit=null;
+    for(let attempt=0;attempt<55;attempt++){
+      const pages=await targets().catch(()=>[]);
+      realOrbit=pages.find(page=>page.type==="page"&&page.id!==main.id&&
+        (page.url.includes("tauri.localhost")||page.url.startsWith("tauri://")));
+      if(realOrbit)break;
+      await sleep(210);
+    }
+    if(!realOrbit)throw Error("Welcome cannot launch actual Orbit for a selected file");
+    const orbitSocket=await connect(realOrbit);
+    let actualSource=false;
+    for(let attempt=0;attempt<25;attempt++){
+      actualSource=Boolean(await evaluate(orbitSocket,
+        'document.body.innerText.includes('+JSON.stringify(picture.split(/[\\/]/).pop())+')'));
+      if(actualSource)break;
+      await sleep(120);
+    }
+    if(!actualSource)throw Error("Welcome launched Orbit without the chosen file");
+    await evaluate(orbitSocket,'window.__TAURI_INTERNALS__.invoke("orbit_open_workspace")');
+    await sleep(250);
+    console.log("PASS: Welcome wheel layout, keyboard/click controls, sample feedback and real picked-file Orbit launch.");
     await evaluate(mainSocket,
       'document.querySelector(".welcome-primary").click(); true');
     await sleep(400);
