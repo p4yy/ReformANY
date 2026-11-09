@@ -51,9 +51,25 @@ function outputSelector(output: string | null, resultError: string | null) {
   </div>;
 }
 
+type MediaInfo = {sizeBytes:number; durationSeconds:number|null; inputFormat:string};
+function parseMediaClock(value:string):number|null {
+  const raw=value.trim(); if(!raw)return null;
+  if (/^\d+(?:\.\d+)?$/.test(raw))return Number(raw);
+  const parts=raw.split(":");
+  if(parts.length<2||parts.length>3||parts.some(v=>!/^\d+(?:\.\d+)?$/.test(v)))return NaN;
+  const nums=parts.map(Number);
+  if(nums.slice(1).some(n=>n>=60))return NaN;
+  return nums.reduce((sum,n)=>sum*60+n,0);
+}
+function prettyDuration(v:number):string {
+  const secs=Math.floor(v),hours=Math.floor(secs/3600);
+  const mins=Math.floor(secs%3600/60);
+  return hours?hours+"h "+mins+"m "+secs%60+"s":mins+"m "+secs%60+"s";
+}
 export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
   const engines = useEngines();
   const [input, setInput] = useState<string | null>(null);
+  const [mediaInfo, setMediaInfo] = useState<MediaInfo | null>(null);
   const [target, setTarget] = useState("mp4");
   const [profile, setProfile] = useState("standard");
   const [start, setStart] = useState("");
@@ -76,6 +92,14 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ready = Boolean(engines?.ffmpeg && engines?.ffprobe);
+  useEffect(() => {
+    let active=true;
+    setMediaInfo(null);
+    if(input)invoke<MediaInfo>("media_details",{path:input})
+      .then(info=>{if(active)setMediaInfo(info);})
+      .catch(()=>{if(active)setMediaInfo(null);});
+    return ()=>{active=false;};
+  },[input]);
   // Native WebView2 drop events are handled at App level. When a supported file
   // arrives, select it here rather than trying to decode it as an image.
   useEffect(() => {
@@ -120,11 +144,22 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
     const id = crypto.randomUUID();
     jobId.current = id;
     try {
+      const startSeconds=parseMediaClock(start);
+      const durationSeconds=parseMediaClock(duration);
+      if ((start.trim() && (startSeconds===null || !Number.isFinite(startSeconds) || startSeconds<0)) ||
+          (duration.trim() && (durationSeconds===null || !Number.isFinite(durationSeconds) || durationSeconds<=0)))
+        throw Error("Enter trim times as seconds or HH:MM:SS.");
+      if(mediaInfo?.durationSeconds){
+        const remaining=mediaInfo.durationSeconds-(startSeconds??0);
+        if(remaining<=0)throw Error("Start is beyond the end of this file");
+        if(durationSeconds!==null && durationSeconds>remaining+0.02)
+          throw Error("Trim duration exceeds the remaining length of the source");
+      }
       const output = await invoke<string>("media_convert", {
         job: {
           path: input, target, profile, destination: destination ?? await resolvePreferredDestination(),
-          startSeconds: start.trim() ? Number(start) : null,
-          durationSeconds: duration.trim() ? Number(duration) : null,
+          startSeconds,
+          durationSeconds,
           progressId: id,
         },
       });
@@ -152,7 +187,9 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
       <div className="engine-card-title"><FileVideo size={18}/><h2>Source file</h2></div>
       <button className="engine-input" onClick={() => void chooseInput()} disabled={busy}>
         <FileVideo size={24}/>
-        <span>{input ? fileName(input) : "Choose a video or audio file"}<small>{input || "Formats depend on available FFmpeg decoders."}</small></span>
+        <span>{input ? fileName(input) : "Choose a video or audio file"}<small>{input && mediaInfo
+          ? mediaInfo.inputFormat+" · "+(mediaInfo.sizeBytes/(1024*1024)).toFixed(1)+" MB · "+(mediaInfo.durationSeconds ? prettyDuration(mediaInfo.durationSeconds) : "Duration unknown")
+          : input || "Add a supported audio or video file to see its details."}</small></span>
         <Plus size={17}/>
       </button>
       <div className="engine-form-grid">
@@ -167,12 +204,12 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
             <option value="small">Smaller file</option><option value="standard">Balanced</option><option value="high">Higher quality</option>
           </select>
         </label>
-        <label>Start at (seconds)
-          <input type="number" min={0} max={86400} step={0.1} placeholder="From beginning" value={start}
+        <label>Start time
+          <input type="text" inputMode="decimal" placeholder="0 or 00:01:30" value={start}
             disabled={busy} onChange={event => setStart(event.target.value)}/>
         </label>
-        <label>Duration (seconds)
-          <input type="number" min={0.01} max={86400} step={0.1} placeholder="Entire remaining file" value={duration}
+        <label>Duration
+          <input type="text" inputMode="decimal" placeholder="Entire file or 00:00:30" value={duration}
             disabled={busy} onChange={event => setDuration(event.target.value)}/>
         </label>
       </div>
@@ -185,8 +222,10 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
 
     <div className="engine-action-row">
       <div><strong>{ready ? "FFmpeg ready" : "FFmpeg / FFprobe needed"}</strong>
-        <small>{ready ? "Conversion occurs locally · originals are kept" : "Install both tools to enable real media conversion."}</small></div>
-      <button className="button primary" disabled={!input || busy || !ready} onClick={() => void convert()}>
+        <small>{ready ? "Conversion occurs locally · originals are kept" : "Open Preferences → Engines to configure FFmpeg and FFprobe."}</small></div>
+      <button className="button primary" disabled={!input || busy || !ready}
+        title={!ready ? "FFmpeg and FFprobe are required" : !input ? "Choose a media file first" : undefined}
+        onClick={() => void convert()}>
         {busy ? <><LoaderCircle className="engine-spin" size={17}/> Processing…</> : <>Convert media <ArrowRight size={16}/></>}
       </button>
     </div>
@@ -199,7 +238,9 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
       <button type="button" className="text-action" onClick={() => void cancel()}>Cancel conversion</button>
     </div>}
     {outputSelector(result, error)}
-    <p className="engine-footnote">The percentage is derived from FFmpeg's reported timestamp and input duration. Unknown durations remain indeterminate; cancellation stops the encoder. Trim is optional.</p>
+    <details className="engine-help-disclosure"><summary>About progress and trimming</summary>
+      <p>Progress comes from FFmpeg timestamps. Unknown durations show an indeterminate indicator. Trimming is optional, in seconds or HH:MM:SS.</p>
+    </details>
   </div>;
 }
 
