@@ -316,6 +316,10 @@ export default function Orbit() {
       .catch(reason => { if (mounted) setError(String(reason)); })
       .finally(() => { if (mounted) setLoading(false); });
 
+    invoke<Tab | null>("orbit_initial_tab")
+      .then(section => { if (mounted && section) setTab(section); })
+      .catch(() => { /* Default Convert section remains available. */ });
+
     invoke<EngineStatus>("engine_status")
       .then(status => { if (mounted) setEngines(status); })
       .catch(() => { /* External tools remain unavailable. */ });
