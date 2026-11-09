@@ -3,7 +3,7 @@
 // The debugging port is enabled only in the CI job via ephemeral WebView2 policy.
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -62,6 +62,31 @@ async function evaluate(socket, expression) {
     }));
   });
 }
+async function screenshot(socket, filename) {
+  const id = ++cdpId;
+  const result = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      socket.removeEventListener("message", handle);
+      reject(new Error("Screenshot command timed out"));
+    }, 7000);
+    function handle(event) {
+      let msg;
+      try { msg = JSON.parse(String(event.data)); } catch { return; }
+      if (msg.id !== id) return;
+      clearTimeout(timeout);
+      socket.removeEventListener("message", handle);
+      if (msg.error) reject(new Error(JSON.stringify(msg.error)));
+      else resolve(msg.result?.data);
+    }
+    socket.addEventListener("message", handle);
+    socket.send(JSON.stringify({ id, method:"Page.captureScreenshot",
+      params:{format:"png",captureBeyondViewport:false} }));
+  });
+  if (typeof result !== "string") throw new Error("CDP screenshot has no PNG bytes");
+  const dir = join(process.cwd(), "test-screenshots");
+  await mkdir(dir, { recursive:true });
+  await writeFile(join(dir, filename), Buffer.from(result,"base64"));
+}
 try {
   const video = join(temp, "sample.mp4"), audio = join(temp, "sample.mp3");
   execFileSync(ffmpeg, ["-hide_banner","-loglevel","error","-y",
@@ -104,6 +129,62 @@ try {
     await sleep(650);
   }
   if (!ready) throw new Error("Main app did not load its bundled UI");
+  // Verify the installed desktop UI, not just Vite compilation. This catches
+  // the screenshot-reported double navigation and broken sidebar collapse.
+  if (await evaluate(mainSocket, 'Boolean(document.querySelector(".welcome-primary"))')) {
+    await evaluate(mainSocket,
+      'document.querySelector(".welcome-primary").click(); true');
+    await sleep(400);
+  }
+  const sidebar = await evaluate(mainSocket, `(() => {
+    const aside=document.querySelector(".reformany-sidebar");
+    const main=document.querySelector(".main");
+    const categories=document.querySelectorAll('nav[aria-label="Workspace tools"] button');
+    return {found:!!aside, width:aside?.getBoundingClientRect().width||0,
+      categories:categories.length, main:!!main,
+      horizontalNav:!!document.querySelector(".workspace-scroll")};
+  })()`);
+  if (!sidebar.found || !sidebar.main || sidebar.categories !== 9 ||
+      sidebar.horizontalNav || sidebar.width < 210) {
+    throw new Error("Desktop sidebar layout invalid: " + JSON.stringify(sidebar));
+  }
+  await screenshot(mainSocket, "01-images-workspace.png").catch(error =>
+    console.warn("Images screenshot unavailable:",String(error)));
+  await evaluate(mainSocket,
+    'document.querySelector("button[aria-label=\\\"Collapse navigation sidebar\\\"]").click(); true');
+  await sleep(300);
+  const compact = await evaluate(mainSocket, `(() => ({
+    width:document.querySelector(".reformany-sidebar")?.getBoundingClientRect().width,
+    saved:localStorage.getItem("reformany:sidebar-collapsed"),
+    iconCount:document.querySelectorAll('nav[aria-label="Workspace tools"] button svg').length
+  }))()`);
+  if (Math.abs((compact.width||0)-74)>4 || compact.saved!=="true" || compact.iconCount!==9) {
+    throw new Error("Sidebar collapse or persistence failed: "+JSON.stringify(compact));
+  }
+  await evaluate(mainSocket,
+    'document.querySelector("button[aria-label=\\\"Expand navigation sidebar\\\"]").click(); true');
+  await sleep(250);
+  await evaluate(mainSocket,
+    'document.querySelector("button[aria-label=\\\"Guide\\\"]").click(); true');
+  await sleep(250);
+  const guide = await evaluate(mainSocket, `(() => ({
+    heading:document.querySelector(".guide-page h1")?.innerText,
+    steps:document.querySelectorAll(".guide-steps section").length
+  }))()`);
+  if (guide.heading!=="Guide" || guide.steps<8) {
+    throw new Error("Guide navigation or workflow help failed: "+JSON.stringify(guide));
+  }
+  await screenshot(mainSocket, "02-guide.png").catch(error =>
+    console.warn("Guide screenshot unavailable:",String(error)));
+  await evaluate(mainSocket,
+    'document.querySelectorAll(\'nav[aria-label="Workspace tools"] button\')[1].click(); true');
+  await sleep(250);
+  const media = await evaluate(mainSocket,
+    'Boolean(document.body.innerText.includes("Convert to") && document.body.innerText.includes("Quality"))');
+  if (!media) throw new Error("Audio/video workspace did not render from sidebar navigation");
+  await screenshot(mainSocket, "03-audio-video.png").catch(error =>
+    console.warn("Media screenshot unavailable:",String(error)));
+  console.log("PASS: sidebar layout, collapse persistence, Guide and media navigation.");
   const promise = 'window.__TAURI_INTERNALS__.invoke("hover_file", { path:' + JSON.stringify(picture) + '})';
   await evaluate(mainSocket, promise);
   let hover;
