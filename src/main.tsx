@@ -15,6 +15,7 @@ import "./orbit-finish.css";
 import "./orbit-reference.css";
 import "./desktop-sidebar.css";
 import "./orbit-editor.css";
+import "./window-system.css";
 
 const label = isTauri() ? getCurrentWindow().label : "main";
 const orbit = label === "orbit";
