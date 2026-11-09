@@ -8,7 +8,7 @@ use std::path::Path;
 const MAX_PAGE_COUNT: usize = 500;
 const MAX_FILE_BYTES: u64 = 96 * 1024 * 1024;
 
-fn open_pdf(path: &Path) -> Result<Document, String> {
+pub(crate) fn open_pdf(path: &Path) -> Result<Document, String> {
     verify_input(path, false)?;
     if !path.extension().and_then(|s| s.to_str())
         .is_some_and(|s| s.eq_ignore_ascii_case("pdf")) {
@@ -26,7 +26,7 @@ fn open_pdf(path: &Path) -> Result<Document, String> {
 
 /// Strict parser: preserves the supplied order and never silently drops
 /// malformed or duplicate page numbers. "1,3-5,9" -> [1,3,4,5,9].
-fn parse_pages(expression: &str, count: usize) -> Result<Vec<u32>, String> {
+pub(crate) fn parse_pages(expression: &str, count: usize) -> Result<Vec<u32>, String> {
     if expression.trim().is_empty() {
         return Err("Enter page numbers such as 1,3-5,9".into());
     }
@@ -64,7 +64,7 @@ fn parse_pages(expression: &str, count: usize) -> Result<Vec<u32>, String> {
     Ok(selected)
 }
 
-fn stage_pdf(original: &Path, destination: Option<&str>, suffix: &str, pdf: &mut Document)
+pub(crate) fn stage_pdf(original: &Path, destination: Option<&str>, suffix: &str, pdf: &mut Document)
     -> Result<String, String>
 {
     let folder = output_dir(original, destination)?;
