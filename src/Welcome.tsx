@@ -44,7 +44,7 @@ const descriptions: Record<string,string> = {
   Rename: "Rename the file without changing its contents.",
   "Copy path": "Copy the file location to the clipboard.",
   Terminal: "Open a terminal in the file's folder.",
-  HoveR: "Open a lightweight floating file preview.",
+  HoveR: "Open a lightweight detached HoveR media preview.",
   "Show file": "Reveal the file in Windows Explorer.",
   "Copy file": "Copy the file to another destination.",
   Bluetooth: "Send the file using a supported Bluetooth adapter.",
