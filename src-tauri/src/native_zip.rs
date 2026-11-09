@@ -21,6 +21,15 @@ fn zip_options<'a>(password: Option<&'a str>, level: u8) -> zip::write::FileOpti
     }
 }
 
+/// ZIP DOS timestamps cannot represent years outside 1980–2107.
+/// Preserve valid source modified timestamps, otherwise use 1980 as a
+/// standards-compatible fallback (never the Windows 1899 epoch).
+fn safe_modified_time(metadata: &fs::Metadata) -> zip::DateTime {
+    metadata.modified().ok()
+        .and_then(|modified| zip::DateTime::try_from(time::OffsetDateTime::from(modified)).ok())
+        .unwrap_or(zip::DateTime::DEFAULT)
+}
+
 pub fn create_native_zip(
     paths: &[String], name: &str, destination: Option<&str>,
     password: Option<&str>, level: u8,
@@ -73,11 +82,13 @@ pub fn create_native_zip(
                 return Err(format!("Duplicate archive entry name: {name}"));
             }
             if metadata.is_dir() {
-                writer.add_directory(format!("{name}/"), zip_options(None, level))
+                writer.add_directory(format!("{name}/"), zip_options(None, level)
+                    .last_modified_time(safe_modified_time(&metadata)))
                     .map_err(|e| format!("Cannot add ZIP directory: {e}"))?;
                 continue;
             }
-            writer.start_file(name, zip_options(password, level))
+            writer.start_file(name, zip_options(password, level)
+                .last_modified_time(safe_modified_time(&metadata)))
                 .map_err(|e| format!("Cannot add file to ZIP: {e}"))?;
             let copied = std::io::copy(
                 &mut File::open(&item).map_err(|e| e.to_string())?
@@ -170,14 +181,15 @@ pub fn repack_native_zip(
         }
         if member.is_dir() {
             writer.add_directory(format!("{}/", path_string.trim_end_matches('/')),
-                zip_options(None, level))
+                zip_options(None, level).last_modified_time(member.last_modified().unwrap_or(zip::DateTime::DEFAULT)))
                 .map_err(|e| format!("Cannot preserve ZIP folder: {e}"))?;
         } else {
             total = total.saturating_add(member.size());
             if total > MAX_EXPANDED {
                 return Err("Source ZIP exceeds the 4 GB expanded-size limit".into());
             }
-            writer.start_file(path_string, zip_options(Some(password), level))
+            writer.start_file(path_string, zip_options(Some(password), level)
+                .last_modified_time(member.last_modified().unwrap_or(zip::DateTime::DEFAULT)))
                 .map_err(|e| format!("Cannot encrypt ZIP entry: {e}"))?;
             let expected = member.size();
             let copied = std::io::copy(&mut member, &mut writer)
@@ -314,6 +326,53 @@ mod tests {
         let extracted = extract_native_zip(&path, Some(&dir.path().to_string_lossy()), Some("CorrectHorseBattery")).unwrap();
         assert_eq!(fs::read(Path::new(&extracted).join("hello.txt")).unwrap(), b"Some important content");
         assert_eq!(fs::read(input).unwrap(), b"Some important content");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normal_zip_extracts_using_windows_explorer_engine() {
+        // Expand-Archive is PowerShell's Windows ZIP extraction path; unlike
+        // AES-enabled 7-Zip, it must consume ordinary ReformANY ZIPs.
+        use sha2::{Digest,Sha256};
+        let temp=tempfile::tempdir().unwrap();
+        let source=temp.path().join("vid.mp4");
+        let data=(0..131_073usize).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+        fs::write(&source,&data).unwrap();
+        let empty=temp.path().join("empty.txt");
+        fs::write(&empty,[]).unwrap();
+        let archive=create_native_zip(&[
+            source.to_string_lossy().into_owned(),
+            empty.to_string_lossy().into_owned(),
+        ],"Normal",Some(&temp.path().to_string_lossy()),None,5).unwrap();
+        let extracted=temp.path().join("WindowsExtract");
+        let mut cmd=std::process::Command::new("powershell.exe");
+        cmd.args(["-NoProfile","-NonInteractive","-Command",
+            "Expand-Archive -LiteralPath $env:REFORMANY_TEST_ZIP -DestinationPath $env:REFORMANY_TEST_OUT -Force"])
+            .env("REFORMANY_TEST_ZIP",&archive)
+            .env("REFORMANY_TEST_OUT",&extracted);
+        let result=cmd.output().unwrap();
+        assert!(result.status.success(),"Windows ZIP extractor rejected normal archive: {}",
+            String::from_utf8_lossy(&result.stderr));
+        let copy=fs::read(extracted.join("vid.mp4")).unwrap();
+        assert_eq!(Sha256::digest(&copy),Sha256::digest(&data));
+        assert_eq!(fs::metadata(extracted.join("empty.txt")).unwrap().len(),0);
+        let source_metadata=fs::metadata(&source).unwrap();
+        let expected=safe_modified_time(&source_metadata);
+        let zip=ZipArchive::new(File::open(&archive).unwrap()).unwrap();
+        assert_eq!(zip.file_names().count(),2);
+        assert!(expected.year()>=1980);
+    }
+
+    #[test]
+    fn zip_entries_never_have_invalid_dos_timestamps() {
+        let folder=tempfile::tempdir().unwrap();
+        let source=folder.path().join("data.txt");
+        fs::write(&source,b"date test").unwrap();
+        let archive=create_native_zip(&[source.to_string_lossy().into_owned()],
+            "datecheck",Some(&folder.path().to_string_lossy()),None,5).unwrap();
+        let mut zip=ZipArchive::new(File::open(&archive).unwrap()).unwrap();
+        let stamp=zip.by_index(0).unwrap().last_modified().unwrap();
+        assert!((1980..=2107).contains(&stamp.year()));
     }
 
     #[test]
