@@ -217,7 +217,41 @@ try {
   }
   await checkMedia(audio,"audio");
   await checkMedia(video,"video");
-  console.log("PASS: offline HoveR image/MP3/MP4 playback, native pin and QR layout.");
+  // Regression: users reported that the custom X did nothing. This must
+  // destroy the native WebView, not merely hide React content.
+  await evaluate(socket,
+    'document.querySelector("button[aria-label=\\\"Close hovering preview\\\"]").click(); true');
+  let closed = false;
+  for (let attempt = 0; attempt < 35; attempt++) {
+    await sleep(180);
+    const live = await targets().catch(() => []);
+    closed = !live.some(target => target.id === hover.id);
+    if (closed) break;
+  }
+  if (!closed) throw new Error("HoveR close button left the native preview window running");
+  await evaluate(mainSocket,
+    'window.__TAURI_INTERNALS__.invoke("hover_file", {path:' + JSON.stringify(picture) + '})');
+  let reopened = null;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const live = await targets().catch(() => []);
+    reopened = live.find(target => target.type==="page" && target.id!==main.id &&
+      (target.url.includes("tauri.localhost") || target.url.startsWith("tauri://")));
+    if (reopened && reopened.id !== hover.id) break;
+    await sleep(180);
+  }
+  if (!reopened || reopened.id === hover.id) {
+    throw new Error("HoveR could not reopen after its X button destroyed the original window");
+  }
+  const reopenedSocket = await connect(reopened);
+  let imageRendered = false;
+  for (let attempt=0; attempt<25; attempt++) {
+    imageRendered = Boolean(await evaluate(reopenedSocket,
+      'document.querySelector(".hover-preview img")?.naturalWidth > 0'));
+    if (imageRendered) break;
+    await sleep(200);
+  }
+  if (!imageRendered) throw new Error("Reopened HoveR did not display its selected picture");
+  console.log("PASS: offline HoveR image/MP3/MP4 playback, native pin, QR, close X and reopen.");
 } finally {
   for (const socket of sockets) try { socket.close(); } catch {}
   if (child?.pid) {
