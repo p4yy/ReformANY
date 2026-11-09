@@ -1,7 +1,7 @@
 /*
  * ReformANY desktop finish — official premium installer olive/sage palette.
  * Intentional design tokens, not a simulated macOS title bar.
- * Limited to the main window; Orbit and floating windows have their own surfaces.
+ * Limited to the main window; Orbit and hovering windows have their own surfaces.
  */
 html[data-mode="main"] {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",

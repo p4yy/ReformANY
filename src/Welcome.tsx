@@ -28,7 +28,7 @@ const demoRings: Record<OrbitTab, DemoSegments> = {
   convert: { inner: ["JPEG", "WebP", "BMP", "GIF"], outer: ["TIFF", "ICO", "QOI", "AVIF"] },
   tools: { inner: ["ZIP", "7z"], outer: ["Split file", "Password ZIP", "More tools"] },
   actions: {
-    inner: ["Rename", "Copy path", "Terminal", "Float"],
+    inner: ["Rename", "Copy path", "Terminal", "HoveR"],
     outer: ["Show file", "Copy file", "Bluetooth"],
   },
 };
