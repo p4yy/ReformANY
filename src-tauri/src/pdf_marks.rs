@@ -159,6 +159,56 @@ pub async fn pdf_add_mark(path:String,mark:PdfMark,visual_signature:bool,
 mod tests{
     use super::*;
     #[test]
+    fn watermark_and_visible_signature_create_real_pdf_page_content(){
+        let tmp=tempfile::tempdir().unwrap();
+        let path=tmp.path().join("original.pdf");
+        let mut pdf=Document::with_version("1.4");
+        let root=pdf.new_object_id();
+        let mut kids=Vec::<Object>::new();
+        for _ in 0..2{
+            let content=pdf.add_object(lopdf::Stream::new(dictionary!{},Vec::new()));
+            let id=pdf.add_object(dictionary!{
+                "Type"=>"Page","Parent"=>root,
+                "MediaBox"=>vec![0.into(),0.into(),595.into(),842.into()],
+                "Contents"=>content
+            });
+            kids.push(Object::Reference(id));
+        }
+        pdf.objects.insert(root,Object::Dictionary(dictionary!{
+            "Type"=>"Pages","Kids"=>kids,"Count"=>2
+        }));
+        let catalog=pdf.add_object(dictionary!{"Type"=>"Catalog","Pages"=>root});
+        pdf.trailer.set("Root",catalog);
+        pdf.save(&path).unwrap();
+        let mark=PdfMark{
+            text:"CONFIDENTIAL".into(),color:"#C8D4A2".into(),size:42.0,
+            opacity:.22,rotation:-45.0,x:.5,y:.5,pages:None
+        };
+        let watermark=apply(path.to_str().unwrap(),mark,false,None).unwrap();
+        let reread=Document::load(&watermark).unwrap();
+        assert_eq!(reread.get_pages().len(),2);
+        for page in reread.get_pages().values(){
+            let bytes=reread.get_page_content(*page).unwrap();
+            let content=lopdf::content::Content::decode(&bytes).unwrap();
+            assert!(content.operations.iter().any(|op|op.operator=="Tj"&&
+                op.operands.iter().any(|x|x.as_str().is_ok_and(|s|s==b"CONFIDENTIAL"))));
+        }
+        let signature=apply(path.to_str().unwrap(),PdfMark{
+            text:"APPROVED".into(),color:"#273B2E".into(),size:20.0,
+            opacity:1.0,rotation:0.0,x:.5,y:.2,pages:Some("2".into())
+        },true,None).unwrap();
+        let signed=Document::load(signature).unwrap();
+        assert_eq!(signed.get_pages().len(),2);
+        let page2=*signed.get_pages().get(&2).unwrap();
+        let signed_content=lopdf::content::Content::decode(&signed.get_page_content(page2).unwrap()).unwrap();
+        assert!(signed_content.operations.iter().any(|op|op.operator=="Tj"));
+        let original=Document::load(path).unwrap();
+        assert_eq!(original.get_pages().len(),2);
+        for page in original.get_pages().values(){
+            assert!(original.get_page_content(*page).unwrap().is_empty());
+        }
+    }
+    #[test]
     fn rejects_unsafe_marks_and_invalid_colors(){
         let mut m=PdfMark{
             text:"DRAFT".into(),color:"#C8D4A2".into(),size:32.0,opacity:0.25,
