@@ -1,8 +1,8 @@
 //! Native Windows hold → shake gesture state machine.
 //!
-//! Global pointer events contain NO file identity. Only an Explorer shell
+//! Polled pointer coordinates contain NO file identity. Only an Explorer shell
 //! IDataObject validated separately may launch Orbit. This detector cannot
-//! operate outside a qualifying left-button hold in an Explorer/Desktop view.
+//! operate outside a qualifying primary-button hold in an Explorer/Desktop view.
 use serde::{Deserialize,Serialize};
 use std::{fs,path::PathBuf};
 #[cfg(windows)]
@@ -57,103 +57,104 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
     Ok(settings)
 }
 
+/// Deterministic gesture detector. Native side polls physical coordinates
+/// every 20ms from a standalone STA, never the UI thread.
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 #[cfg(any(windows,test))]
-enum Phase { Idle, Hold, Armed, Shake, Cooldown }
+enum Phase { Idle, ButtonHeld, PotentialDrag, ShakeDetected, Handled, WaitingForDrop }
 #[derive(Debug)]
 #[cfg(any(windows,test))]
-pub struct Detector{
-    phase:Phase,down_time:u32,shake_time:u32,cooldown_time:u32,
-    origin:(i32,i32),last:(i32,i32),
-    last_axis:Option<(bool,i8)>,flips:u8,travel:u32,last_flip:u32,
+pub struct Detector {
+    phase:Phase,
+    origin:(i32,i32),
+    direction:Option<i8>,
+    furthest_x:i32,
+    furthest_y:i32,
+    first_direction_time:u32,
+    reversals:u8,
+    handled:bool,
 }
 #[cfg(any(windows,test))]
 impl Default for Detector{
-    fn default()->Self{Self{phase:Phase::Idle,down_time:0,shake_time:0,
-        cooldown_time:0,origin:(0,0),last:(0,0),last_axis:None,
-        flips:0,travel:0,last_flip:0}}
+    fn default()->Self {
+        Self{phase:Phase::Idle,origin:(0,0),direction:None,
+            furthest_x:0,furthest_y:0,first_direction_time:0,reversals:0,handled:false}
+    }
 }
 #[cfg(any(windows,test))]
 impl Detector{
-    /// Wrap-safe milliseconds from Windows MSLLHOOKSTRUCT.time (u32).
-    pub fn sample(&mut self,x:i32,y:i32,time:u32,left_down:bool,
-        qualifies:bool,sensitivity:u8)->bool
-    {
-        let sensitivity=sensitivity.clamp(1,5);
-        let radius=11-(sensitivity as i32); // 10 → 6 px hold jitter tolerance
-        let step=9-(sensitivity as i32);    // 8 → 4 px deliberate directional sample
-        let hold=340-(sensitivity as u32)*25; // 315 → 215 ms
-        let min_flips=if sensitivity>=4{3}else{4};
-        if !left_down{
-            if self.phase!=Phase::Cooldown{self.phase=Phase::Idle;}
-            return false;
-        }
-        if self.phase==Phase::Cooldown{
-            if time.wrapping_sub(self.cooldown_time)<1300{return false;}
-            self.phase=Phase::Idle;
-        }
-        if !qualifies{
-            self.phase=Phase::Idle;
-            return false;
-        }
+    fn reset(&mut self){*self=Self::default();}
+    /// Eligible is established only once, at initial button down, by native
+    /// Explorer/Desktop hit-testing. Native passes SM_CXDRAG from Windows.
+    /// Return true once per press after 3 real horizontal 40px reversals.
+    pub fn sample(&mut self,x:i32,y:i32,time:u32,primary_down:bool,
+        eligible:bool,drag_threshold:u32,sensitivity:u8)->bool {
+        if !primary_down {self.reset();return false;}
+        if self.handled {return false;}
+        if !eligible {self.reset();return false;}
         if self.phase==Phase::Idle{
-            self.phase=Phase::Hold;self.down_time=time;self.origin=(x,y);
-            self.last=(x,y);return false;
+            self.phase=Phase::ButtonHeld;
+            self.origin=(x,y);
+            return false;
         }
-        let dx=x.saturating_sub(self.last.0);
-        let dy=y.saturating_sub(self.last.1);
-        // Preserve sub-threshold pointer motion until it reaches a deliberate
-        // step. High-polling-rate mice otherwise produce only tiny WM_MOUSEMOVE
-        // deltas and a real shake is never recognized.
-        if self.phase==Phase::Hold { self.last=(x,y); }
-        match self.phase {
-            Phase::Hold=>{
-                // Evaluate hold age before the first deliberate move. A user
-                // may rest absolutely still for 500ms then immediately shake
-                // 25px: rejecting that *first* movement would make the gesture
-                // fail precisely when performed correctly. Motion observed
-                // before the hold timer still cancels ordinary file drags.
-                if time.wrapping_sub(self.down_time)>=hold{
-                    self.phase=Phase::Armed;self.shake_time=time;self.travel=0;
-                    self.flips=0;self.last_axis=None;self.last_flip=time;
-                } else {
-                    let ax=x.saturating_sub(self.origin.0).unsigned_abs() as i64;
-                    let ay=y.saturating_sub(self.origin.1).unsigned_abs() as i64;
-                    if ax*ax+ay*ay>i64::from(radius*radius){
-                        self.phase=Phase::Cooldown;self.cooldown_time=time;return false;
+        if self.phase==Phase::ButtonHeld{
+            let dist=x.abs_diff(self.origin.0).saturating_add(y.abs_diff(self.origin.1));
+            if dist<=drag_threshold.saturating_mul(2).max(8){return false;}
+            self.phase=Phase::PotentialDrag;
+        }
+        // Sensitivity adjusts time strictness but never permits under-40px
+        // reversals or a window longer than the specified 800ms.
+        let max_age=800u32.saturating_sub(
+            5u32.saturating_sub(u32::from(sensitivity.clamp(1,5)))*25);
+        if self.direction.is_some()
+            && time.wrapping_sub(self.first_direction_time)>max_age{
+            self.direction=None;
+            self.reversals=0;
+            self.origin=(x,y);
+            self.furthest_x=x;
+            self.furthest_y=y;
+            return false;
+        }
+        const PX:u32=40;
+        match self.direction {
+            None=>{
+                let dx=x.saturating_sub(self.origin.0);
+                let dy=y.saturating_sub(self.origin.1);
+                if dx.unsigned_abs()>=PX && dx.unsigned_abs()>=dy.unsigned_abs(){
+                    self.direction=Some(if dx>0{1}else{-1});
+                    self.furthest_x=x;
+                    self.furthest_y=y;
+                    self.first_direction_time=time;
+                }
+            }
+            Some(sign)=>{
+                let dx=x.saturating_sub(self.furthest_x);
+                if (sign>0&&dx>0)||(sign<0&&dx<0) {
+                    self.furthest_x=x;
+                    self.furthest_y=y;
+                }else if dx.unsigned_abs()>=PX
+                    && dx.unsigned_abs()>=y.abs_diff(self.furthest_y) {
+                    self.direction=Some(-sign);
+                    self.furthest_x=x;
+                    self.furthest_y=y;
+                    self.reversals=self.reversals.saturating_add(1);
+                    if self.reversals>=3 {
+                        // Handled BEFORE checking SysDragImage in C++. If
+                        // absent, do not retry until the primary button resets.
+                        self.phase=Phase::ShakeDetected;
+                        self.handled=true;
+                        self.phase=Phase::Handled;
+                        return true;
                     }
                 }
             }
-            Phase::Armed|Phase::Shake=>{
-                if time.wrapping_sub(self.shake_time)>800{
-                    self.phase=Phase::Cooldown;self.cooldown_time=time;return false;
-                }
-                let absx=dx.unsigned_abs();
-                let absy=dy.unsigned_abs();
-                let axis=absx>=absy;
-                let delta=if axis{dx}else{dy};
-                if delta.unsigned_abs()<(step as u32){return false;}
-                self.last=(x,y);
-                self.travel=self.travel.saturating_add(delta.unsigned_abs());
-                let sign=if delta>0{1}else{-1};
-                if let Some((last_axis,last_sign))=self.last_axis{
-                    if axis==last_axis&&sign!=last_sign{
-                        // Reversals separated by long pauses are not a shake.
-                        if time.wrapping_sub(self.last_flip)<=220{
-                            self.flips=self.flips.saturating_add(1);
-                        }else {self.flips=0;}
-                        self.last_flip=time;
-                    }
-                }else{self.last_flip=time;}
-                self.last_axis=Some((axis,sign));self.phase=Phase::Shake;
-                if self.flips>=min_flips&&self.travel>=65&&
-                    time.wrapping_sub(self.shake_time)<=700 {
-                    self.phase=Phase::Cooldown;self.cooldown_time=time;return true;
-                }
-            }
-            _=>{}
         }
         false
+    }
+    fn validated_drag(&mut self){
+        if self.handled && self.phase==Phase::Handled {
+            self.phase=Phase::WaitingForDrop;
+        }
     }
 }
 #[cfg(windows)]
@@ -163,30 +164,33 @@ static SETTINGS:OnceLock<Mutex<ShakeSettings>>=OnceLock::new();
 
 #[cfg(windows)]
 extern "C"{
-    fn reformany_win_shake_listen(tick:extern "C" fn(i32,i32,u32,bool,bool)->u8,
-        launch:extern "C" fn(*const u16), reload:extern "C" fn());
+    fn reformany_win_shake_listen(tick:extern "C" fn(i32,i32,u32,bool,bool,u32)->u8,
+        launch:extern "C" fn(*const u16,u8), reload:extern "C" fn(),
+        validated:extern "C" fn());
     fn reformany_stop_shake_listener();
     fn reformany_reload_shake_listener()->bool;
     fn reformany_wait_shake_listener_exit(timeout_ms:u32)->bool;
 }
 
 #[cfg(windows)]
-/// 0=ordinary drag/no gesture; 1=deliberate shake in progress (two
-/// reversals), 2=completed gesture. The C++ OLE target is NEVER active for
-/// ordinary Explorer dragging and may only receive the live IDataObject
-/// once the user deliberately shakes. No selected-file fallback exists.
+/// Native polling returns 2 exactly once on a completed gesture.
 #[cfg(windows)]
-extern "C" fn tick(x:i32,y:i32,time:u32,left:bool,eligible:bool)->u8 {
+extern "C" fn tick(x:i32,y:i32,time:u32,primary:bool,eligible:bool,
+    threshold:u32)->u8 {
     let config=SETTINGS.get_or_init(||Mutex::new(read_settings()));
     let Ok(config)=config.try_lock() else{return 0;};
-    if !config.enabled{return 0;}
-    if let Ok(mut detector)=SENSOR.get_or_init(||Mutex::new(Detector::default())).try_lock(){
-        if detector.sample(x,y,time,left,eligible,config.sensitivity) {
-            2
-        } else if detector.phase==Phase::Shake && detector.flips>=2 {
-            1
-        } else { 0 }
-    }else{0}
+    let Ok(mut detector)=SENSOR.get_or_init(||Mutex::new(Detector::default())).try_lock()
+        else{return 0};
+    if !config.enabled {detector.reset();return 0;}
+    if detector.sample(x,y,time,primary,eligible,threshold,config.sensitivity){2}
+    else if detector.phase==Phase::PotentialDrag && detector.reversals>=2{1}
+    else{0}
+}
+#[cfg(windows)]
+extern "C" fn mark_waiting_for_drop(){
+    if let Some(sensor)=SENSOR.get(){
+        if let Ok(mut detector)=sensor.lock(){detector.validated_drag();}
+    }
 }
 /// Invoked from the listener's own STA event loop, never from the global
 /// mouse callback. Disk I/O and detector reset are outside the hook.
@@ -201,7 +205,7 @@ extern "C" fn reload_listener_settings(){
     }
 }
 #[cfg(windows)]
-extern "C" fn open_orbit(wide:*const u16){
+extern "C" fn open_orbit(wide:*const u16,tab:u8){
     if wide.is_null(){return;}
     // C++ passes an NUL-terminated, checked CF_HDROP path of bounded length.
     use std::os::windows::ffi::OsStringExt;
@@ -215,6 +219,7 @@ extern "C" fn open_orbit(wide:*const u16){
     if let Ok(exe)=std::env::current_exe(){
         let mut command=std::process::Command::new(exe);
         command.arg("orbit").arg(&path);
+        match tab {1=>{command.arg("--tab=tools");},2=>{command.arg("--tab=actions");},_=>{}}
         crate::external::hide_subprocess_window(&mut command);
         let _=command.spawn();
     }
@@ -245,7 +250,7 @@ pub fn start_when_enabled(){}
 #[cfg(windows)]
 pub fn run_listener(){
     if !read_settings().enabled{return;}
-    unsafe{reformany_win_shake_listen(tick,open_orbit,reload_listener_settings);}
+    unsafe{reformany_win_shake_listen(tick,open_orbit,reload_listener_settings,mark_waiting_for_drop);}
 }
 #[cfg(not(windows))]
 pub fn run_listener(){}
