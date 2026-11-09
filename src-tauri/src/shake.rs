@@ -91,15 +91,20 @@ impl Detector{
         self.last=(x,y);
         match self.phase {
             Phase::Hold=>{
-                let ax=x.saturating_sub(self.origin.0).unsigned_abs() as i64;
-                let ay=y.saturating_sub(self.origin.1).unsigned_abs() as i64;
-                if ax*ax+ay*ay>i64::from(radius*radius){
-                    // Ordinary move-drag rather than a deliberate stationary hold.
-                    self.phase=Phase::Cooldown;self.cooldown_time=time;return false;
-                }
+                // Evaluate hold age before the first deliberate move. A user
+                // may rest absolutely still for 500ms then immediately shake
+                // 25px: rejecting that *first* movement would make the gesture
+                // fail precisely when performed correctly. Motion observed
+                // before the hold timer still cancels ordinary file drags.
                 if time.wrapping_sub(self.down_time)>=hold{
                     self.phase=Phase::Armed;self.shake_time=time;self.travel=0;
                     self.flips=0;self.last_axis=None;self.last_flip=time;
+                } else {
+                    let ax=x.saturating_sub(self.origin.0).unsigned_abs() as i64;
+                    let ay=y.saturating_sub(self.origin.1).unsigned_abs() as i64;
+                    if ax*ax+ay*ay>i64::from(radius*radius){
+                        self.phase=Phase::Cooldown;self.cooldown_time=time;return false;
+                    }
                 }
             }
             Phase::Armed|Phase::Shake=>{
@@ -217,6 +222,18 @@ mod tests{
         }
         assert_eq!(triggered,1);
         assert!(!sample(&mut d,420,400,900,true));
+    }
+    #[test]
+    fn perfectly_still_hold_then_first_large_shake_movement_is_not_rejected(){
+        let mut detector=Detector::default();
+        assert!(!sample(&mut detector,250,250,0,true));
+        // No WM_MOUSEMOVE messages at all during the 440ms hold.
+        assert!(!sample(&mut detector,275,250,440,true));
+        let mut triggered=false;
+        for (index,x) in [238,281,235,283,231,286].iter().enumerate(){
+            triggered |= sample(&mut detector,*x,250,468+index as u32*25,true);
+        }
+        assert!(triggered,"Stationary hold followed by rapid shake should open Orbit");
     }
     #[test]
     fn steady_drag_jitter_and_non_shell_events_never_trigger(){
