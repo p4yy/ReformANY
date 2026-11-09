@@ -42,7 +42,16 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
             // Reload sensitivity in the running listener. Do not spawn a new
             // process on every slider movement or cache stale settings.
             let running=unsafe{reformany_reload_shake_listener()};
-            if !running { launch_listener()?; }
+            if !running {
+                // Previous versions leave their opted-in listener alive when
+                // the app UI exits. Replace that process before enabling the
+                // new OLE implementation, or report a real error.
+                unsafe{reformany_stop_shake_listener();}
+                if !unsafe{reformany_wait_shake_listener_exit(1800)} {
+                    return Err("The previous Orbit listener could not exit. Close any remaining ReformANY process and enable the gesture again.".into());
+                }
+                launch_listener()?;
+            }
         } else {unsafe{reformany_stop_shake_listener()}}
     }
     Ok(settings)
@@ -158,6 +167,7 @@ extern "C"{
         launch:extern "C" fn(*const u16), reload:extern "C" fn());
     fn reformany_stop_shake_listener();
     fn reformany_reload_shake_listener()->bool;
+    fn reformany_wait_shake_listener_exit(timeout_ms:u32)->bool;
 }
 
 #[cfg(windows)]
@@ -219,7 +229,16 @@ fn launch_listener()->Result<(),String>{
     Ok(())
 }
 #[cfg(windows)]
-pub fn start_when_enabled(){if read_settings().enabled{let _=launch_listener();}}
+pub fn start_when_enabled(){
+    if read_settings().enabled{
+        // On upgrade, ensure the old background listener actually exits.
+        // Otherwise its mutex would block the new drag-data implementation.
+        unsafe{reformany_stop_shake_listener();}
+        if unsafe{reformany_wait_shake_listener_exit(1800)}{
+            let _=launch_listener();
+        }
+    }
+}
 #[cfg(not(windows))]
 pub fn start_when_enabled(){}
 
