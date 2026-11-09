@@ -10,6 +10,7 @@ import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
 import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageDialog";
+import { convertPdfToPageImages } from "./pdfPageRender";
 import OrbitNotice from "./OrbitNotice";
 import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
@@ -379,7 +380,7 @@ export default function Orbit() {
     }
   }
 
-  async function convertDocument(target: "txt" | "md" | "html" | "pdf") {
+  async function convertDocument(target: "txt" | "md" | "html" | "pdf" | "png" | "jpg") {
     if (!file || file.error || phase === "processing") return;
     const isPdf = kind === "pdf";
     if (!isPdf && (kind !== "office" || target !== "pdf" || !officeReady)) return;
@@ -389,12 +390,21 @@ export default function Orbit() {
     setError(null);
     setNote(null);
     try {
-      const result = isPdf
-        ? await invoke<string>("pdf_to_text_format", {
-            path: file.path, target, destination: await resolvePreferredDestination(),
-          })
-        : await invoke<string>("office_to_pdf", { path: file.path, destination: await resolvePreferredDestination() });
-      setOutput(result);
+      if (isPdf && (target === "png" || target === "jpg")) {
+        const outputs = await convertPdfToPageImages(
+          file.path, target, await resolvePreferredDestination(),
+        );
+        if (!outputs.length) throw new Error("PDF page renderer returned no images");
+        setOutput(outputs[0]);
+        setNote(`Saved ${outputs.length} full-page ${target.toUpperCase()} images beside the source or in the selected folder`);
+      } else {
+        const result = isPdf
+          ? await invoke<string>("pdf_to_text_format", {
+              path: file.path, target, destination: await resolvePreferredDestination(),
+            })
+          : await invoke<string>("office_to_pdf", { path: file.path, destination: await resolvePreferredDestination() });
+        setOutput(result);
+      }
       setPhase("completed");
     } catch (reason) {
       setError(String(reason));
@@ -648,8 +658,8 @@ export default function Orbit() {
       run: () => void convert(label),
     })) :
     kind === "pdf" ? [
-      ...(["TXT", "MD", "HTML"] as const).map(label => ({
-        label, run: () => void convertDocument(label.toLowerCase() as "txt" | "md" | "html"),
+      ...(["TXT", "MD", "HTML", "PNG", "JPG"] as const).map(label => ({
+        label, run: () => void convertDocument(label.toLowerCase() as "txt" | "md" | "html" | "png" | "jpg"),
       })),
       ...(calibreReady ? ebookTargets.filter(label => !["TXT", "PDF"].includes(label)).map(label => ({
         label, run: () => void convertOther(label, "ebook_convert_file"),
