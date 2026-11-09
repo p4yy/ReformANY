@@ -15,6 +15,9 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <mmsystem.h>
+#include <thread>
+#include <cstdint>
 #include <ole2.h>
 #include <shellapi.h>
 #include <objidl.h>
@@ -385,6 +388,64 @@ void poll_mouse(){
     }
 }
 } // namespace
+
+// Original, restrained opening cue: 205ms of soft filtered air and a warm
+// descending tone. Synthesized entirely in memory, with no asset download,
+// shell pop-up or file I/O. The audio plays on a detached thread only AFTER
+// the real Orbit process successfully spawned. SND_SYNC is required when
+// PlaySound is handed a memory WAVE; never block the Win32 drag event loop.
+extern "C" void reformany_play_orbit_open_sound(float volume){
+    if(!(volume>0.0f))return;
+    const float safe=std::clamp(volume,0.0f,1.0f);
+    std::thread([safe](){
+        constexpr unsigned int rate=44100;
+        constexpr unsigned int ms=205;
+        constexpr unsigned int frames=rate*ms/1000;
+        constexpr double pi=3.14159265358979323846;
+        std::vector<unsigned char> wav(44+frames*2,0);
+        const auto u16=[&wav](size_t offset,unsigned int v){
+            wav[offset]=static_cast<unsigned char>(v&255);
+            wav[offset+1]=static_cast<unsigned char>((v>>8)&255);
+        };
+        const auto u32=[&wav](size_t offset,unsigned int v){
+            for(int i=0;i<4;i++)
+                wav[offset+i]=static_cast<unsigned char>((v>>(i*8))&255);
+        };
+        auto tag=[&wav](size_t offset,const char* chars){
+            for(int i=0;i<4;i++)wav[offset+i]=static_cast<unsigned char>(chars[i]);
+        };
+        tag(0,"RIFF");u32(4,static_cast<unsigned int>(wav.size()-8));
+        tag(8,"WAVE");tag(12,"fmt ");u32(16,16);
+        u16(20,1);u16(22,1);u32(24,rate);u32(28,rate*2);
+        u16(32,2);u16(34,16);tag(36,"data");u32(40,frames*2);
+        uint32_t seed=0x9e3779b9;
+        double filteredNoise=0.0;
+        double phase=0.0;
+        for(unsigned int i=0;i<frames;i++){
+            const double t=static_cast<double>(i)/rate;
+            const double progress=static_cast<double>(i)/frames;
+            const double attack=std::min(1.0,t/0.009);
+            const double tail=std::pow(1.0-progress,2.45);
+            const double envelope=attack*tail;
+            // Very modest downward sweep, never an alert/notification beep.
+            const double frequency=465.0-125.0*progress;
+            phase+=2.0*pi*frequency/rate;
+            seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;
+            const double white=static_cast<double>(seed&65535)/32767.5-1.0;
+            filteredNoise=0.86*filteredNoise+0.14*white;
+            const double air=filteredNoise*(0.70+0.30*progress);
+            const double body=0.55*std::sin(phase)+0.09*std::sin(2.0*phase);
+            const double sample=(body+0.30*air)*envelope*
+                (0.092*static_cast<double>(safe));
+            const int value=static_cast<int>(std::lround(
+                std::clamp(sample,-1.0,1.0)*32767.0));
+            u16(44+2*i,static_cast<unsigned int>(static_cast<uint16_t>(value)));
+        }
+        PlaySoundW(reinterpret_cast<LPCWSTR>(wav.data()),nullptr,
+            SND_MEMORY|SND_SYNC|SND_NODEFAULT);
+    }).detach();
+}
+extern "C" unsigned int reformany_native_open_sound_duration_ms(){return 205;}
 
 extern "C" unsigned int reformany_native_primary_button_vk(int swapped){
     return swapped?VK_RBUTTON:VK_LBUTTON;
