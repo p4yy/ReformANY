@@ -384,14 +384,22 @@ function InstallingStep({ progress, indeterminate, stage, error }: {
             transition={{ duration: 0.55, ease: 'easeOut' }}
             style={{ filter: 'drop-shadow(0 0 6px rgba(200,212,162,0.35))' }}
           />
+          {indeterminate && <motion.circle cx="60" cy="60" r={R} fill="none"
+            stroke="#c8d4a2" strokeWidth="4" strokeLinecap="round"
+            strokeDasharray={`20 ${C - 20}`}
+            animate={{ rotate: 360 }} transition={{ duration: 1.65, ease: "linear", repeat: Infinity }}
+            style={{ transformOrigin: "60px 60px" }} aria-hidden="true" />}
         </svg>
         <div className="absolute inset-0 flex items-center justify-center"
           role="progressbar" aria-label="Verified installation stages" aria-valuemin={0}
-          aria-valuemax={100} aria-valuenow={progress}
-          aria-valuetext={`${progress}% · ${stage}`}>
-          <span className="text-3xl font-light tabular-nums text-[#c8d4a2]">
+          aria-valuemax={100} aria-valuenow={indeterminate ? undefined : progress}
+          aria-valuetext={indeterminate ? `Working: ${stage} · last verified milestone ${progress}%` : `${progress}% · ${stage}`}>
+          {indeterminate ? <div className="flex flex-col items-center gap-1" aria-hidden="true">
+            <span className="text-[15px] font-semibold tracking-wide text-[#c8d4a2]">Working</span>
+            <span className="text-[10px] tabular-nums text-[#a3b27a]">{progress}% verified</span>
+          </div> : <span className="text-3xl font-light tabular-nums text-[#c8d4a2]">
             {progress}%
-          </span>
+          </span>}
         </div>
       </div>
 
@@ -412,7 +420,7 @@ function InstallingStep({ progress, indeterminate, stage, error }: {
 
       <p role={error ? "alert" : "status"} className="mt-3 max-w-[440px] text-center text-xs leading-relaxed text-[#a3b27a]">
         {error || (indeterminate
-          ? "The installer is working on this stage. This percentage reflects completed milestones, not an estimated countdown."
+          ? "Installing bundled files in the background. The ring keeps moving because this phase does not report byte-by-byte progress. The percentage is the last verified milestone."
           : "All setup files are bundled offline. Progress advances when each real installation milestone is verified.")}
       </p>
     </div>
