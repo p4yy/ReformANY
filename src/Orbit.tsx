@@ -9,6 +9,7 @@ import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
 import { readOrbitMousePreferences } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
+import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageDialog";
 import OrbitNotice from "./OrbitNotice";
 import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
@@ -176,6 +177,10 @@ export default function Orbit() {
   const [splitting, setSplitting] = useState(false);
   const [partSize, setPartSize] = useState("5");
   const [pdfSplitMode, setPdfSplitMode] = useState<"size" | "parts" | "pages">("size");
+  const [pdfDialog, setPdfDialog] = useState<PdfPageAction | null>(null);
+  const [pdfCount, setPdfCount] = useState<number | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
   const [newName, setNewName] = useState("");
@@ -517,6 +522,37 @@ export default function Orbit() {
     } catch (reason) { setError(String(reason)); setPhase("failed"); }
   }
 
+  async function openPdfTool(action: PdfPageAction) {
+    if (!file || kind !== "pdf" || phaseRef.current === "processing") return;
+    setPdfDialog(action); setPdfCount(null); setPdfError(null);
+    try {
+      const count = await invoke<number>("pdf_page_count", {path:file.path});
+      if (count < 1) throw new Error("PDF has no pages");
+      setPdfCount(count);
+    } catch (reason) { setPdfError(String(reason)); }
+  }
+
+  async function runPdfTool(request: PdfPageRequest) {
+    if (!file || !pdfDialog || pdfBusy) return;
+    setPdfBusy(true); setPdfError(null); setPhase("processing");
+    setSelected(pdfDialog === "extract" ? "Extract pages" : "Rotate pages");
+    setError(null); setNote(null); setOutput(null);
+    try {
+      const destination = await resolvePreferredDestination();
+      const result = pdfDialog === "extract"
+        ? await invoke<string>("pdf_extract_pages", {
+            path:file.path, pages:request.pages, destination,
+          })
+        : await invoke<string>("pdf_rotate_pages", {
+            path:file.path, pages:request.pages, degrees:request.degrees, destination,
+          });
+      if (!result) throw new Error("PDF tool returned no output file");
+      setOutput(result); setPdfDialog(null); setPhase("completed");
+    } catch (reason) {
+      setPhase("ready"); setPdfError(String(reason));
+    } finally { setPdfBusy(false); }
+  }
+
   async function joinParts() {
     if (!file || !file.name.endsWith(".reformany.parts.json")) return;
     setPhase("processing"); setSelected("Join"); setError(null); setNote(null); setOutput(null);
@@ -659,25 +695,40 @@ export default function Orbit() {
     : kind === "archive" ? "Choose an available archive format"
     : isFolder ? "Choose an archive format"
     : "No direct conversion for this file type");
+  // A PDF tool is never placed in Convert, and a format is never a PDF Tool.
+  // Unsupported operations are visibly disabled rather than run as placeholders.
+  const pdfTools: OrbitAction[] = kind === "pdf" && canConvert ? [
+    { label: "Split Pages", run: () => setSplitting(true) },
+    { label: "Extract Pages", run: () => void openPdfTool("extract") },
+    { label: "Rotate 90°", run: () => void openPdfTool("rotate") },
+    { label: "Extract Images", unavailable: "Embedded image export is not implemented yet", run: () => {} },
+    { label: "Password", unavailable: "PDF encryption requires a verified PDF security engine", run: () => {} },
+    { label: "Arrange Pages", unavailable: "Page arrangement editor is not implemented yet", run: () => {} },
+    { label: "Watermark", unavailable: "Watermark editor is not implemented yet", run: () => {} },
+    { label: "Sign", unavailable: "PDF visual signing is not implemented yet", run: () => {} },
+  ] : [];
+
   const innerActions: OrbitAction[] = tab === "convert"
     ? convertActions.slice(0, 5)
-    : tab === "tools" ? [
+    : tab === "tools" ? kind === "pdf" ? pdfTools
+      : [
         ...(kind === "archive" && (isNativeZip || engines?.sevenZip)
-          ? [{ label: "Extract archive", run: () => void archive("extract") }] : []),
-      ] : file && !file.error ? [
-        { label: "Rename", run: () => { setNewName(file.name); setRenaming(true); } },
-        { label: "Copy path", run: () => void act("copy") },
-        { label: "Terminal", run: () => void act("terminal") },
-        ...(!isFolder && kind !== "shortcut" && kind !== "application"
-          ? [{ label: "Float", run: () => void act("float") }] : []),
-      ] : [];
+          ? [{label: "Extract archive", run: () => void archive("extract")}] : []),
+      ]
+    : file && !file.error ? [
+      {label: "Rename", run: () => {setNewName(file.name);setRenaming(true);} },
+      {label: "Copy path", run: () => void act("copy")},
+      {label: "Terminal", run: () => void act("terminal")},
+      ...(!isFolder && kind !== "shortcut" && kind !== "application"
+        ? [{label: "Float", run: () => void act("float")}] : []),
+    ] : [];
   const outerActions: OrbitAction[] = tab === "convert"
     ? convertActions.slice(5)
-    : tab === "tools" ? [
-        { label: kind === "pdf" || kind === "office" ? "Document tools" : "More tools", run: () => void openWorkspace() },
-        ...(file && !file.error ? [{ label: isFolder ? "Open folder" : "Show file", run: () => void act("folder") }] : []),
+    : tab === "tools" ? kind === "pdf" ? []
+      : [
+        {label: "More tools", run: () => void openWorkspace()},
         ...(file && !file.error && !isFolder && kind !== "shortcut" && kind !== "application" ? [{
-          label: kind === "pdf" ? "Split PDF" : "Split binary file", run: () => setSplitting(true),
+          label: "Split binary file", run: () => setSplitting(true),
         }] : []),
         ...(file?.name.toLowerCase().endsWith(".reformany.parts.json") ? [{
           label: "Join parts", run: () => void joinParts(),
@@ -687,14 +738,14 @@ export default function Orbit() {
         }] : []),
       ]
     : file && !file.error ? [
-        { label: isFolder ? "Open folder" : kind === "shortcut" ? "Show shortcut" : "Show file",
-          run: () => void act("folder") },
-        ...(!isFolder ? [
-          { label: kind === "shortcut" ? "Copy shortcut" : "Copy file", run: () => void act("copyFile") },
-          ...(kind !== "shortcut" && kind !== "application"
-            ? [{ label: "Bluetooth", run: () => void act("bluetooth") }] : []),
-        ] : []),
-      ] : [];
+      { label: isFolder ? "Open folder" : kind === "shortcut" ? "Show shortcut" : "Show file",
+        run: () => void act("folder") },
+      ...(!isFolder ? [
+        { label: kind === "shortcut" ? "Copy shortcut" : "Copy file", run: () => void act("copyFile") },
+        ...(kind !== "shortcut" && kind !== "application"
+          ? [{label: "Bluetooth", run: () => void act("bluetooth")}] : []),
+      ] : []),
+    ] : [];
 
   const message = phase === "ready" && tab === "convert" &&
     (convertActions.length === 0 || convertActions.every(a => Boolean(a.unavailable)))
@@ -780,6 +831,9 @@ export default function Orbit() {
       {(error || note) && <OrbitNotice key={error || note}
         message={error || note || ""} error={Boolean(error)}
         onDismiss={() => { setError(null);setNote(null); }}/>}
+      {pdfDialog && file && <PdfPageDialog action={pdfDialog} name={file.name} pageCount={pdfCount}
+        working={pdfBusy} error={pdfError} onSubmit={request => void runPdfTool(request)}
+        onClose={() => {if (!pdfBusy) {setPdfDialog(null);setPdfError(null);}}}/>}
       {(renaming || splitting || passwording) && file && <OrbitActionDialog
         kind={renaming ? "rename" : splitting ? "split" : "password"}
         splitPdf={kind === "pdf"} splitMode={pdfSplitMode} onSplitMode={setPdfSplitMode}
