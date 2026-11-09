@@ -24,6 +24,10 @@
 #include <string>
 #include <vector>
 
+extern "C" unsigned int reformany_native_primary_button_vk(int swapped);
+extern "C" unsigned int reformany_native_poll_interval_ms();
+extern "C" unsigned int reformany_native_fallback_ms();
+
 namespace {
 using Tick = unsigned char (*)(int,int,unsigned int,bool,bool,unsigned int);
 using Launch = void (*)(const wchar_t*,unsigned char);
@@ -89,11 +93,6 @@ bool shell_file_area(HWND child,HWND root){
     }
     return root==GetShellWindow()||class_is(root,L"Progman");
 }
-extern "C" unsigned int reformany_native_primary_button_vk(int swapped){
-    return swapped?VK_RBUTTON:VK_LBUTTON;
-}
-extern "C" unsigned int reformany_native_poll_interval_ms(){return kPollMs;}
-extern "C" unsigned int reformany_native_fallback_ms(){return kFallbackMs;}
 bool primary_held(){
     // GetAsyncKeyState always reports PHYSICAL buttons. VK_RBUTTON is the
     // primary button if the user swapped Windows' logical button mapping.
@@ -425,6 +424,12 @@ void poll_mouse(){
     }
 }
 } // namespace
+
+extern "C" unsigned int reformany_native_primary_button_vk(int swapped){
+    return swapped?VK_RBUTTON:VK_LBUTTON;
+}
+extern "C" unsigned int reformany_native_poll_interval_ms(){return kPollMs;}
+extern "C" unsigned int reformany_native_fallback_ms(){return kFallbackMs;}
 
 extern "C" void reformany_stop_shake_listener(){
     HANDLE stop=OpenEventW(EVENT_MODIFY_STATE,FALSE,kStopName);
