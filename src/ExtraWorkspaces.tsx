@@ -384,7 +384,8 @@ type DocumentTask = "images" | "text" | "txt" | "office" | "split";
 
 export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => void }) {
   const [mode, setMode] = useState<DocumentTask>("images");
-  const [textTarget, setTextTarget] = useState("docx");
+  const [textTarget, setTextTarget] = useState("pdf");
+  const [textOutputs, setTextOutputs] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
   const [destination, setDestination] = useState<string | null>(null);
   const [office, setOffice] = useState(false);
@@ -403,6 +404,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
 
   function changeMode(next: DocumentTask) {
     setMode(next);
+    setTextOutputs([]);
     setSources([]);
     setResult(null);
     setSplitOutputs([]);
@@ -437,7 +439,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
 
   async function process() {
     if (!sources.length || busy) return;
-    setBusy(true);setError(null);setResult(null);setSplitOutputs([]);setSplitWarning(null);
+    setBusy(true);setError(null);setResult(null);setSplitOutputs([]);setSplitWarning(null);setTextOutputs([]);
     try {
       const outputDestination = destination ?? await resolvePreferredDestination();
       if (mode === "split") {
@@ -460,6 +462,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
         });
         if (!outputs.length) throw new Error("TXT conversion produced no document");
         setResult(outputs[0]);
+        setTextOutputs(outputs);
       } else {
         const path = mode === "images"
           ? await invoke<string>("images_to_pdf", { paths: sources, destination: outputDestination })
@@ -495,9 +498,9 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
         <label htmlFor="txt-convert-target">Convert TXT to</label>
         <select id="txt-convert-target" value={textTarget} disabled={busy}
           onChange={event => setTextTarget(event.target.value)}>
-          {[["docx","Word document (DOCX)"],["rtf","Rich Text (RTF)"],
+          {[["pdf","PDF document"],["docx","Word document (DOCX)"],["rtf","Rich Text (RTF)"],
             ["odt","OpenDocument (ODT)"],["html","HTML"],["md","Markdown"],
-            ["epub","EPUB e-book"]].map(([key,label]) =>
+            ["epub","EPUB e-book"],["png","PNG images"],["jpg","JPEG images"]].map(([key,label]) =>
             <option value={key} key={key}>{label}</option>)}
         </select>
       </div>}
