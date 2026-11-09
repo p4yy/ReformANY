@@ -77,6 +77,25 @@ LRESULT CALLBACK hook(int code,WPARAM kind,LPARAM info){
     }
     return CallNextHookEx(g_hook,code,kind,info);
 }
+// Once a selected shell file has been validated, send Escape to the active
+// Windows OLE drag loop before opening Orbit. Never suppress WM_LBUTTONUP or
+// swallow global mouse messages: that can strand Explorer in a stuck drag.
+bool cancel_verified_drag(HWND source){
+    if(!(GetAsyncKeyState(VK_LBUTTON)&0x8000))return false;
+    HWND foreground=GetForegroundWindow();
+    foreground=foreground?GetAncestor(foreground,GA_ROOT):nullptr;
+    if(foreground!=source &&
+       !(source==GetShellWindow()&&is_shell_window(foreground))){
+        return false;
+    }
+    INPUT keys[2]{};
+    keys[0].type=INPUT_KEYBOARD;
+    keys[0].ki.wVk=VK_ESCAPE;
+    keys[1].type=INPUT_KEYBOARD;
+    keys[1].ki.wVk=VK_ESCAPE;
+    keys[1].ki.dwFlags=KEYEVENTF_KEYUP;
+    return SendInput(2,keys,sizeof(INPUT))==2;
+}
 bool selected_from_browser(IShellBrowser* browser,HWND source){
     HWND window=nullptr;
     if(!browser||FAILED(browser->GetWindow(&window))||!window)return false;
@@ -109,7 +128,9 @@ bool selected_from_browser(IShellBrowser* browser,HWND source){
             if(DragQueryFileW(files,0,path.data(),needed+1)>0){
                 const DWORD attrs=GetFileAttributesW(path.data());
                 if(attrs!=INVALID_FILE_ATTRIBUTES&&!(attrs&FILE_ATTRIBUTE_REPARSE_POINT)){
-                    if(g_launch){g_launch(path.data());launched=true;}
+                    if(g_launch&&cancel_verified_drag(source)){
+                        g_launch(path.data());launched=true;
+                    }
                 }
             }
         }
