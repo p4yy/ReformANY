@@ -538,6 +538,10 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
       </button>
     </div>
     {outputSelector(result, error)}
+    {textOutputs.length > 1 && <div className="engine-card"><strong>{textOutputs.length} pages saved</strong>
+      {textOutputs.map(path => <button type="button" key={path} className="text-action"
+        onClick={() => void invoke("reveal_output",{path})}>{fileName(path)}</button>)}
+    </div>}
     {splitOutputs.length > 0 && <div className="engine-card"><strong>Created {splitOutputs.length} standalone PDFs</strong>{splitOutputs.map(path => <button type="button" key={path} className="text-action" onClick={() => void invoke("reveal_output", { path })}>{fileName(path)}</button>)}{splitWarning && <p role="status">{splitWarning}</p>}</div>}
     <div className="document-preview-link-row">
       {onPreview && sources[0]?.toLowerCase().endsWith(".pdf") && <button type="button" className="button secondary" onClick={() => onPreview(sources[0])}><FileText size={15}/> Preview source PDF</button>}
