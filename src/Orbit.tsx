@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
+import WindowChrome from "./WindowChrome";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
@@ -220,8 +221,7 @@ export default function Orbit() {
   const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
   const toolEditorOpen = renaming || splitting || passwording || Boolean(pdfDialog)
     || Boolean(pdfMarkMode) || arrangingPages || pdfPasswording || shredding;
-  const toolEditorIsLarge = Boolean(pdfDialog) || Boolean(pdfMarkMode)
-    || arrangingPages || pdfPasswording;
+  const toolEditorIsLarge = Boolean(pdfMarkMode) || arrangingPages;
   const radialPosition = useRef<{ x: number; y: number } | null>(null);
   const toolEditorOpenRef = useRef(toolEditorOpen);
   toolEditorOpenRef.current = toolEditorOpen;
@@ -263,6 +263,8 @@ export default function Orbit() {
     // independently resizable Windows surfaces with real title-bar dragging.
     // Return to the original compact Orbit position when the editor closes.
     document.documentElement.dataset.orbitEditor = toolEditorOpen ? "true" : "false";
+    document.documentElement.dataset.orbitEditorKind = pdfMarkMode ? "mark" : arrangingPages ? "arrange"
+      : pdfDialog ? "pages" : passwording ? "zip" : "compact";
     const win = getCurrentWindow();
     let stale = false;
     const resize = async () => {
@@ -276,14 +278,16 @@ export default function Orbit() {
             radialPosition.current = { x: position.x, y: position.y };
           }
           if (stale) return;
-          // The native titlebar is intentional: drag, resize and Alt+F4
-          // work exactly as in other Windows apps.
+          // Reuse the same custom titlebar as the main app; do not reveal
+          // Windows chrome or the transparent background around the tool.
+          await win.setDecorations(false);
           await win.setResizable(true);
-          await win.setDecorations(true);
           if (stale) return;
-          const preferred = toolEditorIsLarge ? { w: 960, h: 700 } : { w: 760, h: 560 };
-          const width = Math.min(preferred.w, Math.max(480, window.screen.availWidth - 48));
-          const height = Math.min(preferred.h, Math.max(430, window.screen.availHeight - 72));
+          const preferred = toolEditorIsLarge ? { w: 1020, h: 740 }
+            : pdfDialog ? { w: 620, h: 440 }
+            : passwording ? { w: 640, h: 540 } : { w: 660, h: 490 };
+          const width = Math.min(preferred.w, Math.max(320, window.screen.availWidth - 32));
+          const height = Math.min(preferred.h, Math.max(310, window.screen.availHeight - 36));
           await win.setSize(new LogicalSize(width, height));
           if (!stale) await win.center();
         } else {
@@ -302,7 +306,7 @@ export default function Orbit() {
     };
     void resize();
     return () => { stale = true; };
-  }, [toolEditorOpen, toolEditorIsLarge]);
+  }, [toolEditorOpen, toolEditorIsLarge, pdfMarkMode, arrangingPages, pdfDialog, passwording]);
 
   useEffect(() => {
     let mounted = true;
@@ -955,6 +959,7 @@ export default function Orbit() {
         event.clientY - rect.top - rect.height / 2);
       if (distance > rect.width / 2 - 1) void close();
     }}>
+      {toolEditorOpen && <WindowChrome title={pdfMarkMode ? (pdfMarkMode === "signature" ? "Visual PDF signature" : "Watermark PDF") : arrangingPages ? "Arrange PDF pages" : pdfDialog ? (pdfDialog === "extract" ? "Extract PDF pages" : "Rotate PDF pages") : passwording ? "Password-protected ZIP" : "ReformANY Orbit"} maximizable={toolEditorIsLarge} compact />}
       <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
         onWheel={handleWheel} onPointerMove={handlePointerMove}
         onPointerLeave={() => setCursor(null)} onPointerDownCapture={unlockOrbitAudio}>
