@@ -24,7 +24,7 @@ use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview,
 use scan::expand_inputs;
 use external::engine_status;
 use media::media_convert;
-use archives::{archive_create, archive_extract};
+use archives::{archive_create, archive_extract, archive_repack};
 use actions::{rename_file, open_terminal, send_bluetooth, float_file, float_file_context, copy_file_to, FloatRegistry};
 use documents::{images_to_pdf, pdf_to_text, pdf_to_text_format, office_to_pdf, office_available};
 use ebooks::{ebook_convert_file, ebook_engine_available};
@@ -64,6 +64,7 @@ pub fn run() {
             media_convert,
             archive_create,
             archive_extract,
+            archive_repack,
             rename_file,
             open_terminal,
             send_bluetooth,
