@@ -6,7 +6,7 @@ import { LogicalSize } from "@tauri-apps/api/dpi";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
-import { readOrbitMousePreferences } from "./orbitMousePreferences";
+import { readOrbitMousePreferences, shortcutFromKeyboard, type OrbitSection } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
 import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageDialog";
@@ -286,8 +286,22 @@ export default function Orbit() {
     });
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        event.preventDefault();
-        void close();
+        if (!document.querySelector("[data-orbit-dialog]")) {
+          event.preventDefault();
+          void close();
+        }
+        return;
+      }
+      if (phaseRef.current === "processing" || document.querySelector("[data-orbit-dialog]")) return;
+      const shortcut=shortcutFromKeyboard(event);
+      if (!shortcut) return;
+      for (const section of ["convert","tools","actions"] as OrbitSection[]) {
+        if (mousePreferences.shortcuts[section] === shortcut) {
+          event.preventDefault();
+          setTab(section);
+          setError(null);setNote(null);
+          return;
+        }
       }
     };
     window.addEventListener("keydown", onKey);
