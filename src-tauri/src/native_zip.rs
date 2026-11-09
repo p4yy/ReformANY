@@ -148,7 +148,7 @@ pub fn repack_native_zip(
     let staged_path = stage.path().join("protected.zip");
     let mut input_zip = ZipArchive::new(File::open(input).map_err(|e| e.to_string())?)
         .map_err(|e| format!("The existing ZIP is invalid: {e}"))?;
-    if input_zip.len() == 0 || input_zip.len() > MAX_ENTRIES {
+    if input_zip.is_empty() || input_zip.len() > MAX_ENTRIES {
         return Err("ZIP must contain between 1 and 20,000 entries".into());
     }
     let mut writer = ZipWriter::new(File::create(&staged_path).map_err(|e| e.to_string())?);
