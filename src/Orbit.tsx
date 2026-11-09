@@ -13,6 +13,7 @@ import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageD
 import { convertPdfToPageImages } from "./pdfPageRender";
 import PdfMarkDialog, {type PdfMark} from "./PdfMarkDialog";
 import PdfArrangeDialog, {type PageEdit} from "./PdfArrangeDialog";
+import PdfPasswordDialog, {type PdfPasswordRequest} from "./PdfPasswordDialog";
 import OrbitNotice from "./OrbitNotice";
 import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
@@ -185,6 +186,7 @@ export default function Orbit() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfMarkMode, setPdfMarkMode] = useState<"watermark"|"signature"|null>(null);
   const [arrangingPages, setArrangingPages] = useState(false);
+  const [pdfPasswording, setPdfPasswording] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
@@ -583,6 +585,19 @@ export default function Orbit() {
     } finally { setPdfBusy(false); }
   }
 
+  async function applyPdfPassword(request:PdfPasswordRequest){
+    if(!file||!pdfPasswording||pdfBusy)return;
+    setPdfBusy(true);setPdfError(null);
+    try{
+      const result=await invoke<string>(request.mode==="protect"?"pdf_protect":"pdf_unlock",{
+        path:file.path,password:request.password,destination:await resolvePreferredDestination(),
+      });
+      if(!result)throw new Error("PDF password worker created no document");
+      setOutput(result);setSelected(request.mode==="protect"?"Protect PDF":"Unlock PDF");
+      setPdfPasswording(false);setPhase("completed");
+    }catch(e){setPdfError(String(e));}
+    finally{setPdfBusy(false);}
+  }
   async function openArrange(){
     if(!file||kind!=="pdf")return;
     setArrangingPages(true);setPdfCount(null);setPdfError(null);
@@ -767,7 +782,7 @@ export default function Orbit() {
     { label: "Extract Pages", run: () => void openPdfTool("extract") },
     { label: "Rotate 90°", run: () => void openPdfTool("rotate") },
     { label: "Extract Images", run: () => void extractPdfImages() },
-    { label: "Password", unavailable: "PDF encryption requires a verified PDF security engine", run: () => {} },
+    { label: "Password", run: () => {setPdfError(null);setPdfPasswording(true);} },
     { label: "Arrange Pages", run: () => void openArrange() },
     { label: "Watermark", run: () => {setPdfError(null);setPdfMarkMode("watermark");} },
     { label: "Sign", run: () => {setPdfError(null);setPdfMarkMode("signature");} },
@@ -896,6 +911,9 @@ export default function Orbit() {
       {(error || note) && <OrbitNotice key={error || note}
         message={error || note || ""} error={Boolean(error)}
         onDismiss={() => { setError(null);setNote(null); }}/>}
+      {pdfPasswording && file && <PdfPasswordDialog name={file.name} working={pdfBusy}
+        error={pdfError} onSave={request=>void applyPdfPassword(request)}
+        onClose={()=>{if(!pdfBusy){setPdfPasswording(false);setPdfError(null);}}}/>}
       {arrangingPages && file && pdfCount !== null && <PdfArrangeDialog
         path={file.path} name={file.name} pageCount={pdfCount} working={pdfBusy}
         error={pdfError} onSave={items=>void saveArrangedPages(items)}
