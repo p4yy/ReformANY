@@ -119,7 +119,45 @@ try {
   if (result?.mode !== "float" || !result.text.includes("ReformANY Float") || !result.mediaLoaded) {
     throw new Error("Float failed to render an actual image player: " + JSON.stringify(result));
   }
-  console.log("PASS: bundled ReformANY launched Float and WebView2 displayed selected image without a blank screen.");
+  // Pin is not decorative: it must change actual Tauri topmost state.
+  let pinned = await evaluate(socket,
+    'Boolean(document.querySelector(".float-topbar button[aria-label=\\\"Unpin Float\\\"]"))');
+  if (!pinned) throw new Error("Float did not start in pinned state");
+  await evaluate(socket,
+    'document.querySelector(".float-topbar button[aria-label=\\\"Unpin Float\\\"]").click(); true');
+  let unpinned = false;
+  for (let attempt = 0; attempt < 25; attempt++) {
+    unpinned = await evaluate(socket,
+      'Boolean(document.querySelector(".float-topbar button[aria-label=\\\"Keep Float on top\\\"][aria-pressed=\\\"false\\\"]"))');
+    if (unpinned) break;
+    await sleep(220);
+  }
+  if (!unpinned) throw new Error("Float pin button did not update native always-on-top state");
+  await evaluate(socket,
+    'document.querySelector(".float-topbar button[aria-label=\\\"Keep Float on top\\\"]").click(); true');
+
+  // QR must render its actual offline SVG without covering helper text.
+  await evaluate(socket,
+    'document.querySelectorAll(".float-tabs button")[1].click(); true');
+  await evaluate(socket,
+    'document.querySelector(".float-qr-actions button").click(); true');
+  let qrStatus;
+  for (let attempt = 0; attempt < 35; attempt++) {
+    qrStatus = await evaluate(socket, `(() => {
+      const image = document.querySelector(".float-qr-image img");
+      const hint = document.querySelector(".float-qr-content small");
+      if (!image || !hint) return null;
+      const a = image.getBoundingClientRect(), b = hint.getBoundingClientRect();
+      return { hasImage: image.complete && image.naturalWidth > 0, overlap: a.bottom > b.top + 1,
+        error: document.querySelector(".float-error")?.innerText || "" };
+    })()`);
+    if (qrStatus?.hasImage) break;
+    await sleep(220);
+  }
+  if (!qrStatus?.hasImage || qrStatus.overlap || qrStatus.error) {
+    throw new Error("Float QR image did not render cleanly: " + JSON.stringify(qrStatus));
+  }
+  console.log("PASS: offline Float image preview, native pin toggle, and QR content layout.");
 } finally {
   for (const socket of sockets) try { socket.close(); } catch {}
   if (child?.pid) {
