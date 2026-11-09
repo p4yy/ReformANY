@@ -17,6 +17,7 @@ mod spreadsheets;
 mod engine_progress;
 mod file_parts;
 mod pdf_split;
+mod pdf_ops;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -36,6 +37,7 @@ use spreadsheets::spreadsheet_convert;
 use engine_progress::{cancel_engine_job, JobRegistry};
 use file_parts::{file_split, file_join};
 use pdf_split::pdf_split;
+use pdf_ops::{pdf_page_count, pdf_extract_pages, pdf_rotate_pages};
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -84,6 +86,9 @@ pub fn run() {
             file_split,
             file_join,
             pdf_split,
+            pdf_page_count,
+            pdf_extract_pages,
+            pdf_rotate_pages,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
