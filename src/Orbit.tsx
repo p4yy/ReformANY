@@ -10,7 +10,7 @@ import { readOrbitMousePreferences, shortcutFromKeyboard, type OrbitSection } fr
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
 import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageDialog";
-import { convertPdfToPageImages } from "./pdfPageRender";
+import { convertPdfToPageImages, convertPdfToLayoutDocx } from "./pdfPageRender";
 import PdfMarkDialog, {type PdfMark} from "./PdfMarkDialog";
 import PdfArrangeDialog, {type PageEdit} from "./PdfArrangeDialog";
 import PdfPasswordDialog, {type PdfPasswordRequest} from "./PdfPasswordDialog";
@@ -404,7 +404,7 @@ export default function Orbit() {
     }
   }
 
-  async function convertDocument(target: "txt" | "md" | "html" | "pdf" | "png" | "jpg") {
+  async function convertDocument(target: "txt" | "md" | "html" | "pdf" | "png" | "jpg" | "docx-editable" | "docx-layout") {
     if (!file || file.error || phase === "processing") return;
     const isPdf = kind === "pdf";
     if (!isPdf && (kind !== "office" || target !== "pdf" || !officeReady)) return;
@@ -414,7 +414,17 @@ export default function Orbit() {
     setError(null);
     setNote(null);
     try {
-      if (isPdf && (target === "png" || target === "jpg")) {
+      if (isPdf && (target === "docx-editable" || target === "docx-layout")) {
+        const destination = await resolvePreferredDestination();
+        const result = target === "docx-layout"
+          ? await convertPdfToLayoutDocx(file.path, destination)
+          : await invoke<string>("pdf_docx_editable", {path:file.path,destination});
+        if (!result) throw Error("PDF DOCX conversion returned no file");
+        setOutput(result);
+        setNote(target === "docx-layout"
+          ? "Saved visual page-layout DOCX. Page images preserve appearance, but their text is not editable."
+          : "Saved a flowing editable-text DOCX. Complex layouts may be simplified.");
+      } else if (isPdf && (target === "png" || target === "jpg")) {
         const outputs = await convertPdfToPageImages(
           file.path, target, await resolvePreferredDestination(),
         );
@@ -763,6 +773,8 @@ export default function Orbit() {
       ...(["TXT", "MD", "HTML", "PNG", "JPG"] as const).map(label => ({
         label, run: () => void convertDocument(label.toLowerCase() as "txt" | "md" | "html" | "png" | "jpg"),
       })),
+      {label:"DOCX · Editable",run:()=>void convertDocument("docx-editable")},
+      {label:"DOCX · Layout",run:()=>void convertDocument("docx-layout")},
       ...(calibreReady ? ebookTargets.filter(label => !["TXT", "PDF"].includes(label)).map(label => ({
         label, run: () => void convertOther(label, "ebook_convert_file"),
       })) : []),
