@@ -14,7 +14,7 @@ import MediaToolsPanel from "./MediaToolsPanel";
 import DataToolsPanel from "./DataToolsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
-import { getOrbitSoundsEnabled, setOrbitSoundsEnabled, getOrbitVolume, setOrbitVolume, previewOrbitSound } from "./orbitAudio";
+import { getOrbitSoundsEnabled, setOrbitSoundsEnabled, getOrbitVolume, setOrbitVolume, previewOrbitSound, getOrbitSoundKindEnabled, setOrbitSoundKindEnabled, type OrbitSoundEvent } from "./orbitAudio";
 import { readOrbitMousePreferences, saveOrbitMousePreferences, shortcutFromKeyboard, validateShortcut, DEFAULT_SHORTCUTS, type OrbitMousePreferences, type OrbitSection } from "./orbitMousePreferences";
 import WindowChrome from "./WindowChrome";
 import DesktopChrome, { isWorkspacePage as isWorkspaceSection, isPreferencesPage as isPreferencesSection, type DesktopPage } from "./DesktopChrome";
@@ -157,6 +157,9 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(getLanguage);
   const [orbitSounds, setOrbitSounds] = useState(getOrbitSoundsEnabled);
   const [orbitVolume, setSavedOrbitVolume] = useState(getOrbitVolume);
+  const [openCue, setOpenCue] = useState(() => getOrbitSoundKindEnabled("open"));
+  const [closeCue, setCloseCue] = useState(() => getOrbitSoundKindEnabled("close"));
+  const [hoverCue, setHoverCue] = useState(() => getOrbitSoundKindEnabled("hover"));
   useEffect(() => {
     if (!isTauri()) return;
     // Persist once per settled preference change. The standalone shake
@@ -165,10 +168,11 @@ function App() {
     const timer=window.setTimeout(() => {
       void invoke("set_orbit_sound_preferences",{
         enabled:orbitSounds,volume:orbitVolume,
+        openEnabled:openCue,closeEnabled:closeCue,hoverEnabled:hoverCue,
       }).catch(() => { /* Sound must never block the UI. */ });
     },90);
     return () => window.clearTimeout(timer);
-  },[orbitSounds,orbitVolume]);
+  },[orbitSounds,orbitVolume,openCue,closeCue,hoverCue]);
   const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
   const [shortcutEditing, setShortcutEditing] = useState<OrbitSection|null>(null);
   const [shortcutError, setShortcutError] = useState<string|null>(null);
@@ -261,6 +265,20 @@ function App() {
     const next = !orbitSounds;
     setOrbitSounds(next);
     setOrbitSoundsEnabled(next);
+  }
+  function updateSoundCue(kind: OrbitSoundEvent, enabled: boolean) {
+    setOrbitSoundKindEnabled(kind, enabled);
+    if (kind === "open") setOpenCue(enabled);
+    else if (kind === "close") setCloseCue(enabled);
+    else setHoverCue(enabled);
+  }
+  async function previewSoundCue(kind: OrbitSoundEvent) {
+    if (!orbitSounds || orbitVolume === 0 ||
+        (kind === "open" && !openCue) || (kind === "close" && !closeCue) ||
+        (kind === "hover" && !hoverCue)) return;
+    if (!isTauri()) { previewOrbitSound(kind); return; }
+    try { await invoke("orbit_play_sound",{kind}); }
+    catch (cause) { setNotice("Sound preview unavailable: " + String(cause)); }
   }
   // Orbit sage is the official accent throughout ReformANY.
   const accent = "sage";
@@ -665,12 +683,12 @@ function App() {
           </div>
           <div className="preference-group preference-sounds">
             <div className="preference-sound-copy">
-              <h2><Volume2 size={18} aria-hidden="true"/> {tx("orbitSounds")}</h2>
-              <p id="orbit-sounds-help">{tx("orbitSoundsDescription")}</p>
+              <h2><Volume2 size={18} aria-hidden="true"/> Orbit sound design</h2>
+              <p id="orbit-sounds-help">Silk Glass — a quiet, original three-part sound set. Gentle opening and closing cues, with optional subtle tactile feedback over Orbit sections and formats.</p>
             </div>
             <button type="button" role="switch"
               className={`orbit-sound-switch ${orbitSounds ? "is-on" : ""}`}
-              aria-label={tx("orbitSounds")}
+              aria-label="Enable Orbit sounds"
               aria-describedby="orbit-sounds-help"
               aria-checked={orbitSounds}
               onClick={toggleOrbitSounds}>
@@ -678,16 +696,35 @@ function App() {
               <span className="orbit-switch-state">{tx(orbitSounds ? "enabled" : "disabled")}</span>
             </button>
             <div className="orbit-volume-control">
-              <label htmlFor="orbit-volume">Volume <output htmlFor="orbit-volume">{orbitVolume}%</output></label>
+              <label htmlFor="orbit-volume">Overall volume <output htmlFor="orbit-volume">{orbitVolume}%</output></label>
               <div className="orbit-volume-row">
                 <input id="orbit-volume" type="range" min="0" max="100" step="5"
                   value={orbitVolume} disabled={!orbitSounds}
                   onChange={event => updateOrbitVolume(Number(event.target.value))}
                   aria-label="Orbit sound volume" />
-                <button type="button" className="button secondary" disabled={!orbitSounds || orbitVolume === 0}
-                  onClick={previewOrbitSound}>Test sound</button>
               </div>
             </div>
+            <div className="orbit-audio-events" role="group" aria-label="Individual Orbit sound effects">
+              {([
+                ["open",openCue,"Opening","Soft airy bloom when Orbit appears"],
+                ["close",closeCue,"Closing","A complementary gentle release when Orbit closes"],
+                ["hover",hoverCue,"Hover","Quiet tactile response over sections and formats"],
+              ] as const).map(([kind,enabled,title,description])=>
+                <div className="orbit-audio-event" key={kind}>
+                  <label className="orbit-audio-event-setting">
+                    <input type="checkbox" checked={enabled} disabled={!orbitSounds}
+                      onChange={event => updateSoundCue(kind,event.target.checked)}
+                      aria-label={title+" sound"} />
+                    <span><strong>{title}</strong><small>{description}</small></span>
+                  </label>
+                  <button type="button" className="button secondary orbit-audio-preview"
+                    disabled={!orbitSounds || !enabled || orbitVolume === 0}
+                    onClick={() => void previewSoundCue(kind)}
+                    aria-label={"Preview Orbit "+title.toLowerCase()+" sound"}>Preview</button>
+                </div>
+              )}
+            </div>
+            <p className="orbit-audio-note">Sounds are generated locally. No downloads or recording. Toggle any cue independently; zero volume is silent.</p>
           </div>
           <div className="preference-group">
             <h2>Orbit mouse control</h2>
