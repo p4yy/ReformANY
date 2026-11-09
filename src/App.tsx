@@ -33,6 +33,8 @@ function isMediaInput(path: string): boolean {
   return MEDIA_INPUT_EXTENSIONS.has(ext);
 }
 
+type WatchRule = {id:string;folder:string;inputExt:string;target:string;destination:string|null};
+type WatchEvent = {id:string;path:string;status:string;outputPath:string|null;error:string|null};
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
 type Page = DesktopPage;
@@ -159,6 +161,12 @@ function App() {
   const [shortcutError, setShortcutError] = useState<string|null>(null);
   const [queueMode, setQueueMode] = useState<"sequential"|"balanced">("balanced");
   const [queueError, setQueueError] = useState<string|null>(null);
+  const [watchRules, setWatchRules] = useState<WatchRule[]>([]);
+  const [watchFolder, setWatchFolder] = useState<string|null>(null);
+  const [watchInput, setWatchInput] = useState("png");
+  const [watchTarget, setWatchTarget] = useState("pdf");
+  const [watchError, setWatchError] = useState<string|null>(null);
+  const [watchBusy, setWatchBusy] = useState(false);
   useEffect(()=>{
     if(!isTauri())return;
     void invoke<{mode:"sequential"|"balanced"}>("get_queue_policy")
@@ -171,6 +179,41 @@ function App() {
       const result=await invoke<{mode:"sequential"|"balanced"}>("set_queue_policy",{mode});
       setQueueMode(result.mode);
     }catch(e){setQueueError(String(e));}
+  }
+  useEffect(()=>{
+    if(!isTauri())return;
+    void invoke<WatchRule[]>("get_watch_rules").then(setWatchRules)
+      .catch(e=>setWatchError(String(e)));
+    const watchListener=listen<WatchEvent>("reformany:watch-job",event=>{
+      const job=event.payload;
+      if(job.status==="completed")setNotice("Auto Convert saved "+(job.outputPath?.split(/[\\/]/).at(-1)??"a file"));
+      if(job.status==="failed")setWatchError(job.error||"Auto Convert failed");
+    });
+    return()=>{void watchListener.then(fn=>fn());};
+  },[]);
+  async function chooseWatchFolder(){
+    try{
+      const folder=await open({directory:true,multiple:false,title:"Choose a folder to watch"});
+      if(typeof folder==="string"){setWatchFolder(folder);setWatchError(null);}
+    }catch(e){setWatchError(String(e));}
+  }
+  async function addWatchRule(){
+    if(!watchFolder||watchBusy)return;
+    setWatchBusy(true);setWatchError(null);
+    try{
+      const rules=await invoke<WatchRule[]>("add_watch_rule",{
+        folder:watchFolder,inputExt:watchInput,target:watchTarget,
+        destination:await resolvePreferredDestination(),
+      });
+      setWatchRules(rules);setWatchFolder(null);
+    }catch(e){setWatchError(String(e));}
+    finally{setWatchBusy(false);}
+  }
+  async function removeWatchRule(id:string){
+    setWatchBusy(true);setWatchError(null);
+    try{setWatchRules(await invoke<WatchRule[]>("remove_watch_rule",{id}));}
+    catch(e){setWatchError(String(e));}
+    finally{setWatchBusy(false);}
   }
   function updateOrbitMouse(changes: Partial<OrbitMousePreferences>) {
     setOrbitMouse(current => {
@@ -535,8 +578,39 @@ function App() {
             {queueError&&<p role="alert">{queueError}</p>}
           </div>
           <div className="preference-group">
-            <h2>Auto Convert</h2>
-            <p>Watched-folder automation is not enabled in this build. It needs a native file watcher and file-copy stabilization; no unverified conversion will run automatically.</p>
+            <h2>Auto Convert · watched folders</h2>
+            <p>A native filesystem watcher converts newly saved image files after their size and modification time stabilize. These rules run only while the main ReformANY app is open. Files are never modified in place.</p>
+            <div className="orbit-mouse-setting">
+              <span><strong>Watch folder</strong><small>{watchFolder||"Choose a folder. Subfolders are excluded for predictable handling."}</small></span>
+              <button type="button" className="button subtle" onClick={()=>void chooseWatchFolder()}>Browse…</button>
+            </div>
+            <div className="orbit-mouse-setting">
+              <span><strong>Incoming file type</strong><small>Filters prevent recursively converting generated outputs.</small></span>
+              <select aria-label="Auto Convert incoming image type" value={watchInput}
+                onChange={e=>setWatchInput(e.target.value)}>
+                {["png","jpg","jpeg","webp","bmp","tiff"].map(ext=><option key={ext} value={ext}>{ext.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <div className="orbit-mouse-setting">
+              <span><strong>Convert to</strong><small>Uses the real offline image converter or PDF writer.</small></span>
+              <select aria-label="Auto Convert output format" value={watchTarget}
+                onChange={e=>setWatchTarget(e.target.value)}>
+                {["pdf","png","jpeg","webp","bmp","tiff"].map(ext=><option key={ext} value={ext}>{ext.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <button type="button" className="button secondary" disabled={!watchFolder||watchBusy}
+              onClick={()=>void addWatchRule()}>Add watched folder rule</button>
+            {watchRules.length>0&&<div className="engine-card">
+              <strong>Active rules ({watchRules.length})</strong>
+              {watchRules.map(rule=><div className="orbit-mouse-setting" key={rule.id}>
+                <span><strong>{rule.inputExt.toUpperCase()} → {rule.target.toUpperCase()}</strong>
+                  <small title={rule.folder}>{rule.folder} · Output {rule.destination||"next to source"}</small>
+                </span>
+                <button type="button" className="button subtle" disabled={watchBusy}
+                  onClick={()=>void removeWatchRule(rule.id)}>Remove</button>
+              </div>)}
+            </div>}
+            {watchError&&<p role="alert">{watchError}</p>}
           </div>
         </div>}
 
