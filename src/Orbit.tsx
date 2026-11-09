@@ -532,6 +532,22 @@ export default function Orbit() {
     } catch (reason) { setError(String(reason)); setPhase("failed"); }
   }
 
+  async function extractPdfImages() {
+    if (!file || kind !== "pdf" || phaseRef.current === "processing") return;
+    setPhase("processing"); setSelected("Extract images");
+    setError(null); setNote(null); setOutput(null);
+    try {
+      const result = await invoke<{outputPaths:string[];skippedUnsupported:number}>("pdf_extract_images",{
+        path:file.path, destination:await resolvePreferredDestination(),
+      });
+      if (!result.outputPaths.length) throw new Error("No extractable embedded images were produced");
+      setOutput(result.outputPaths[0]);
+      setNote(`Saved ${result.outputPaths.length} embedded image files`+
+        (result.skippedUnsupported ? `; ${result.skippedUnsupported} unsupported assets skipped` : ""));
+      setPhase("completed");
+    } catch (reason) {setError(String(reason));setPhase("failed");}
+  }
+
   async function openPdfTool(action: PdfPageAction) {
     if (!file || kind !== "pdf" || phaseRef.current === "processing") return;
     setPdfDialog(action); setPdfCount(null); setPdfError(null);
@@ -711,7 +727,7 @@ export default function Orbit() {
     { label: "Split Pages", run: () => setSplitting(true) },
     { label: "Extract Pages", run: () => void openPdfTool("extract") },
     { label: "Rotate 90°", run: () => void openPdfTool("rotate") },
-    { label: "Extract Images", unavailable: "Embedded image export is not implemented yet", run: () => {} },
+    { label: "Extract Images", run: () => void extractPdfImages() },
     { label: "Password", unavailable: "PDF encryption requires a verified PDF security engine", run: () => {} },
     { label: "Arrange Pages", unavailable: "Page arrangement editor is not implemented yet", run: () => {} },
     { label: "Watermark", unavailable: "Watermark editor is not implemented yet", run: () => {} },
