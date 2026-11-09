@@ -338,7 +338,7 @@ bool show_drop_target(){
     cls.lpfnWndProc=popup_proc;
     cls.hInstance=instance;
     cls.lpszClassName=kPopupClass;
-    cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+    cls.hCursor=LoadCursorW(nullptr,MAKEINTRESOURCEW(32512));
     if(!RegisterClassExW(&cls)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)
         return false;
     const HWND hwnd=CreateWindowExW(
