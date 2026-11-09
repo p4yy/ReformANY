@@ -46,8 +46,9 @@ fn check(rule:&WatchRule)->Result<PathBuf,String>{
     if !matches!(rule.target.as_str(),"pdf"|"png"|"jpeg"|"webp"|"bmp"|"tiff"){
         return Err("Choose a real PDF or image output format".into());
     }
-    let same=|ext:&str|if ext=="jpg"{"jpeg"}else{ext};
-    if same(&rule.input_ext)==same(&rule.target){
+    let same_input=if rule.input_ext=="jpg" {"jpeg"} else {rule.input_ext.as_str()};
+    let same_target=if rule.target=="jpg" {"jpeg"} else {rule.target.as_str()};
+    if same_input==same_target{
         return Err("Input and output format must differ to prevent a conversion loop".into());
     }
     let folder=PathBuf::from(&rule.folder);
