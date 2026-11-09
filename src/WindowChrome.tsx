@@ -7,8 +7,8 @@ import {appIcon} from "./brand";
  * One shared, keyboard-accessible titlebar for native, undecorated ReformANY
  * windows. Only noninteractive header space starts a native window drag.
  */
-export default function WindowChrome({title, maximizable=true, compact=false}:{
-  title:string; maximizable?:boolean; compact?:boolean;
+export default function WindowChrome({title, maximizable=true, compact=false, onClose}:{
+  title:string; maximizable?:boolean; compact?:boolean; onClose?:()=>void;
 }) {
   const win=useMemo(()=>getCurrentWindow(),[]);
   const [maximized,setMaximized]=useState(false);
@@ -50,7 +50,7 @@ export default function WindowChrome({title, maximizable=true, compact=false}:{
         {maximized?<Copy size={14}/>:<Square size={13}/>}
       </button>}
       <button type="button" className="window-chrome-close" aria-label="Close"
-        title="Close" onClick={()=>void run(()=>win.close())}><X size={18}/></button>
+        title="Close" onClick={onClose ? onClose : ()=>void run(()=>win.close())}><X size={18}/></button>
     </div>
     {failure&&<span className="window-chrome-error" role="alert">{failure}</span>}
   </header>;
