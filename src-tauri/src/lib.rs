@@ -25,6 +25,7 @@ mod pdf_arrange;
 mod pdf_security;
 mod shred;
 mod job_settings;
+mod auto_convert;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -52,6 +53,7 @@ use pdf_arrange::pdf_arrange_pages;
 use pdf_security::{pdf_protect,pdf_unlock};
 use shred::{shred_preview,shred_confirm};
 use job_settings::{get_queue_policy,set_queue_policy};
+use auto_convert::{WatchRegistry,get_watch_rules,add_watch_rule,remove_watch_rule};
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -63,6 +65,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(BatchRegistry::default())
         .manage(JobRegistry::default())
+        .manage(WatchRegistry::default())
         .manage(OrbitLaunch::new(orbit_path))
         .manage(FloatRegistry::default())
         .plugin(tauri_plugin_dialog::init())
@@ -113,6 +116,9 @@ pub fn run() {
             shred_confirm,
             get_queue_policy,
             set_queue_policy,
+            get_watch_rules,
+            add_watch_rule,
+            remove_watch_rule,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
@@ -140,6 +146,7 @@ pub fn run() {
                 .build()?;
                 orbit::position_near_cursor(&window);
             } else {
+                auto_convert::restore(app.handle());
                 WebviewWindowBuilder::new(
                     app,
                     "main",
