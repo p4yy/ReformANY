@@ -27,6 +27,7 @@ mod shred;
 mod job_settings;
 mod auto_convert;
 mod shake;
+mod pdf_docx;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -56,6 +57,7 @@ use shred::{shred_preview,shred_confirm};
 use job_settings::{get_queue_policy,set_queue_policy};
 use auto_convert::{WatchRegistry,get_watch_rules,add_watch_rule,remove_watch_rule};
 use shake::{get_shake_settings,set_shake_settings};
+use pdf_docx::{pdf_docx_editable,pdf_docx_layout};
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -129,6 +131,8 @@ pub fn run() {
             remove_watch_rule,
             get_shake_settings,
             set_shake_settings,
+            pdf_docx_editable,
+            pdf_docx_layout,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
