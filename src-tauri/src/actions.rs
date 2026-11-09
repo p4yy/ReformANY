@@ -154,6 +154,8 @@ pub async fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: S
             .inner_size(390.0, 530.0)
             .min_inner_size(320.0, 390.0)
             .resizable(true)
+            .decorations(false)
+            .shadow(true)
             .always_on_top(true)
             .center()
             .focused(true)
