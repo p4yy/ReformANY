@@ -324,8 +324,8 @@ extern "C" fn open_orbit(wide:*const u16,tab:u8){
     if !metadata.is_file() || metadata.file_type().is_symlink(){return;}
     if let Ok(exe)=std::env::current_exe(){
         let mut command=std::process::Command::new(exe);
-        command.arg("orbit").arg(&path);
-        match tab {1=>{command.arg("--tab=tools");},2=>{command.arg("--tab=actions");},_=>{}}
+        command.arg("orbit").arg(&path).arg("--from-shake");
+        let _=tab; // Shake always launches the initial full Orbit wheel.
         crate::external::hide_subprocess_window(&mut command);
         if command.spawn().is_ok() {
             // Sound is an optional cosmetic cue and must never delay opening
