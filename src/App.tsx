@@ -16,6 +16,7 @@ import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled, getOrbitVolume, setOrbitVolume, previewOrbitSound } from "./orbitAudio";
 import { readOrbitMousePreferences, saveOrbitMousePreferences, shortcutFromKeyboard, validateShortcut, DEFAULT_SHORTCUTS, type OrbitMousePreferences, type OrbitSection } from "./orbitMousePreferences";
+import WindowChrome from "./WindowChrome";
 import DesktopChrome, { isWorkspacePage as isWorkspaceSection, isPreferencesPage as isPreferencesSection, type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
 import ThemePicker from "./ThemePicker";
@@ -456,9 +457,11 @@ function App() {
     page === "activity" ? "Activity" : "Guide";
 
 
-  if (showWelcome) return <Welcome onFinish={() => setShowWelcome(false)} />;
+  if (showWelcome) return <><WindowChrome title="ReformANY" /><Welcome onFinish={() => setShowWelcome(false)} /></>;
 
   return (
+    <>
+    <WindowChrome title="ReformANY" />
     <div className="shell">
       <DesktopChrome page={page} navigate={setPage} historyCount={history.length} language={language}/>
       <main className="main" ref={mainScrollRef}>
@@ -756,6 +759,7 @@ function App() {
       </main>
       {notice && <div className="toast" role="alert"><CircleAlert size={18}/><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={16}/></button></div>}
     </div>
+    </>
   );
 }
 export default App;
