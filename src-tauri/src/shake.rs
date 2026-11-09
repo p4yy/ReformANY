@@ -261,93 +261,109 @@ pub fn stop_listener(){unsafe{reformany_stop_shake_listener()}}
 pub fn stop_listener(){}
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
-    fn sample(d:&mut Detector,x:i32,y:i32,t:u32,eligible:bool)->bool{
-        d.sample(x,y,t,true,eligible,3)
+    fn step(d:&mut Detector,x:i32,y:i32,ms:u32)->bool{
+        d.sample(x,y,ms,true,true,4,3)
+    }
+    fn completed(d:&mut Detector,start:u32)->bool{
+        let mut count=0;
+        for (i,x) in [0,55,0,55,0].into_iter().enumerate(){
+            if step(d,x,0,start+i as u32*100){count+=1;}
+        }
+        count==1
     }
     #[test]
-    fn valid_hold_with_fast_direction_flips_triggers_once(){
+    fn three_horizontal_reversals_within_eight_hundred_ms(){
         let mut d=Detector::default();
-        assert!(!sample(&mut d,400,400,0,true));
-        assert!(!sample(&mut d,401,400,100,true));
-        assert!(!sample(&mut d,400,400,290,true));
-        let mut triggered=0;
-        for(i,x) in [413,390,416,388,417,389].iter().enumerate(){
-            if sample(&mut d,*x,400,320+i as u32*35,true){triggered+=1;}
-        }
-        assert_eq!(triggered,1);
-        assert!(!sample(&mut d,420,400,900,true));
+        assert!(completed(&mut d,0));
+        assert_eq!(d.reversals,3);
+        assert_eq!(d.phase,Phase::Handled);
+        assert!(d.handled);
+        assert!(!step(&mut d,55,0,600));
+        d.validated_drag();
+        assert_eq!(d.phase,Phase::WaitingForDrop);
     }
     #[test]
-    fn perfectly_still_hold_then_first_large_shake_movement_is_not_rejected(){
-        let mut detector=Detector::default();
-        assert!(!sample(&mut detector,250,250,0,true));
-        // No WM_MOUSEMOVE messages at all during the 440ms hold.
-        assert!(!sample(&mut detector,275,250,440,true));
-        let mut triggered=false;
-        for (index,x) in [238,281,235,283,231,286].iter().enumerate(){
-            triggered |= sample(&mut detector,*x,250,468+index as u32*25,true);
-        }
-        assert!(triggered,"Stationary hold followed by rapid shake should open Orbit");
-    }
-    #[test]
-    fn high_polling_rate_mouse_accumulates_small_movements(){
+    fn vertical_only_has_zero_reversals(){
         let mut d=Detector::default();
-        assert!(!sample(&mut d,400,400,0,true));
-        assert!(!sample(&mut d,400,400,350,true));
-        let mut triggered=false;
-        let mut t=360;
-        for target in [420,380,422,378,424,376] {
-            let start=d.last.0;
-            let direction=if target>start {1} else {-1};
-            let mut x=start;
-            while x!=target {
-                x+=direction;
-                triggered |= sample(&mut d,x,400,t,true);
-                t+=2;
-            }
+        for(i,y) in [0,70,0,70,0,70,0].into_iter().enumerate(){
+            assert!(!step(&mut d,0,y,i as u32*90));
         }
-        assert!(triggered,"1px pointer events must accumulate into shake steps");
+        assert_eq!(d.reversals,0);
     }
     #[test]
-    fn steady_drag_jitter_and_non_shell_events_never_trigger(){
+    fn jitter_and_single_horizontal_sweep_rejected(){
         let mut d=Detector::default();
-        assert!(!sample(&mut d,0,0,0,true));
-        for i in 1..20{assert!(!sample(&mut d,i*8,0,i as u32*30,true));}
-        d=Detector::default();
-        assert!(!sample(&mut d,50,50,0,true));
-        for i in 0..20{
-            assert!(!sample(&mut d,50+(i%3),50,300+i as u32*24,true));
-        }
-        d=Detector::default();
-        assert!(!sample(&mut d,50,50,0,false));
-        assert!(!sample(&mut d,50,50,400,false));
-        for(i,x) in [75,30,78,20,80].iter().enumerate(){
-            assert!(!sample(&mut d,*x,50,410+i as u32*25,false));
-        }
+        for i in 0..70 { assert!(!step(&mut d,(i%8)-4,0,i as u32*20)); }
+        assert_eq!(d.reversals,0);
+        d.reset();
+        for i in 0..70 { assert!(!step(&mut d,i*3,0,i as u32*20)); }
+        assert_eq!(d.reversals,0);
     }
     #[test]
-    fn capture_arming_requires_two_deliberate_flips() {
+    fn direction_and_reversals_require_forty_pixels(){
         let mut d=Detector::default();
-        sample(&mut d,400,400,0,true);
-        sample(&mut d,400,400,350,true);
-        assert!(!sample(&mut d,414,400,365,true));
-        assert_eq!(d.flips,0);
-        assert!(!sample(&mut d,386,400,390,true));
-        assert_eq!(d.flips,1);
-        assert!(!sample(&mut d,420,400,415,true));
-        assert!(d.flips>=2);
-        // Moving ordinarily, or releasing, must never capture a Shell drag.
-        d.sample(420,400,420,false,true,3);
+        assert!(!step(&mut d,0,0,0));
+        assert!(!step(&mut d,39,0,100));
+        assert_eq!(d.direction,None);
+        assert!(!step(&mut d,40,0,120));
+        assert_eq!(d.direction,Some(1));
+        assert!(!step(&mut d,1,0,150));
+        assert_eq!(d.reversals,0);
+        assert!(!step(&mut d,0,0,170));
+        assert_eq!(d.reversals,1);
+    }
+    #[test]
+    fn slow_reversal_window_expired(){
+        let mut d=Detector::default();
+        assert!(!step(&mut d,0,0,0));
+        assert!(!step(&mut d,55,0,100));
+        assert!(!step(&mut d,0,0,1000));
+        assert_eq!(d.reversals,0);
+    }
+    #[test]
+    fn button_release_resets_handled_and_history(){
+        let mut d=Detector::default();
+        assert!(completed(&mut d,0));
+        assert!(!d.sample(0,0,450,false,true,4,3));
+        assert_eq!(d.phase,Phase::Idle);
+        assert_eq!(d.reversals,0);
+        assert!(!d.handled);
+        assert!(completed(&mut d,500));
+    }
+    #[test]
+    fn handled_stays_handled_if_drag_validation_fails(){
+        let mut d=Detector::default();
+        assert!(completed(&mut d,0));
+        for(i,x) in [55,0,55,0,55].into_iter().enumerate(){
+            assert!(!step(&mut d,x,0,450+i as u32*45));
+        }
+        assert_eq!(d.phase,Phase::Handled);
+        assert!(d.handled);
+    }
+    #[test]
+    fn only_eligible_shell_initial_press_is_tracked(){
+        let mut d=Detector::default();
+        for (i,x) in [0,55,0,55,0].into_iter().enumerate(){
+            assert!(!d.sample(x,0,i as u32*100,true,false,4,3));
+        }
         assert_eq!(d.phase,Phase::Idle);
     }
     #[test]
-    fn released_button_cancels_pending_gesture(){
+    fn initial_drag_counts_both_axes(){
         let mut d=Detector::default();
-        sample(&mut d,100,100,0,true);
-        sample(&mut d,100,100,300,true);
-        assert!(!d.sample(100,100,305,false,true,5));
-        assert!(!sample(&mut d,118,100,310,true));
+        assert!(!step(&mut d,0,0,0));
+        assert!(!step(&mut d,6,2,20));
+        assert_eq!(d.phase,Phase::ButtonHeld);
+        assert!(!step(&mut d,6,3,40));
+        assert_eq!(d.phase,Phase::PotentialDrag);
+    }
+    #[test]
+    fn physical_button_mapping_is_the_native_pollers_responsibility(){
+        let mut d=Detector::default();
+        assert!(completed(&mut d,0));
+        d.sample(0,0,500,false,true,4,3);
+        assert!(!d.handled);
     }
 }
