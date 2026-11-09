@@ -165,7 +165,7 @@ static SETTINGS:OnceLock<Mutex<ShakeSettings>>=OnceLock::new();
 extern "C"{
     fn reformany_win_shake_listen(tick:extern "C" fn(i32,i32,u32,bool,bool,u32)->u8,
         launch:extern "C" fn(*const u16,u8), reload:extern "C" fn(),
-        validated:extern "C" fn());
+        validated:extern "C" fn(), trace:extern "C" fn(u8));
     fn reformany_stop_shake_listener();
     fn reformany_reload_shake_listener()->bool;
     fn reformany_wait_shake_listener_exit(timeout_ms:u32)->bool;
@@ -199,6 +199,41 @@ extern "C" fn reload_listener_settings(){
     }
     if let Some(detector)=SENSOR.get(){
         if let Ok(mut detector)=detector.lock(){*detector=Detector::default();}
+    }
+}
+/// Opt-in, path-free diagnostic stages for troubleshooting real Explorer drag
+/// sessions. No file names, user paths, process IDs or pointer positions.
+#[cfg(windows)]
+extern "C" fn gesture_trace(stage:u8){
+    use std::io::Write;
+    let status=match stage{
+        1=>"listener_started",
+        2=>"eligible_shell_drag",
+        3=>"three_reversals_detected",
+        4=>"visible_sys_drag_image_missing",
+        5=>"visible_sys_drag_image_confirmed",
+        6=>"ole_drop_target_ready",
+        7=>"live_drag_enter_file_verified",
+        8=>"ole_drop_file_verified",
+        9=>"ole_drop_rejected",
+        10=>"release_fallback_verified",
+        11=>"release_without_verified_file",
+        12=>"overlay_expired",
+        13=>"listener_stopped",
+        14=>"ole_target_registration_failed",
+        _=>return,
+    };
+    let folder=crate::job_settings::directory().join("logs");
+    if fs::create_dir_all(&folder).is_err(){return;}
+    let path=folder.join("orbit-shake.log");
+    if fs::metadata(&path).is_ok_and(|m|m.len()>128_000){
+        let _=fs::rename(&path,folder.join("orbit-shake.previous.log"));
+    }
+    let timestamp=std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0,|value|value.as_secs());
+    if let Ok(mut log)=fs::OpenOptions::new().append(true).create(true).open(path){
+        let _=writeln!(log,"{timestamp} {status}");
     }
 }
 #[cfg(windows)]
@@ -248,7 +283,7 @@ pub fn start_when_enabled(){}
 #[cfg(windows)]
 pub fn run_listener(){
     if !read_settings().enabled{return;}
-    unsafe{reformany_win_shake_listen(tick,open_orbit,reload_listener_settings,mark_waiting_for_drop);}
+    unsafe{reformany_win_shake_listen(tick,open_orbit,reload_listener_settings,mark_waiting_for_drop,gesture_trace);}
 }
 #[cfg(not(windows))]
 pub fn run_listener(){}
@@ -356,6 +391,19 @@ mod tests {
         assert_eq!(d.phase,Phase::ButtonHeld);
         assert!(!step(&mut d,6,3,40));
         assert_eq!(d.phase,Phase::PotentialDrag);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn native_primary_mapping_respects_swapped_buttons(){
+        unsafe extern "C" {
+            fn reformany_native_primary_button_vk(swapped:i32)->u32;
+            fn reformany_native_poll_interval_ms()->u32;
+            fn reformany_native_fallback_ms()->u32;
+        }
+        assert_eq!(unsafe{reformany_native_primary_button_vk(0)},0x01);
+        assert_eq!(unsafe{reformany_native_primary_button_vk(1)},0x02);
+        assert_eq!(unsafe{reformany_native_poll_interval_ms()},20);
+        assert_eq!(unsafe{reformany_native_fallback_ms()},350);
     }
     #[test]
     fn physical_button_mapping_is_the_native_pollers_responsibility(){
