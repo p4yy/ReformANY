@@ -83,6 +83,13 @@ jobs:
           } finally {
             Remove-ItemProperty -Path $policy -Name 'ReformANY.exe' -ErrorAction SilentlyContinue
           }
+      - name: Upload verified main-UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Desktop-Screenshots', github.event.number) || 'ReformANY-Desktop-Screenshots' }}
+          path: test-screenshots/*.png
+          if-no-files-found: warn
       # Publish a testable EXE as soon as packaging succeeds. Integration
       # tests continue below and may still fail; users must see CI status.
       - name: Upload installer artifact
