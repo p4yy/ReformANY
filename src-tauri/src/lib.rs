@@ -35,7 +35,7 @@ use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
 use scan::expand_inputs;
 use external::engine_status;
-use media::media_convert;
+use media::{media_convert,media_details};
 use archives::{archive_create, archive_extract, archive_repack};
 use actions::{rename_file, open_terminal, send_bluetooth, hover_file, hover_file_context, copy_file_to, HoveRRegistry};
 use documents::{images_to_pdf, pdf_to_text, pdf_to_text_format, office_to_pdf, office_available};
@@ -93,6 +93,7 @@ pub fn run() {
             reveal_output,
             engine_status,
             media_convert,
+            media_details,
             archive_create,
             archive_extract,
             archive_repack,
