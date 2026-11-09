@@ -11,6 +11,7 @@ compile_error!("ReformANY premium setup release requires the custom-protocol fea
 use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
+    io::Write,
     path::{Component, Path, PathBuf},
     process::Command,
     sync::{atomic::{AtomicBool, Ordering}, Arc},
@@ -43,10 +44,30 @@ struct SetupOptions {
 #[derive(Serialize, Clone)]
 struct SetupStatus { stage: String, percent: u8, indeterminate: bool }
 
+// Installation log contains stage names, epoch timestamps and process exit
+// codes only. No username, chosen installation path or file contents are logged.
+fn log_setup_event(event: &str) {
+    let base=env::var_os("LOCALAPPDATA").map(PathBuf::from)
+        .unwrap_or_else(env::temp_dir);
+    let folder=base.join("ReformANY").join("logs");
+    if fs::create_dir_all(&folder).is_err(){return;}
+    let path=folder.join("setup.log");
+    if fs::metadata(&path).is_ok_and(|meta|meta.len()>1_000_000){
+        let _=fs::rename(&path,folder.join("setup-previous.log"));
+    }
+    let now=std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0,|time|time.as_secs());
+    if let Ok(mut file)=fs::OpenOptions::new().append(true).create(true).open(&path){
+        let _=writeln!(file,"{now} | {event}");
+    }
+}
+
 // Percent is weighted by completed *verified* milestones, not wall time.
 // Silent NSIS provides no reliable granular callback; that phase must remain
 // indeterminate until the installer process exits successfully.
 fn emit_stage(app: &tauri::AppHandle, stage: &str, percent: u8, indeterminate: bool) {
+    log_setup_event(stage);
     let _ = app.emit("setup-status", SetupStatus {
         stage: stage.to_string(), percent: percent.min(100), indeterminate,
     });
@@ -95,6 +116,7 @@ fn media_ready(path: &Path) -> bool {
 }
 
 fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
+    log_setup_event("begin_installation");
     let destination = requested_folder(&options.install_path)?;
     if REAL_NSIS.len() < 1024 || !REAL_NSIS.starts_with(b"MZ") {
         return Err("The bundled Windows installer is missing or damaged".into());
@@ -133,8 +155,9 @@ fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
         }
         std::thread::sleep(std::time::Duration::from_millis(250));
     };
+    log_setup_event(&format!("silent_nsis_exit={}",status.code().unwrap_or(-1)));
     if !status.success() {
-        return Err(format!("Windows installer exited with code {:?}. No completion has been reported.", status.code()));
+        return Err(format!("Windows installer exited with code {:?}. No completion has been reported. See ReformANY\\logs\\setup.log in LocalAppData.", status.code()));
     }
     emit_stage(&app, "Verifying application and Windows integration…", 85, false);
     app_ready(&destination)?;
@@ -142,6 +165,7 @@ fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
         return Err("ReformANY was installed, but the requested FFmpeg/FFprobe tools were not available. The offline installer payload may be damaged; reinstall using a verified setup executable.".into());
     }
     emit_stage(&app, "ReformANY installation verified", 100, false);
+    log_setup_event("install_completed_verified");
     Ok(())
 }
 
