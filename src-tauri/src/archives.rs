@@ -225,6 +225,7 @@ pub(crate) fn validate_member_name(name: &str) -> Result<(), String> {
 
 fn check_listing(binary: &Path, source: &Path, password: Option<&str>) -> Result<(), String> {
     let mut command = Command::new(binary);
+    crate::external::hide_subprocess_window(&mut command);
     command.args(["l", "-slt", "-bd", "-y"]);
     if let Some(password) = password {
         command.arg(format!("-p{password}"));
