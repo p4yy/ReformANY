@@ -587,3 +587,14 @@ html[data-mode="orbit"] .orbit-mark-controls label {flex:1;min-width:0}
 html[data-mode="orbit"] .orbit-mark-scroll input[type="range"] {width:100%;min-height:24px;accent-color:#c8d4a2}
 html[data-mode="orbit"] .orbit-mark-scroll input[type="color"] {min-width:46px;height:30px}
 html[data-mode="orbit"] .orbit-mark-scroll input[type="number"] {width:100%;max-width:100px}
+
+html[data-mode="orbit"] .orbit-arrange-dialog {display:flex;flex-direction:column;max-height:calc(100% - 12px);overflow:hidden}
+html[data-mode="orbit"] .orbit-arrange-toolbar {display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 8px}
+html[data-mode="orbit"] .orbit-arrange-toolbar button {flex:1;min-width:65px;display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--ref-stroke);background:var(--ref-surface);color:var(--ref-ink);font-size:11px;padding:6px 3px;border-radius:8px;cursor:pointer}
+html[data-mode="orbit"] .orbit-arrange-toolbar button:disabled {opacity:.4;cursor:default}
+html[data-mode="orbit"] .orbit-arrange-pages {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;overflow-y:auto;min-height:100px;max-height:210px;scrollbar-width:thin;scrollbar-color:rgba(200,212,162,.35) transparent;padding:6px}
+html[data-mode="orbit"] .orbit-arrange-tile {background:rgba(200,212,162,.05);color:var(--ref-ink);border:1px solid transparent;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;min-width:0;cursor:grab;gap:4px}
+html[data-mode="orbit"] .orbit-arrange-tile.is-selected {border-color:#c8d4a2;background:rgba(200,212,162,.16)}
+html[data-mode="orbit"] .orbit-arrange-thumb {background:white;display:flex;align-items:center;justify-content:center;height:78px;width:65px;overflow:hidden;box-shadow:0 2px 7px #0003}
+html[data-mode="orbit"] .orbit-arrange-thumb canvas {max-width:95%;max-height:95%;object-fit:contain}
+html[data-mode="orbit"] .orbit-arrange-tile small {font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
