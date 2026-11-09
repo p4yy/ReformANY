@@ -26,7 +26,11 @@ fn zip_options<'a>(password: Option<&'a str>, level: u8) -> zip::write::FileOpti
 /// standards-compatible fallback (never the Windows 1899 epoch).
 fn safe_modified_time(metadata: &fs::Metadata) -> zip::DateTime {
     metadata.modified().ok()
-        .and_then(|modified| zip::DateTime::try_from(time::OffsetDateTime::from(modified)).ok())
+        .and_then(|modified| {
+            let utc = time::OffsetDateTime::from(modified).to_offset(time::UtcOffset::UTC);
+            let plain = time::PrimitiveDateTime::new(utc.date(), utc.time());
+            zip::DateTime::try_from(plain).ok()
+        })
         .unwrap_or(zip::DateTime::DEFAULT)
 }
 
