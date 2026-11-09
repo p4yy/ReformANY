@@ -6,10 +6,12 @@
 // opt-in STA process; the app's UI thread never polls or handles OLE.
 //
 // A completed shake is handled once BEFORE verifying a visible SysDragImage.
-// Only then is an OLE drop target temporarily shown under the dragged cursor.
-// The authoritative file is CF_HDROP from the actual IDataObject, never an
-// Explorer selected-item snapshot. A verified DragEnter path is used for
-// the cancellable 350ms release fallback, only when released over the target.
+// Only then a near-invisible OLE capture target receives the active
+// IDataObject. A verified DragEnter immediately cancels Explorer's drag
+// non-destructively (Esc) and launches the REAL Convert Orbit: NO intermediate
+// Convert/Tools/Actions menu, and NO additional drop/release step.
+// Drop/release is retained only as a conservative fallback if cancellation
+// could not complete. Explorer's selected-item snapshot is never trusted.
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -48,7 +50,7 @@ constexpr UINT_PTR kReleaseTimer=0x68;
 constexpr UINT_PTR kExpiryTimer=0x69;
 constexpr UINT kPublishMsg=WM_APP+0x6a;
 constexpr UINT kTraceMsg=WM_APP+0x6b;
-constexpr int kDiameter=340;
+constexpr int kDiameter=148;
 constexpr int kRadius=kDiameter/2;
 constexpr unsigned int kFallbackMs=350;
 constexpr unsigned int kPollMs=20;
@@ -149,56 +151,26 @@ bool inside_circle(POINT position){
     const long dy=position.y-(bounds.top+kRadius);
     return dx*dx+dy*dy<=kRadius*kRadius;
 }
-unsigned char tab_under_pointer(POINT position){
-    if(!g_target)return 0;
-    RECT bounds{};
-    if(!GetWindowRect(g_target,&bounds))return 0;
-    const long x=position.x-(bounds.left+kRadius);
-    const long y=position.y-(bounds.top+kRadius);
-    // Upper semicircle = Convert. Lower-left = Tools; lower-right = Actions.
-    return y>25?(x<0?1:2):0;
-}
-void draw_text(HDC dc,int left,int top,int right,int bottom,
-    const wchar_t* value,int size,COLORREF color,bool bold=false){
-    LOGFONTW definition{};
-    definition.lfHeight=-size;
-    definition.lfWeight=bold?FW_SEMIBOLD:FW_NORMAL;
-    wcscpy_s(definition.lfFaceName,L"Segoe UI");
-    HFONT font=CreateFontIndirectW(&definition);
-    HGDIOBJ old=SelectObject(dc,font);
-    SetTextColor(dc,color);
-    SetBkMode(dc,TRANSPARENT);
-    RECT box{left,top,right,bottom};
-    DrawTextW(dc,value,-1,&box,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-    SelectObject(dc,old);
-    DeleteObject(font);
-}
+// No visible radial prompt or section selection exists in shake mode.
+// The full Orbit application always opens on its default Convert screen.
 void paint_popup(HWND hwnd){
     PAINTSTRUCT ps{};
     HDC dc=BeginPaint(hwnd,&ps);
-    RECT client{};
-    GetClientRect(hwnd,&client);
-    HBRUSH background=CreateSolidBrush(RGB(25,34,25));
-    FillRect(dc,&client,background);
-    DeleteObject(background);
-    HPEN border=CreatePen(PS_SOLID,3,RGB(148,169,120));
-    HGDIOBJ oldPen=SelectObject(dc,border);
-    HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(HOLLOW_BRUSH));
-    Ellipse(dc,7,7,kDiameter-7,kDiameter-7);
-    Ellipse(dc,106,106,kDiameter-106,kDiameter-106);
-    MoveToEx(dc,0,205,nullptr);
-    LineTo(dc,105,205);
-    MoveToEx(dc,235,205,nullptr);
-    LineTo(dc,kDiameter,205);
-    SelectObject(dc,oldBrush);
-    SelectObject(dc,oldPen);
-    DeleteObject(border);
-    draw_text(dc,55,35,285,65,L"CONVERT",18,RGB(215,229,188),g_tab==0);
-    draw_text(dc,20,242,167,279,L"TOOLS",17,RGB(214,223,193),g_tab==1);
-    draw_text(dc,171,242,320,279,L"ACTIONS",17,RGB(214,223,193),g_tab==2);
-    draw_text(dc,92,139,248,173,L"Drop file",17,RGB(243,247,232),true);
-    draw_text(dc,91,171,250,189,L"to open Orbit",11,RGB(196,210,169));
+    RECT rect{};GetClientRect(hwnd,&rect);
+    HBRUSH brush=CreateSolidBrush(RGB(23,31,24));
+    FillRect(dc,&rect,brush);
+    DeleteObject(brush);
     EndPaint(hwnd,&ps);
+}
+bool cancel_verified_explorer_drag(){
+    if(!source_active(g_source))return false;
+    INPUT keyboard[2]{};
+    keyboard[0].type=INPUT_KEYBOARD;
+    keyboard[0].ki.wVk=VK_ESCAPE;
+    keyboard[1].type=INPUT_KEYBOARD;
+    keyboard[1].ki.wVk=VK_ESCAPE;
+    keyboard[1].ki.dwFlags=KEYEVENTF_KEYUP;
+    return SendInput(2,keyboard,sizeof(INPUT))==2;
 }
 void reset_target(){
     g_dragEnterPath.clear();
@@ -218,7 +190,7 @@ void reset_target(){
 void finish_with_file(bool actualDrop){
     if(!g_target)return;
     const std::wstring path=actualDrop?g_dropPath:g_dragEnterPath;
-    const unsigned char section=g_tab;
+    constexpr unsigned char section=0; // Native shake always opens first Orbit section.
     reset_target();
     if(g_launch&&!path.empty())g_launch(path.c_str(),section);
 }
@@ -245,33 +217,25 @@ public:
     HRESULT STDMETHODCALLTYPE DragEnter(IDataObject* data,DWORD,POINTL point,
         DWORD* effect) override{
         if(!effect)return E_INVALIDARG;
-        const DWORD requested=*effect;
         *effect=DROPEFFECT_NONE;
         std::wstring path;
         if(source_active(g_source)&&exact_single_file(data,path)){
             g_dragEnterPath=std::move(path);
             active_=true;
             trace_stage(7);
-            const POINT position{point.x,point.y};
-            g_tab=tab_under_pointer(position);
-            if(requested&DROPEFFECT_COPY)*effect=DROPEFFECT_COPY;
-            if(g_target)InvalidateRect(g_target,nullptr,FALSE);
+            // Prefer immediate entry: no visible three-choice action UI and
+            // no wait for release. Drop is never required for a valid drag.
+            PostThreadMessageW(g_listenerThread,kPublishMsg,2,0);
         }else{
             active_=false;
             g_dragEnterPath.clear();
         }
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE DragOver(DWORD,POINTL point,DWORD* effect) override{
+    HRESULT STDMETHODCALLTYPE DragOver(DWORD,POINTL,DWORD* effect) override{
         if(!effect)return E_INVALIDARG;
-        const DWORD requested=*effect;
-        *effect=active_&&(requested&DROPEFFECT_COPY)?DROPEFFECT_COPY:DROPEFFECT_NONE;
-        const POINT position{point.x,point.y};
-        const auto section=tab_under_pointer(position);
-        if(section!=g_tab){
-            g_tab=section;
-            if(g_target)InvalidateRect(g_target,nullptr,FALSE);
-        }
+        // Never promise a copy/move; shake is a command, not a file transfer.
+        *effect=DROPEFFECT_NONE;
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE DragLeave() override{
@@ -281,20 +245,16 @@ public:
     HRESULT STDMETHODCALLTYPE Drop(IDataObject* data,DWORD,POINTL point,
         DWORD* effect) override{
         if(!effect)return E_INVALIDARG;
-        const DWORD allowed=*effect;
         *effect=DROPEFFECT_NONE;
         g_dropped=true;
         g_invalidDrop=true;
         g_dropPath.clear();
         std::wstring actual;
         const POINT position{point.x,point.y};
-        if((allowed&DROPEFFECT_COPY)&&inside_circle(position)
-            &&exact_single_file(data,actual)){
+        if(inside_circle(position)&&exact_single_file(data,actual)){
             // This is the authoritative dropped file, not the Shell selection.
             g_dropPath=std::move(actual);
-            g_tab=tab_under_pointer(position);
             g_invalidDrop=false;
-            *effect=DROPEFFECT_COPY;
             trace_stage(8);
             PostThreadMessageW(g_listenerThread,kPublishMsg,1,0);
         }else{
@@ -320,7 +280,6 @@ LRESULT CALLBACK popup_proc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
         if(g_released&&!g_dropped&&!g_invalidDrop&&
             g_hasReleasePoint&&inside_circle(g_releasePoint)
             &&!g_dragEnterPath.empty()){
-            g_tab=tab_under_pointer(g_releasePoint);
             trace_stage(10);
             finish_with_file(false);
         }else{trace_stage(11);reset_target();}
@@ -354,11 +313,13 @@ bool show_drop_target(){
     if(FAILED(result)){DestroyWindow(hwnd);return false;}
     g_target=hwnd;
     SetWindowRgn(hwnd,CreateEllipticRgn(0,0,kDiameter,kDiameter),TRUE);
-    SetLayeredWindowAttributes(hwnd,RGB(0,0,0),238,LWA_ALPHA);
+    // Tiny OLE hit target, practically invisible: no toolbar, labels, or
+    // action wheel can appear between the gesture and the real Orbit.
+    SetLayeredWindowAttributes(hwnd,RGB(0,0,0),5,LWA_ALPHA);
     ShowWindow(hwnd,SW_SHOWNOACTIVATE);
     SetWindowPos(hwnd,HWND_TOPMOST,pt.x-kRadius,pt.y-kRadius,
         kDiameter,kDiameter,SWP_SHOWWINDOW|SWP_NOACTIVATE);
-    SetTimer(hwnd,kExpiryTimer,7000,nullptr);
+    SetTimer(hwnd,kExpiryTimer,1600,nullptr);
     // One harmless relative pointer event lets the existing Explorer OLE
     // loop resolve the newly registered target. Never send button/ESC input.
     INPUT input{};
@@ -504,9 +465,20 @@ extern "C" void reformany_win_shake_listen(
                 }else if(!message.hwnd&&message.message==kTraceMsg){
                     if(g_trace)g_trace(static_cast<unsigned char>(message.wParam));
                 }else if(!message.hwnd&&message.message==kPublishMsg){
-                    if(message.wParam==1&&!g_dropPath.empty()){
+                    if(message.wParam==2&&!g_dragEnterPath.empty()){
+                        // The exact file was delivered by live IDataObject.
+                        // Esc cancels Explorer's source drag, so a subsequent
+                        // mouse release cannot accidentally move/copy it.
+                        // Only launch if cancellation was accepted by Windows.
+                        if(cancel_verified_explorer_drag()){
+                            trace_stage(15); // opened directly on verified DragEnter
+                            finish_with_file(false);
+                        }
+                        // If Esc was denied, leave the small hidden target
+                        // until Drop or the bounded release fallback.
+                    }else if(message.wParam==1&&!g_dropPath.empty()){
                         finish_with_file(true);
-                    }else{reset_target();}
+                    }else if(message.wParam==0){reset_target();}
                 }else{
                     TranslateMessage(&message);
                     DispatchMessageW(&message);
