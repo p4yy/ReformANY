@@ -41,10 +41,15 @@ struct SetupOptions {
 }
 
 #[derive(Serialize, Clone)]
-struct SetupStatus { stage: String }
+struct SetupStatus { stage: String, percent: u8, indeterminate: bool }
 
-fn emit_stage(app: &tauri::AppHandle, stage: &str) {
-    let _ = app.emit("setup-status", SetupStatus { stage: stage.to_string() });
+// Percent is weighted by completed *verified* milestones, not wall time.
+// Silent NSIS provides no reliable granular callback; that phase must remain
+// indeterminate until the installer process exits successfully.
+fn emit_stage(app: &tauri::AppHandle, stage: &str, percent: u8, indeterminate: bool) {
+    let _ = app.emit("setup-status", SetupStatus {
+        stage: stage.to_string(), percent: percent.min(100), indeterminate,
+    });
 }
 
 fn requested_folder(value: &str) -> Result<PathBuf, String> {
@@ -94,13 +99,13 @@ fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
     if REAL_NSIS.len() < 1024 || !REAL_NSIS.starts_with(b"MZ") {
         return Err("The bundled Windows installer is missing or damaged".into());
     }
-    emit_stage(&app, "Unpacking verified setup files…");
+    emit_stage(&app, "Preparing bundled installation files…", 5, true);
     let temp = tempfile::Builder::new().prefix("reformany-setup-")
         .tempdir().map_err(|e| format!("Cannot create setup workspace: {e}"))?;
     let nsis = temp.path().join("ReformANY-backend-setup.exe");
     fs::write(&nsis, REAL_NSIS)
         .map_err(|e| format!("Cannot prepare Windows installer: {e}"))?;
-    emit_stage(&app, "Installing ReformANY and Windows integration…");
+    emit_stage(&app, "Installing files, components, shortcuts and Orbit integration…", 18, true);
     let mut process = Command::new(&nsis);
     process.arg("/S");
     if options.media_engines { process.arg("/MEDIA=1"); }
@@ -131,12 +136,12 @@ fn install(app: tauri::AppHandle, options: SetupOptions) -> Result<(), String> {
     if !status.success() {
         return Err(format!("Windows installer exited with code {:?}. No completion has been reported.", status.code()));
     }
-    emit_stage(&app, "Verifying installed application…");
+    emit_stage(&app, "Verifying application and Windows integration…", 85, false);
     app_ready(&destination)?;
     if options.media_engines && !media_ready(&destination) {
         return Err("ReformANY was installed, but the requested FFmpeg/FFprobe tools were not available. The offline installer payload may be damaged; reinstall using a verified setup executable.".into());
     }
-    emit_stage(&app, "ReformANY installation verified");
+    emit_stage(&app, "ReformANY installation verified", 100, false);
     Ok(())
 }
 
