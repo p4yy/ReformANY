@@ -23,6 +23,7 @@ mod pdf_images;
 mod pdf_marks;
 mod pdf_arrange;
 mod pdf_security;
+mod shred;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -48,6 +49,7 @@ use pdf_images::pdf_extract_images;
 use pdf_marks::pdf_add_mark;
 use pdf_arrange::pdf_arrange_pages;
 use pdf_security::{pdf_protect,pdf_unlock};
+use shred::{shred_preview,shred_confirm};
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -105,6 +107,8 @@ pub fn run() {
             pdf_arrange_pages,
             pdf_protect,
             pdf_unlock,
+            shred_preview,
+            shred_confirm,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
