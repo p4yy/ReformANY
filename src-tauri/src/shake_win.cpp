@@ -430,6 +430,7 @@ extern "C" void reformany_play_orbit_sound_sync(unsigned char kind,
     double phase=0.0;
     double overtone=0.0;
     double last=0.0;
+    double highPass=0.0;
     for(unsigned int i=0;i<frames;i++){
         const double t=static_cast<double>(i)/rate;
         const double position=static_cast<double>(i)/frames;
@@ -458,9 +459,9 @@ extern "C" void reformany_play_orbit_sound_sync(unsigned char kind,
         const double airPart=kind==2?0.87:0.61;
         const double formed=(airPart*air+glassPart*glass)*envelope;
         // Remove accidental DC and cap peak at under -21dBFS.
-        const double highPassed=formed-last*0.995;
+        highPass=0.9975*(highPass+formed-last);
         last=formed;
-        const double sample=std::clamp(highPassed*0.095*volume,
+        const double sample=std::clamp(highPass*0.095*volume,
             -0.088,0.088);
         const int value=static_cast<int>(std::lround(sample*32767.0));
         put16(44+2*i,static_cast<unsigned int>(static_cast<uint16_t>(value)));
