@@ -104,26 +104,26 @@ pub fn send_bluetooth(path: String) -> Result<String, String> {
     }
 }
 
-/// At most one floating preview. Never expose file paths in a window URL.
+/// At most one hovering preview. Never expose file paths in a window URL.
 #[derive(Default)]
-pub struct FloatRegistry(pub Mutex<Option<String>>);
+pub struct HoveRRegistry(pub Mutex<Option<String>>);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FloatInfo {
+pub struct HoveRInfo {
     path: String,
     name: String,
     bytes: u64,
 }
 
 #[tauri::command]
-pub fn float_file_context(state: State<'_, FloatRegistry>) -> Result<Option<FloatInfo>, String> {
+pub fn hover_file_context(state: State<'_, HoveRRegistry>) -> Result<Option<HoveRInfo>, String> {
     let path = state.0.lock().map_err(|_| "Preview state is unavailable")?
         .clone();
     let Some(path) = path else { return Ok(None); };
     let file = Path::new(&path);
-    let metadata = fs::metadata(file).map_err(|_| "Floating file no longer exists".to_owned())?;
-    Ok(Some(FloatInfo {
+    let metadata = fs::metadata(file).map_err(|_| "Hovering file no longer exists".to_owned())?;
+    Ok(Some(HoveRInfo {
         name: file.file_name().map(|v| v.to_string_lossy().into_owned())
             .unwrap_or("Selected file".into()),
         path, bytes: metadata.len(),
@@ -132,34 +132,34 @@ pub fn float_file_context(state: State<'_, FloatRegistry>) -> Result<Option<Floa
 
 // A synchronous Tauri command runs on the WebView event loop. Creating a
 // second native WebView from that loop can block the invoke promise and leave
-// an empty white Float window. Run window construction off the UI thread.
+// an empty white HoveR window. Run window construction off the UI thread.
 #[tauri::command]
-pub async fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: String) -> Result<(), String> {
+pub async fn hover_file(app: AppHandle, state: State<'_, HoveRRegistry>, path: String) -> Result<(), String> {
     let input = Path::new(&path);
     crate::external::verify_input(input, false)?;
     // Grant the asset protocol access only to this explicitly selected file.
     // Never expose arbitrary disk directories to the embedded browser.
     app.asset_protocol_scope().allow_file(input)
-        .map_err(|e| format!("Cannot authorize floating media preview: {e}"))?;
+        .map_err(|e| format!("Cannot authorize hovering media preview: {e}"))?;
     {
         let mut current = state.0.lock().map_err(|_| "Preview state is unavailable")?;
         *current = Some(path);
     }
     tauri::async_runtime::spawn_blocking(move || {
-        if let Some(existing) = app.get_webview_window("float") {
+        if let Some(existing) = app.get_webview_window("hover") {
             // Never close/recreate a native WebView with the same label in
             // one operation: Windows WebView2 can release that label later
-            // than close() returns, causing "label float already exists".
+            // than close() returns, causing "label hover already exists".
             // Keep the existing view alive and notify it to load the latest
             // validated file context (saved above).
-            existing.show().map_err(|e| format!("Cannot show Float: {e}"))?;
-            existing.set_focus().map_err(|e| format!("Cannot focus Float: {e}"))?;
-            existing.emit("reformany:float-file-changed", ())
-                .map_err(|e| format!("Cannot update Float preview: {e}"))?;
+            existing.show().map_err(|e| format!("Cannot show HoveR: {e}"))?;
+            existing.set_focus().map_err(|e| format!("Cannot focus HoveR: {e}"))?;
+            existing.emit("reformany:hover-file-changed", ())
+                .map_err(|e| format!("Cannot update HoveR preview: {e}"))?;
             return Ok::<(), String>(());
         }
-        WebviewWindowBuilder::new(&app, "float", WebviewUrl::App("index.html".into()))
-            .title("ReformANY Float")
+        WebviewWindowBuilder::new(&app, "hover", WebviewUrl::App("index.html".into()))
+            .title("ReformANY HoveR")
             .inner_size(390.0, 530.0)
             .min_inner_size(320.0, 390.0)
             .resizable(true)
@@ -169,9 +169,9 @@ pub async fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: S
             .center()
             .focused(true)
             .build()
-            .map_err(|e| format!("Cannot open floating preview: {e}"))?;
+            .map_err(|e| format!("Cannot open hovering preview: {e}"))?;
         Ok::<(), String>(())
-    }).await.map_err(|e| format!("Float window task failed: {e}"))?
+    }).await.map_err(|e| format!("HoveR window task failed: {e}"))?
 }
 
 #[tauri::command]

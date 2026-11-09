@@ -36,7 +36,7 @@ use scan::expand_inputs;
 use external::engine_status;
 use media::media_convert;
 use archives::{archive_create, archive_extract, archive_repack};
-use actions::{rename_file, open_terminal, send_bluetooth, float_file, float_file_context, copy_file_to, FloatRegistry};
+use actions::{rename_file, open_terminal, send_bluetooth, hover_file, hover_file_context, copy_file_to, HoveRRegistry};
 use documents::{images_to_pdf, pdf_to_text, pdf_to_text_format, office_to_pdf, office_available};
 use ebooks::{ebook_convert_file, ebook_engine_available};
 use media_tools::media_edit;
@@ -77,7 +77,7 @@ pub fn run() {
         .manage(JobRegistry::default())
         .manage(WatchRegistry::default())
         .manage(OrbitLaunch::new(orbit_path))
-        .manage(FloatRegistry::default())
+        .manage(HoveRRegistry::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             inspect_files,
@@ -97,8 +97,8 @@ pub fn run() {
             rename_file,
             open_terminal,
             send_bluetooth,
-            float_file,
-            float_file_context,
+            hover_file,
+            hover_file_context,
             copy_file_to,
             images_to_pdf,
             pdf_to_text,

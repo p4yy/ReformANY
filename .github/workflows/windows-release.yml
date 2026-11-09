@@ -63,9 +63,9 @@ jobs:
             Write-Warning "Transient NSIS HTTP 504 on attempt $attempt; retrying in 30 seconds."
             Start-Sleep -Seconds 30
           }
-      # The real main EXE must open a new Float WebView and render a chosen
-      # picture. Catch the user's blank-white Float regression before release.
-      - name: Verify Float opens a responsive image preview offline
+      # The real main EXE must open a new HoveR WebView and render a chosen
+      # picture. Catch the user's blank-white HoveR regression before release.
+      - name: Verify HoveR opens a responsive image preview offline
         shell: pwsh
         timeout-minutes: 3
         run: |
@@ -76,8 +76,8 @@ jobs:
           New-ItemProperty -Path $policy -Name 'ReformANY.exe' -Value '--remote-debugging-port=19376 --remote-allow-origins=*' -PropertyType String -Force | Out-Null
           try {
             $ffmpeg = (Resolve-Path 'src-tauri/installer/media-bundle/ffmpeg.exe').Path
-            node scripts/test-float-ui.mjs $exe $picture $ffmpeg
-            if ($LASTEXITCODE -ne 0) { throw 'Float image playback smoke test failed' }
+            node scripts/test-hover-ui.mjs $exe $picture $ffmpeg
+            if ($LASTEXITCODE -ne 0) { throw 'HoveR image playback smoke test failed' }
           } finally {
             Remove-ItemProperty -Path $policy -Name 'ReformANY.exe' -ErrorAction SilentlyContinue
           }

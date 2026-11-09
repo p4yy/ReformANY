@@ -1,4 +1,4 @@
-// Windows CI regression test: a real, bundled ReformANY EXE must open Float
+// Windows CI regression test: a real, bundled ReformANY EXE must open HoveR
 // with an image, render the React player, and load the explicitly scoped file.
 // The debugging port is enabled only in the CI job via ephemeral WebView2 policy.
 import { spawn, execFileSync } from "node:child_process";
@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
-if (process.platform !== "win32") throw new Error("Float startup verification requires Windows");
+if (process.platform !== "win32") throw new Error("HoveR startup verification requires Windows");
 const exe = resolve(process.argv[2] || "");
 const picture = resolve(process.argv[3] || "");
 const ffmpeg = resolve(process.argv[4] || "");
@@ -17,7 +17,7 @@ if (!exe.toLowerCase().endsWith(".exe") || !existsSync(exe) || !existsSync(pictu
 }
 const port = 19376;
 const base = "http://127.0.0.1:" + port;
-const temp = await mkdtemp(join(tmpdir(), "reformany-float-smoke-"));
+const temp = await mkdtemp(join(tmpdir(), "reformany-hover-smoke-"));
 let child;
 const sockets = [];
 let cdpId = 0;
@@ -85,7 +85,7 @@ try {
   let main, last = [];
   const deadline = Date.now() + 80000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error("ReformANY exited before Float test: " + child.exitCode);
+    if (child.exitCode !== null) throw new Error("ReformANY exited before HoveR test: " + child.exitCode);
     try {
       last = await targets();
       main = last.find(item => item.type === "page" &&
@@ -104,83 +104,83 @@ try {
     await sleep(650);
   }
   if (!ready) throw new Error("Main app did not load its bundled UI");
-  const promise = 'window.__TAURI_INTERNALS__.invoke("float_file", { path:' + JSON.stringify(picture) + '})';
+  const promise = 'window.__TAURI_INTERNALS__.invoke("hover_file", { path:' + JSON.stringify(picture) + '})';
   await evaluate(mainSocket, promise);
-  let float;
+  let hover;
   while (Date.now() < deadline) {
     last = await targets().catch(() => []);
-    float = last.find(item => item.type === "page" && item.id !== main.id &&
+    hover = last.find(item => item.type === "page" && item.id !== main.id &&
       (item.url.includes("tauri.localhost") || item.url.startsWith("tauri://")));
-    if (float) break;
+    if (hover) break;
     await sleep(500);
   }
-  if (!float) throw new Error("Float did not navigate to bundled UI: " + JSON.stringify(last));
-  const socket = await connect(float);
+  if (!hover) throw new Error("HoveR did not navigate to bundled UI: " + JSON.stringify(last));
+  const socket = await connect(hover);
   let result;
   while (Date.now() < deadline) {
     result = await evaluate(socket, `(() => ({
       text:document.body?.innerText?.slice(0,300) || "",
-      mediaLoaded:Boolean(document.querySelector(".float-preview img[alt='Selected image preview']")?.naturalWidth),
+      mediaLoaded:Boolean(document.querySelector(".hover-preview img[alt='Selected image preview']")?.naturalWidth),
       mode:document.documentElement.dataset.mode
     }))()`);
-    if (result?.mode === "float" && result.text.includes("ReformANY Float") && result.mediaLoaded) break;
+    if (result?.mode === "hover" && result.text.includes("ReformANY HoveR") && result.mediaLoaded) break;
     await sleep(650);
   }
-  if (result?.mode !== "float" || !result.text.includes("ReformANY Float") || !result.mediaLoaded) {
-    throw new Error("Float failed to render an actual image player: " + JSON.stringify(result));
+  if (result?.mode !== "hover" || !result.text.includes("ReformANY HoveR") || !result.mediaLoaded) {
+    throw new Error("HoveR failed to render an actual image player: " + JSON.stringify(result));
   }
   // Pin is not decorative: it must change actual Tauri topmost state.
   let pinned = await evaluate(socket,
-    'Boolean(document.querySelector(".float-topbar button[aria-label=\\\"Unpin Float\\\"]"))');
-  if (!pinned) throw new Error("Float did not start in pinned state");
+    'Boolean(document.querySelector(".hover-topbar button[aria-label=\\\"Unpin HoveR\\\"]"))');
+  if (!pinned) throw new Error("HoveR did not start in pinned state");
   await evaluate(socket,
-    'document.querySelector(".float-topbar button[aria-label=\\\"Unpin Float\\\"]").click(); true');
+    'document.querySelector(".hover-topbar button[aria-label=\\\"Unpin HoveR\\\"]").click(); true');
   let unpinned = false;
   for (let attempt = 0; attempt < 25; attempt++) {
     unpinned = await evaluate(socket,
-      'Boolean(document.querySelector(".float-topbar button[aria-label=\\\"Keep Float on top\\\"][aria-pressed=\\\"false\\\"]"))');
+      'Boolean(document.querySelector(".hover-topbar button[aria-label=\\\"Keep HoveR on top\\\"][aria-pressed=\\\"false\\\"]"))');
     if (unpinned) break;
     await sleep(220);
   }
-  if (!unpinned) throw new Error("Float pin button did not update native always-on-top state");
+  if (!unpinned) throw new Error("HoveR pin button did not update native always-on-top state");
   await evaluate(socket,
-    'document.querySelector(".float-topbar button[aria-label=\\\"Keep Float on top\\\"]").click(); true');
+    'document.querySelector(".hover-topbar button[aria-label=\\\"Keep HoveR on top\\\"]").click(); true');
 
   // QR must render its actual offline SVG without covering helper text.
   await evaluate(socket,
-    'document.querySelectorAll(".float-tabs button")[1].click(); true');
+    'document.querySelectorAll(".hover-tabs button")[1].click(); true');
   let qrReady = false;
   for (let attempt = 0; attempt < 30; attempt++) {
-    qrReady = await evaluate(socket, 'Boolean(document.querySelector(".float-qr-actions button"))');
+    qrReady = await evaluate(socket, 'Boolean(document.querySelector(".hover-qr-actions button"))');
     if (qrReady) break;
     await sleep(150);
   }
-  if (!qrReady) throw new Error("Float QR tab did not render");
+  if (!qrReady) throw new Error("HoveR QR tab did not render");
   await evaluate(socket,
-    'document.querySelector(".float-qr-actions button").click(); true');
+    'document.querySelector(".hover-qr-actions button").click(); true');
   let qrStatus;
   for (let attempt = 0; attempt < 35; attempt++) {
     qrStatus = await evaluate(socket, `(() => {
-      const image = document.querySelector(".float-qr-image img");
-      const hint = document.querySelector(".float-qr-content small");
+      const image = document.querySelector(".hover-qr-image img");
+      const hint = document.querySelector(".hover-qr-content small");
       if (!image || !hint) return null;
       const a = image.getBoundingClientRect(), b = hint.getBoundingClientRect();
       return { hasImage: image.complete && image.naturalWidth > 0, overlap: a.bottom > b.top + 1,
-        error: document.querySelector(".float-error")?.innerText || "" };
+        error: document.querySelector(".hover-error")?.innerText || "" };
     })()`);
     if (qrStatus?.hasImage) break;
     await sleep(220);
   }
   if (!qrStatus?.hasImage || qrStatus.overlap || qrStatus.error) {
-    throw new Error("Float QR image did not render cleanly: " + JSON.stringify(qrStatus));
+    throw new Error("HoveR QR image did not render cleanly: " + JSON.stringify(qrStatus));
   }
   // Verify the actual installed Windows media stack, not just presence
   // of <video>/<audio> tags. HTMLMediaElement must load metadata and advance.
   async function checkMedia(path, kind) {
     await evaluate(mainSocket,
-      'window.__TAURI_INTERNALS__.invoke("float_file", {path:' + JSON.stringify(path) + '})');
-    // Float is intentionally one reusable WebView. A second native window
-    // risks "webview with label float already exists" during async close.
+      'window.__TAURI_INTERNALS__.invoke("hover_file", {path:' + JSON.stringify(path) + '})');
+    // HoveR is intentionally one reusable WebView. A second native window
+    // risks "webview with label hover already exists" during async close.
     // Its React view must replace the previously selected media in place.
     const mediaSocket = socket;
     let state = null;
@@ -194,7 +194,7 @@ try {
       await sleep(350);
     }
     if (!state?.present || state.ready<2 || !(state.duration>0) || state.error) {
-      throw new Error("Float failed real "+kind+" decoding: "+JSON.stringify(state));
+      throw new Error("HoveR failed real "+kind+" decoding: "+JSON.stringify(state));
     }
     const playState=await evaluate(mediaSocket, `(async () => {
       const element=document.querySelector("${kind}");
@@ -202,22 +202,22 @@ try {
       try {await element.play();} catch(e){return {error:String(e)};}
       return {playing:!element.paused,ready:element.readyState};
     })()`);
-    if (!playState?.playing) throw new Error("Float "+kind+" did not start playback: "+JSON.stringify(playState));
+    if (!playState?.playing) throw new Error("HoveR "+kind+" did not start playback: "+JSON.stringify(playState));
     await sleep(650);
     const position=await evaluate(mediaSocket,
       `document.querySelector("${kind}")?.currentTime||0`);
-    if (!(position>0)) throw new Error("Float "+kind+" never advanced playback time");
+    if (!(position>0)) throw new Error("HoveR "+kind+" never advanced playback time");
     await evaluate(mediaSocket,`document.querySelector("${kind}").pause()`);
     const all = await targets();
-    const liveFloats = all.filter(target => target.type==="page" && target.id!==main.id &&
+    const liveHoveRs = all.filter(target => target.type==="page" && target.id!==main.id &&
       (target.url.includes("tauri.localhost") || target.url.startsWith("tauri://")));
-    if (liveFloats.length !== 1 || liveFloats[0].id !== float.id) {
-      throw new Error("Float should reuse exactly one WebView: " + JSON.stringify(liveFloats));
+    if (liveHoveRs.length !== 1 || liveHoveRs[0].id !== hover.id) {
+      throw new Error("HoveR should reuse exactly one WebView: " + JSON.stringify(liveHoveRs));
     }
   }
   await checkMedia(audio,"audio");
   await checkMedia(video,"video");
-  console.log("PASS: offline Float image/MP3/MP4 playback, native pin and QR layout.");
+  console.log("PASS: offline HoveR image/MP3/MP4 playback, native pin and QR layout.");
 } finally {
   for (const socket of sockets) try { socket.close(); } catch {}
   if (child?.pid) {

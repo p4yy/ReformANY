@@ -86,7 +86,7 @@ function orbitActionIcon(label: string, tab: Tab, kind: FileKind): LucideIcon {
   if (value.includes("copy path") || value.includes("copy file") || value.includes("copy shortcut")) return Copy;
   if (value.includes("rename")) return Pencil;
   if (value.includes("terminal")) return SquareTerminal;
-  if (value.includes("float")) return PanelsTopLeft;
+  if (value.includes("hover")) return PanelsTopLeft;
   if (value.includes("bluetooth")) return Bluetooth;
   if (value.includes("show") || value.includes("folder")) return FolderOpen;
   if (value.includes("extract") || value.includes("archive")) return Archive;
@@ -499,7 +499,7 @@ export default function Orbit() {
     }
   }
 
-  async function act(action: "copy" | "folder" | "terminal" | "bluetooth" | "copyFile" | "float") {
+  async function act(action: "copy" | "folder" | "terminal" | "bluetooth" | "copyFile" | "hover") {
     if (!file) return;
     setNote(null);
     setError(null);
@@ -519,8 +519,8 @@ export default function Orbit() {
         if (typeof destination !== "string") return;
         const result = await invoke<string>("copy_file_to", { path: file.path, destination });
         setNote("Copied: " + result.split(/[\\/]/).pop());
-      } else if (action === "float") {
-        await invoke("float_file", { path: file.path });
+      } else if (action === "hover") {
+        await invoke("hover_file", { path: file.path });
         await getCurrentWindow().close();
       } else if (action === "folder") {
         await invoke("reveal_output", { path: file.path });
@@ -844,7 +844,7 @@ export default function Orbit() {
       {label: "Copy path", run: () => void act("copy")},
       {label: "Terminal", run: () => void act("terminal")},
       ...(!isFolder && kind !== "shortcut" && kind !== "application"
-        ? [{label: "Float", run: () => void act("float")}] : []),
+        ? [{label: "HoveR", run: () => void act("hover")}] : []),
     ] : [];
   const outerActions: OrbitAction[] = tab === "convert"
     ? convertActions.slice(5)

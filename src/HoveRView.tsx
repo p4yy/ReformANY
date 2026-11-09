@@ -7,15 +7,15 @@ import { ClipboardCopy, Download, FileImage, FolderOpen, Pin, QrCode, X } from "
 import { getLanguage, setDocumentLanguage } from "./localization";
 import { appIcon } from "./brand";
 
-type FloatInfo = { path: string; name: string; bytes: number };
+type HoveRInfo = { path: string; name: string; bytes: number };
 
 function size(value: number): string {
   return value > 1048576 ? (value / 1048576).toFixed(1) + " MB"
     : value > 1024 ? (value / 1024).toFixed(1) + " KB" : value + " B";
 }
 
-export default function FloatView() {
-  const [file, setFile] = useState<FloatInfo | null>(null);
+export default function HoveRView() {
+  const [file, setFile] = useState<HoveRInfo | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export default function FloatView() {
       setNote(null);
       setMode("preview");
       setQrSvg(null);
-      void invoke<FloatInfo | null>("float_file_context").then(value => {
+      void invoke<HoveRInfo | null>("hover_file_context").then(value => {
         if (!alive || currentRequest !== requestId) return;
         setFile(value);
         setQrContent(value?.path || "");
@@ -51,9 +51,9 @@ export default function FloatView() {
         if (alive && currentRequest === requestId) setError(String(reason));
       });
     };
-    // Subscribe first: a second Float request may arrive while the initial
+    // Subscribe first: a second HoveR request may arrive while the initial
     // WebView is loading. Never lose that notification or display stale media.
-    const subscription = listen("reformany:float-file-changed", refresh);
+    const subscription = listen("reformany:hover-file-changed", refresh);
     void subscription.then(() => { if (alive) refresh(); })
       .catch(reason => { if (alive) setError(String(reason)); });
     return () => {
@@ -69,8 +69,8 @@ export default function FloatView() {
       await getCurrentWindow().setAlwaysOnTop(next);
       setPinned(next);
       setError(null);
-      setNote(next ? "Float pinned above other windows" : "Float unpinned");
-    } catch (reason) { setError("Cannot change Float pin state: " + String(reason)); }
+      setNote(next ? "HoveR pinned above other windows" : "HoveR unpinned");
+    } catch (reason) { setError("Cannot change HoveR pin state: " + String(reason)); }
   }
 
   async function show() {
@@ -126,21 +126,21 @@ export default function FloatView() {
   const playable = isImage || isVideo || isAudio || isPdf;
   const mediaError = () => setError("This media file could not be decoded by Windows WebView2. Try a supported MP4, MP3, WAV, or image format.");
 
-  return <div className="float-shell">
-    <header className="float-topbar" data-tauri-drag-region>
-      <img src={appIcon} alt="" className="float-logo" data-tauri-drag-region/>
-      <strong data-tauri-drag-region>ReformANY Float</strong>
-      <button type="button" aria-label={pinned ? "Unpin Float" : "Keep Float on top"} aria-pressed={pinned}
-        title={pinned ? "Always on top · click to unpin" : "Pin Float above other windows"}
+  return <div className="hover-shell">
+    <header className="hover-topbar" data-tauri-drag-region>
+      <img src={appIcon} alt="" className="hover-logo" data-tauri-drag-region/>
+      <strong data-tauri-drag-region>ReformANY HoveR</strong>
+      <button type="button" aria-label={pinned ? "Unpin HoveR" : "Keep HoveR on top"} aria-pressed={pinned}
+        title={pinned ? "Always on top · click to unpin" : "Pin HoveR above other windows"}
         onClick={() => void togglePin()}><Pin size={15} fill={pinned ? "currentColor" : "none"}/></button>
-      <button aria-label="Close floating preview" onClick={() => void getCurrentWindow().close()}><X size={17}/></button>
+      <button aria-label="Close hovering preview" onClick={() => void getCurrentWindow().close()}><X size={17}/></button>
     </header>
-    <nav className="float-tabs" aria-label="Float view">
+    <nav className="hover-tabs" aria-label="HoveR view">
       <button aria-current={mode === "preview" ? "page" : undefined} onClick={() => { setMode("preview"); setError(null); }}><FileImage size={14}/> File</button>
       <button aria-current={mode === "qr" ? "page" : undefined} onClick={() => { setMode("qr"); setError(null); }}><QrCode size={14}/> QR code</button>
     </nav>
-    {mode === "preview" ? <main className="float-content">
-      <div className="float-preview">
+    {mode === "preview" ? <main className="hover-content">
+      <div className="hover-preview">
         {isImage && assetUrl
           ? <img src={assetUrl} alt="Selected image preview" onError={event => {
               if (preview && event.currentTarget.src !== preview) {
@@ -150,21 +150,21 @@ export default function FloatView() {
           : isVideo && assetUrl
             ? <video src={assetUrl} controls playsInline preload="metadata" onError={mediaError}/>
             : isAudio && assetUrl
-              ? <div className="float-audio"><FileImage size={37} strokeWidth={1.3} aria-hidden/><audio src={assetUrl} controls preload="metadata" onError={mediaError}/></div>
+              ? <div className="hover-audio"><FileImage size={37} strokeWidth={1.3} aria-hidden/><audio src={assetUrl} controls preload="metadata" onError={mediaError}/></div>
               : isPdf && assetUrl
                 ? <iframe src={assetUrl} title="PDF preview" onError={mediaError}/>
                 : preview ? <img src={preview} alt="Selected file preview"/>
-                  : <div className="float-unavailable"><FileImage size={42} strokeWidth={1.3} aria-hidden/><span>{file ? "Preview unavailable for this file type" : "Loading selected file…"}</span></div>}
+                  : <div className="hover-unavailable"><FileImage size={42} strokeWidth={1.3} aria-hidden/><span>{file ? "Preview unavailable for this file type" : "Loading selected file…"}</span></div>}
       </div>
       <strong title={file?.name}>{file?.name || "Selected file"}</strong>
       {file && !playable && <small>Use Show file to open this type in its default application.</small>}
       <small>{file ? size(file.bytes) : "Loading…"}</small>
       <p title={file?.path}>{file?.path || " "}</p>
-    </main> : <main className="float-qr-content">
-      <label htmlFor="float-qr-data">Text, URL, or local file path</label>
-      <textarea id="float-qr-data" maxLength={1600} rows={2} spellCheck={false}
+    </main> : <main className="hover-qr-content">
+      <label htmlFor="hover-qr-data">Text, URL, or local file path</label>
+      <textarea id="hover-qr-data" maxLength={1600} rows={2} spellCheck={false}
         value={qrContent} onChange={event => { setQrContent(event.target.value); setQrSvg(null); setNote(null); }}/>
-      <div className="float-qr-actions">
+      <div className="hover-qr-actions">
         <button onClick={() => void generateQR()} disabled={!qrContent.trim() || qrBusy}>
           <QrCode size={15}/>{qrBusy ? "Generating…" : "Generate QR"}
         </button>
@@ -172,14 +172,14 @@ export default function FloatView() {
           <Download size={15}/> Save SVG
         </button>
       </div>
-      {qrImage ? <div className="float-qr-image"><img src={qrImage} alt="Generated QR code for the entered content"/></div> :
-        <div className="float-qr-empty"><QrCode size={44} strokeWidth={1.2}/><span>Generate a QR code to preview it here</span></div>}
+      {qrImage ? <div className="hover-qr-image"><img src={qrImage} alt="Generated QR code for the entered content"/></div> :
+        <div className="hover-qr-empty"><QrCode size={44} strokeWidth={1.2}/><span>Generate a QR code to preview it here</span></div>}
       <small>A local Windows path is not a file-sharing link. Scanning its QR code does not transfer the file.</small>
     </main>}
-    <footer className="float-actions">
+    <footer className="hover-actions">
       <button onClick={() => void copy()} disabled={!file}><ClipboardCopy size={16}/> Copy path</button>
       <button onClick={() => void show()} disabled={!file}><FolderOpen size={16}/> Show file</button>
     </footer>
-    {(error || note) && <div className={error ? "float-error" : "float-note"} role="status">{error || note}</div>}
+    {(error || note) && <div className={error ? "hover-error" : "hover-note"} role="status">{error || note}</div>}
   </div>;
 }
