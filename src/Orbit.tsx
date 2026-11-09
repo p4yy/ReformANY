@@ -1048,11 +1048,12 @@ export default function Orbit() {
       {(renaming || splitting || passwording) && file && <OrbitActionDialog
         kind={renaming ? "rename" : splitting ? "split" : "password"}
         splitPdf={kind === "pdf"} splitMode={pdfSplitMode} onSplitMode={setPdfSplitMode}
-        name={file.name} bytes={formatSize(file.bytes)}
-        busy={renaming && renameBusy} error={error || undefined}
+        name={file.name} bytes={isFolder ? "Folder · all accessible files included" : file.bytes === 0 ? "0 B · empty file" : formatSize(file.bytes)}
+        busy={(renaming && renameBusy) || phase === "processing" || pdfBusy} error={error || undefined}
         value={renaming ? newName : splitting ? partSize : archivePassword}
         onValue={renaming ? setNewName : splitting ? setPartSize : setArchivePassword}
         onClose={() => {
+          if (phase === "processing" || pdfBusy || renameBusy) return;
           setRenaming(false);setSplitting(false);setPasswording(false);
           setArchivePassword("");setError(null);
         }}
