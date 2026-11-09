@@ -41,7 +41,7 @@ fn encrypt(path:&str,password:&str,destination:Option<&str>)->Result<String,Stri
     doc.reference_table.cross_reference_type = lopdf::xref::XrefType::CrossReferenceTable;
     doc.trailer.remove(b"Type");
     doc.save(&file).map_err(|e|e.to_string())?;
-    let mut probe=Document::load(&file).map_err(|e|e.to_string())?;
+    let probe=Document::load(&file).map_err(|e|e.to_string())?;
     if !probe.is_encrypted(){
         return Err("Security verification failed: PDF can be opened without authentication".into());
     }
@@ -49,10 +49,13 @@ fn encrypt(path:&str,password:&str,destination:Option<&str>)->Result<String,Stri
     if probe.authenticate_password(&wrong).is_ok(){
         return Err("Security verification failed: incorrect password was accepted".into());
     }
-    probe.decrypt(password).map_err(|e|format!("PDF cannot be opened with the chosen password: {e}"))?;
-    if probe.get_pages().is_empty(){
-        return Err(format!("Encrypted result has no readable pages after decryption: source_pages={}, encrypted_obj_count={}, is_encrypted_after={}, trailer={:?}",
-            doc.get_pages().len(),probe.objects.len(),probe.is_encrypted(),probe.trailer));
+    // lopdf 0.38 loaded only the encryption dictionary when the password
+    // wasn't empty, leaving an apparently successful decrypt with ZERO pages.
+    // The 0.39 password-aware loader resolves every encrypted page object.
+    let opened=Document::load_with_password(&file,password)
+        .map_err(|e|format!("PDF cannot be read with the chosen password: {e}"))?;
+    if opened.get_pages().len()!=doc.get_pages().len(){
+        return Err("Encrypted PDF round-trip changed the number of readable pages".into());
     }
     let name=format!("{}_protected",format_name(input)?);
     let saved=publish(&file,&folder,&name,"pdf")?;
@@ -66,15 +69,18 @@ fn decrypt(path:&str,password:&str,destination:Option<&str>)->Result<String,Stri
         .is_some_and(|e|e.eq_ignore_ascii_case("pdf")){
         return Err("Select a PDF".into());
     }
-    let mut doc=Document::load(input).map_err(|e|format!("Cannot load PDF: {e}"))?;
+    let doc=Document::load(input).map_err(|e|format!("Cannot load PDF: {e}"))?;
     if !doc.is_encrypted(){return Err("This PDF is not password protected".into());}
     doc.authenticate_owner_password(password)
         .map_err(|_|"This PDF requires its correct owner password to remove protection".to_owned())?;
-    doc.decrypt(password).map_err(|_|"Incorrect PDF password".to_owned())?;
-    if doc.is_encrypted(){
-        return Err("PDF protection could not be removed".into());
+    // Loading with the owner's password must parse and decrypt every object.
+    // Calling decrypt() on a partial document is not sufficient.
+    let mut opened=Document::load_with_password(input,password)
+        .map_err(|_|"Incorrect PDF password or unreadable encrypted objects".to_owned())?;
+    if opened.is_encrypted()||opened.get_pages().is_empty(){
+        return Err("PDF protection could not be removed safely".into());
     }
-    crate::pdf_ops::stage_pdf(input,destination,"unlocked",&mut doc)
+    crate::pdf_ops::stage_pdf(input,destination,"unlocked",&mut opened)
 }
 #[tauri::command]
 pub async fn pdf_protect(path:String,password:String,destination:Option<String>)
