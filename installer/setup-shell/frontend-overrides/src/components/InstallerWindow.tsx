@@ -347,7 +347,9 @@ function IntegrationStep({
 /*  Step 4 — Installing                                                */
 /* ------------------------------------------------------------------ */
 
-function InstallingStep({ done, stage, error }: { done: boolean; stage: string; error: string | null }) {
+function InstallingStep({ progress, indeterminate, stage, error }: {
+  progress: number; indeterminate: boolean; stage: string; error: string | null;
+}) {
   const R = 56;
   const C = 2 * Math.PI * R;
 
@@ -378,14 +380,17 @@ function InstallingStep({ done, stage, error }: { done: boolean; stage: string; 
             strokeWidth="4"
             strokeLinecap="round"
             strokeDasharray={C}
-            animate={{ strokeDashoffset: done ? 0 : [C * 0.92, C * 0.2, C * 0.92] }}
-            transition={{ duration: done ? 0.4 : 2, repeat: done ? 0 : Infinity, ease: 'easeInOut' }}
+            animate={{ strokeDashoffset: C * (1 - Math.min(100, Math.max(0, progress)) / 100) }}
+            transition={{ duration: 0.55, ease: 'easeOut' }}
             style={{ filter: 'drop-shadow(0 0 6px rgba(200,212,162,0.35))' }}
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center"
+          role="progressbar" aria-label="Verified installation stages" aria-valuemin={0}
+          aria-valuemax={100} aria-valuenow={progress}
+          aria-valuetext={`${progress}% · ${stage}`}>
           <span className="text-3xl font-light tabular-nums text-[#c8d4a2]">
-            {done ? "100%" : "…"}
+            {progress}%
           </span>
         </div>
       </div>
@@ -406,7 +411,9 @@ function InstallingStep({ done, stage, error }: { done: boolean; stage: string; 
       </div>
 
       <p role={error ? "alert" : "status"} className="mt-3 max-w-[440px] text-center text-xs leading-relaxed text-[#a3b27a]">
-        {error || "Setup runs locally; media tools may require a verified download."}
+        {error || (indeterminate
+          ? "The installer is working on this stage. This percentage reflects completed milestones, not an estimated countdown."
+          : "All setup files are bundled offline. Progress advances when each real installation milestone is verified.")}
       </p>
     </div>
   );
@@ -482,6 +489,8 @@ export function InstallerWindow({
   const [installing, setInstalling] = useState(false);
   const [installationError, setInstallationError] = useState<string | null>(null);
   const [stage, setStage] = useState('Preparing installation…');
+  const [progress, setProgress] = useState(0);
+  const [indeterminate, setIndeterminate] = useState(false);
   const [settings, setSettings] = useState<InstallerSettings>({
     installPath: '', mediaEngines: true, desktopShortcut: true,
     contextMenu: true, launchOnFinish: true,
@@ -492,8 +501,12 @@ export function InstallerWindow({
     void invoke<{ installPath: string }>('setup_defaults')
       .then(defaults => { if (alive) setSettings(v => ({ ...v, installPath: defaults.installPath })); })
       .catch(reason => { if (alive) setInstallationError(String(reason)); });
-    const subscription = listen<{ stage: string }>('setup-status', event => {
-      if (alive) setStage(event.payload.stage);
+    const subscription = listen<{ stage: string; percent: number; indeterminate: boolean }>('setup-status', event => {
+      if (!alive) return;
+      setStage(event.payload.stage);
+      const actual = Math.max(0, Math.min(100, Math.round(event.payload.percent)));
+      setProgress(previous => Math.max(previous, actual));
+      setIndeterminate(event.payload.indeterminate);
     });
     return () => { alive = false; void subscription.then(unlisten => unlisten()); };
   }, []);
@@ -533,6 +546,7 @@ export function InstallerWindow({
     if (installing || !settings.installPath.trim()) return;
     setInstalling(true);
     setInstallationError(null);
+    setProgress(0); setIndeterminate(true);
     setStage('Preparing verified installation package…');
     goTo(3);
     try {
@@ -540,6 +554,7 @@ export function InstallerWindow({
         installPath: settings.installPath, mediaEngines: settings.mediaEngines,
         desktopShortcut: settings.desktopShortcut, contextMenu: settings.contextMenu,
       } });
+      setProgress(100); setIndeterminate(false);
       setStage('Installation verified');
       goTo(4);
     } catch (reason) {
@@ -630,7 +645,7 @@ export function InstallerWindow({
             {step === 0 && <WelcomeStep />}
             {step === 1 && <LocationStep settings={settings} onChange={patch} onBrowse={() => void chooseFolder()} />}
             {step === 2 && <IntegrationStep settings={settings} onChange={patch} />}
-            {step === 3 && <InstallingStep done={false} stage={stage} error={installationError} />}
+            {step === 3 && <InstallingStep progress={progress} indeterminate={indeterminate} stage={stage} error={installationError} />}
             {step === 4 && <CompleteStep settings={settings} onChange={patch} />}
           </motion.div>
         </AnimatePresence>
