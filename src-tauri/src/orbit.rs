@@ -43,7 +43,7 @@ pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<Path
 
 pub fn parse_orbit_tab(args: impl IntoIterator<Item = OsString>) -> Option<String> {
     let args: Vec<_> = args.into_iter().collect();
-    if parse_orbit_args(args.iter().cloned()).is_none(){return None;}
+    parse_orbit_args(args.iter().cloned())?;
     args.get(2).and_then(|argument|argument.to_str())
         .and_then(|argument|argument.strip_prefix("--tab="))
         .map(str::to_owned)
