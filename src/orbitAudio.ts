@@ -49,7 +49,12 @@ export function setOrbitSoundKindEnabled(kind: OrbitSoundEvent, enabled: boolean
 }
 let context: AudioContext | null = null;
 let lastHoverAt = -Infinity;
+let hoverSuppressedUntil = 0;
 const HOVER_INTERVAL_MS = 90;
+/** Avoid hover chatter while the longer opening bloom is still audible. */
+export function suppressOrbitHover(milliseconds=420): void {
+  hoverSuppressedUntil = Math.max(hoverSuppressedUntil, performance.now()+milliseconds);
+}
 
 function getContext(): AudioContext | null {
   if (context) return context;
@@ -104,7 +109,7 @@ export function unlockOrbitAudio(): void {
 export function playOrbitHover(): void {
   if (!getOrbitSoundsEnabled() || !getOrbitSoundKindEnabled("hover")) return;
   const now = performance.now();
-  if (now - lastHoverAt < HOVER_INTERVAL_MS) return;
+  if (now < hoverSuppressedUntil || now - lastHoverAt < HOVER_INTERVAL_MS) return;
   lastHoverAt = now;
   // A Windows WebView can begin with AudioContext suspended. Native playback
   // guarantees the *first hover* is heard without requiring an extra click.
