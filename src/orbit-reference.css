@@ -417,7 +417,7 @@ html[data-mode="orbit"] .orbit-action-panel input {
 html[data-mode="orbit"][data-theme="light"] .orbit-action-panel input {
   background:#f5f7f2;
 }
-html[data-mode="orbit"] #orbit-split-method {
+html[data-mode="orbit"] .orbit-action-panel select {
   width:100%;
   min-height:41px;
   border:1px solid var(--ref-stroke);
@@ -427,7 +427,7 @@ html[data-mode="orbit"] #orbit-split-method {
   background:var(--ref-surface);
   font:600 12px "Segoe UI Variable Text","Segoe UI",sans-serif;
 }
-html[data-mode="orbit"] #orbit-split-method:focus-visible {
+html[data-mode="orbit"] .orbit-action-panel select:focus-visible {
   outline:2px solid var(--ref-accent);
   outline-offset:2px;
 }
