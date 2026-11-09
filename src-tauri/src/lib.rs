@@ -22,6 +22,7 @@ mod pdf_raster;
 mod pdf_images;
 mod pdf_marks;
 mod pdf_arrange;
+mod pdf_security;
 mod qr;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
@@ -46,6 +47,7 @@ use pdf_raster::pdf_save_rendered_pages;
 use pdf_images::pdf_extract_images;
 use pdf_marks::pdf_add_mark;
 use pdf_arrange::pdf_arrange_pages;
+use pdf_security::{pdf_protect,pdf_unlock};
 use qr::{qr_svg, qr_save_svg};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -101,6 +103,8 @@ pub fn run() {
             pdf_extract_images,
             pdf_add_mark,
             pdf_arrange_pages,
+            pdf_protect,
+            pdf_unlock,
             qr_svg,
             qr_save_svg,
             subtitle_convert,
