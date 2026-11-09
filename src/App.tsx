@@ -159,6 +159,9 @@ function App() {
   const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
   const [shortcutEditing, setShortcutEditing] = useState<OrbitSection|null>(null);
   const [shortcutError, setShortcutError] = useState<string|null>(null);
+  const [shakeConfig, setShakeConfig] = useState({enabled:false,sensitivity:3});
+  const [shakeError, setShakeError] = useState<string|null>(null);
+  const [shakeBusy, setShakeBusy] = useState(false);
   const [queueMode, setQueueMode] = useState<"sequential"|"balanced">("balanced");
   const [queueError, setQueueError] = useState<string|null>(null);
   const [watchRules, setWatchRules] = useState<WatchRule[]>([]);
@@ -214,6 +217,21 @@ function App() {
     try{setWatchRules(await invoke<WatchRule[]>("remove_watch_rule",{id}));}
     catch(e){setWatchError(String(e));}
     finally{setWatchBusy(false);}
+  }
+  useEffect(()=>{
+    if(!isTauri())return;
+    void invoke<{enabled:boolean;sensitivity:number}>("get_shake_settings")
+      .then(setShakeConfig).catch(e=>setShakeError(String(e)));
+  },[]);
+  async function saveShakeConfig(enabled:boolean,sensitivity:number){
+    setShakeBusy(true);setShakeError(null);
+    try{
+      const saved=await invoke<{enabled:boolean;sensitivity:number}>("set_shake_settings",{
+        enabled,sensitivity,
+      });
+      setShakeConfig(saved);
+    }catch(e){setShakeError(String(e));}
+    finally{setShakeBusy(false);}
   }
   function updateOrbitMouse(changes: Partial<OrbitMousePreferences>) {
     setOrbitMouse(current => {
@@ -658,7 +676,7 @@ function App() {
           </div>
           <div className="preference-group">
             <h2>Orbit mouse control</h2>
-            <p>Customize the compact wheel. These controls work inside Orbit and never intercept Windows Explorer input.</p>
+            <p>Customize the compact Orbit wheel, keyboard controls, and opt-in Explorer gesture activation.</p>
             <div className="orbit-mouse-preferences">
               <div className="orbit-mouse-setting">
                 <span><strong>Starting section</strong><small>Always opens on Convert with available formats.</small></span>
@@ -697,7 +715,22 @@ function App() {
                 updateOrbitMouse({shortcuts:{...DEFAULT_SHORTCUTS}});
                 setShortcutEditing(null);setShortcutError(null);
               }}>Reset section shortcuts</button>
-              <p>Hold-and-shake in Explorer is not enabled: native file-drag integration and desktop QA remain required.</p>
+              <div className="orbit-mouse-setting">
+                <span><strong>Hold-and-shake in Explorer</strong>
+                  <small>After a deliberate hold, reverse mouse direction rapidly while holding a selected file. The native listener checks a Windows Shell IDataObject before opening Orbit.</small></span>
+                <input type="checkbox" checked={shakeConfig.enabled} disabled={!desktop||shakeBusy}
+                  aria-label="Enable hold-and-shake Orbit gesture"
+                  onChange={event=>void saveShakeConfig(event.target.checked,shakeConfig.sensitivity)}/>
+              </div>
+              <label className="orbit-mouse-setting">
+                <span><strong>Shake sensitivity</strong>
+                  <small>{shakeConfig.sensitivity===1?"Very deliberate":shakeConfig.sensitivity===2?"Deliberate":shakeConfig.sensitivity===3?"Balanced":shakeConfig.sensitivity===4?"Responsive":"Very responsive"} · requires a stationary hold and multiple directional flips</small></span>
+                <input type="range" min={1} max={5} step={1} value={shakeConfig.sensitivity}
+                  aria-label="Shake sensitivity" disabled={!shakeConfig.enabled||shakeBusy}
+                  onChange={event=>void saveShakeConfig(true,Number(event.target.value))}/>
+              </label>
+              <p>Opt-in Windows background listener. No selected files are read unless a qualifying hold/shake gesture occurs. This requires real Windows Explorer/Desktop testing before final release.</p>
+              {shakeError&&<p role="alert" className="orbit-dialog-error">{shakeError}</p>}
               <label className="orbit-mouse-setting">
                 <span><strong>Pointer loading ring</strong><small>Show a small progress indicator beside the cursor while Orbit is processing.</small></span>
                 <input type="checkbox" checked={orbitMouse.pointerSpinner}
