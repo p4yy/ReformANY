@@ -21,6 +21,7 @@ tokio = { version = "1", features = ["sync"] }
 tempfile = "3"
 uuid = { version = "1", features = ["v4"] }
 getrandom = "0.3"
+notify = "8"
 
 base64 = "0.22"
 qrcodegen = "1.8.0"
