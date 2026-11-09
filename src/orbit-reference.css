@@ -598,3 +598,6 @@ html[data-mode="orbit"] .orbit-arrange-tile.is-selected {border-color:#c8d4a2;ba
 html[data-mode="orbit"] .orbit-arrange-thumb {background:white;display:flex;align-items:center;justify-content:center;height:78px;width:65px;overflow:hidden;box-shadow:0 2px 7px #0003}
 html[data-mode="orbit"] .orbit-arrange-thumb canvas {max-width:95%;max-height:95%;object-fit:contain}
 html[data-mode="orbit"] .orbit-arrange-tile small {font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+html[data-mode="orbit"] .orbit-shred-meter{height:6px;background:rgba(255,255,255,.09);border-radius:12px;overflow:hidden;margin:8px 0}
+html[data-mode="orbit"] .orbit-shred-meter>span{display:block;height:100%;background:#de7967;transition:width .2s ease}
