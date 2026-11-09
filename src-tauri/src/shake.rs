@@ -482,6 +482,23 @@ mod tests {
             r#"{"enabled":false,"volume":0}"#).is_ok());
         assert!(!serde_json::from_str::<OrbitSoundSettings>(
             r#"{"enabled":false,"volume":0}"#).unwrap().enabled);
+        let legacy:OrbitSoundSettings=serde_json::from_str(
+            r#"{"enabled":true,"volume":65}"#).unwrap();
+        assert!(legacy.open_enabled && legacy.close_enabled && legacy.hover_enabled);
+        let selective:OrbitSoundSettings=serde_json::from_str(
+            r#"{"enabled":true,"volume":42,"openEnabled":false,"closeEnabled":true,"hoverEnabled":false}"#).unwrap();
+        assert!(!selective.open_enabled && selective.close_enabled && !selective.hover_enabled);
+        assert_eq!(selective.volume,42);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn native_sound_envelopes_have_expected_lengths(){
+        unsafe extern "C" {
+            fn reformany_native_open_sound_duration_ms()->u32;
+            fn reformany_native_close_sound_duration_ms()->u32;
+        }
+        assert_eq!(unsafe{reformany_native_open_sound_duration_ms()},340);
+        assert_eq!(unsafe{reformany_native_close_sound_duration_ms()},235);
     }
     #[cfg(windows)]
     #[test]
