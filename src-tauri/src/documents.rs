@@ -14,7 +14,7 @@ pub(crate) fn watched_image_to_pdf(path:&std::path::Path,destination:Option<&str
 {
     build_image_pdf(&[path.to_string_lossy().into_owned()],destination)
 }
-fn build_image_pdf(paths: &[String], destination: Option<&str>) -> Result<String, String> {
+pub(crate) fn build_image_pdf(paths: &[String], destination: Option<&str>) -> Result<String, String> {
     if paths.is_empty() || paths.len() > MAX_PDF_INPUT_PAGES {
         return Err("Select between 1 and 200 static images".into());
     }
