@@ -68,7 +68,10 @@ export default function PdfPageDialog({
       <form onSubmit={submit}>
         <label htmlFor={id+"-range"}>{action === "extract" ? "Pages to extract" : "Pages to rotate (empty = all)"}</label>
         <input id={id+"-range"} autoFocus value={pages} onChange={e=>setPages(e.target.value)}
-          placeholder={action === "extract" ? "1,3-5,9" : "All pages or 1,3-5"}/>
+          placeholder={action === "extract" ? "e.g. 1, 3-5, 9" : "All pages or 1, 3-5"}/>
+        <div className="orbit-page-helper"><span>Separate pages with commas; use a hyphen for a range. Duplicates are not allowed.</span>
+          <button type="button" disabled={working||!pageCount} onClick={()=>setPages(action==="rotate"?"":`1-${pageCount}`)}>All pages</button>
+        </div>
         {action === "rotate" && <>
           <label htmlFor={id+"-rotate"}>Rotation</label>
           <select id={id+"-rotate"} value={degrees} onChange={e=>setDegrees(Number(e.target.value))}>
@@ -78,13 +81,13 @@ export default function PdfPageDialog({
           </select>
         </>}
         <p className={status.error ? "orbit-dialog-error" : "orbit-dialog-hint"} role="status">
-          {status.error ?? (status.selected + " of " + pageCount + " pages selected")}
+          {status.error ?? (status.selected + " of " + pageCount + " pages selected · original unchanged")}
         </p>
         {error && <p className="orbit-dialog-error" role="alert">{error}</p>}
         <div className="orbit-dialog-footer">
           <button type="button" className="orbit-dialog-cancel" disabled={working} onClick={onClose}>Cancel</button>
           <button type="submit" className="orbit-dialog-submit" disabled={!valid}>
-            {working ? "Processing…" : "Apply"}
+            {working ? "Processing…" : action==="extract" ? "Extract pages" : "Save rotated PDF"}
           </button>
         </div>
       </form>
