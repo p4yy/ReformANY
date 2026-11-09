@@ -201,9 +201,21 @@ try {
       await sleep(120);
     }
     if(!actualSource)throw Error("Welcome launched Orbit without the chosen file");
-    await evaluate(orbitSocket,'(() => { void window.__TAURI_INTERNALS__.invoke("orbit_open_workspace"); return true; })()');
-    await sleep(250);
-    console.log("PASS: Welcome wheel layout, keyboard/click controls, sample feedback and real picked-file Orbit launch.");
+    // Orbit runs in a separate process. Sending "Open workspace" creates a
+    // second independent main window and poisons HoveR's single-window check.
+    // Exercise Orbit's actual Close control and ensure the launched child
+    // exited before proceeding with the main application's HoveR tests.
+    await evaluate(orbitSocket,
+      'document.querySelector("button[aria-label=\\\"Close Orbit\\\"]").click(); true');
+    let orbitClosed = false;
+    for (let attempt = 0; attempt < 45; attempt++) {
+      await sleep(200);
+      const pages = await targets().catch(() => []);
+      orbitClosed = !pages.some(page => page.id === realOrbit.id);
+      if (orbitClosed) break;
+    }
+    if (!orbitClosed) throw new Error("Real Orbit window remained open after its Close control");
+    console.log("PASS: Welcome wheel layout, keyboard/click controls, sample feedback and real picked-file Orbit launch/close.");
     await evaluate(mainSocket,
       'document.querySelector(".welcome-primary").click(); true');
     await sleep(400);
