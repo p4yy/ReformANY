@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
+import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
 import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
@@ -218,6 +218,11 @@ export default function Orbit() {
   const kind = getKind(file);
   const isFolder = file?.detected === "Folder";
   const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
+  const toolEditorOpen = renaming || splitting || passwording || Boolean(pdfDialog)
+    || Boolean(pdfMarkMode) || arrangingPages || pdfPasswording || shredding;
+  const toolEditorIsLarge = Boolean(pdfDialog) || Boolean(pdfMarkMode)
+    || arrangingPages || pdfPasswording;
+  const radialPosition = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -250,6 +255,52 @@ export default function Orbit() {
     )).catch(() => { /* Keep the original size if Windows rejects the update. */ });
     return () => { document.documentElement.style.removeProperty("--orbit-fit"); };
   }, []);
+
+  useEffect(() => {
+    // Keep the radial launcher compact. Substantial editors become native,
+    // independently resizable Windows surfaces with real title-bar dragging.
+    // Return to the original compact Orbit position when the editor closes.
+    document.documentElement.dataset.orbitEditor = toolEditorOpen ? "true" : "false";
+    const win = getCurrentWindow();
+    let stale = false;
+    const resize = async () => {
+      try {
+        const fit = Math.min(420 / 560,
+          Math.max(320, window.screen.availWidth - 32) / 560,
+          Math.max(350, window.screen.availHeight - 32) / 640);
+        if (toolEditorOpen) {
+          if (radialPosition.current === null) {
+            const position = await win.outerPosition();
+            radialPosition.current = { x: position.x, y: position.y };
+          }
+          if (stale) return;
+          // The native titlebar is intentional: drag, resize and Alt+F4
+          // work exactly as in other Windows apps.
+          await win.setResizable(true);
+          await win.setDecorations(true);
+          if (stale) return;
+          const preferred = toolEditorIsLarge ? { w: 960, h: 700 } : { w: 760, h: 560 };
+          const width = Math.min(preferred.w, Math.max(480, window.screen.availWidth - 48));
+          const height = Math.min(preferred.h, Math.max(430, window.screen.availHeight - 72));
+          await win.setSize(new LogicalSize(width, height));
+          if (!stale) await win.center();
+        } else {
+          // Revert only when switching out of an editor, not on initial mount.
+          if (radialPosition.current === null) return;
+          await win.setResizable(false);
+          await win.setDecorations(false);
+          await win.setSize(new LogicalSize(Math.round(560 * fit), Math.round(640 * fit)));
+          const old = radialPosition.current;
+          radialPosition.current = null;
+          if (!stale) await win.setPosition(new PhysicalPosition(old.x, old.y));
+        }
+      } catch (cause) {
+        if (!stale) setError("Cannot resize Orbit tool window: " + String(cause));
+      }
+    };
+    void resize();
+    return () => { stale = true; };
+  }, [toolEditorOpen, toolEditorIsLarge]);
 
   useEffect(() => {
     let mounted = true;
