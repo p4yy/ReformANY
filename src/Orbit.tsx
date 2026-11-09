@@ -12,6 +12,7 @@ import OrbitActionDialog from "./OrbitActionDialog";
 import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageDialog";
 import { convertPdfToPageImages } from "./pdfPageRender";
 import PdfMarkDialog, {type PdfMark} from "./PdfMarkDialog";
+import PdfArrangeDialog, {type PageEdit} from "./PdfArrangeDialog";
 import OrbitNotice from "./OrbitNotice";
 import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
@@ -183,6 +184,7 @@ export default function Orbit() {
   const [pdfCount, setPdfCount] = useState<number | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfMarkMode, setPdfMarkMode] = useState<"watermark"|"signature"|null>(null);
+  const [arrangingPages, setArrangingPages] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
@@ -581,6 +583,25 @@ export default function Orbit() {
     } finally { setPdfBusy(false); }
   }
 
+  async function openArrange(){
+    if(!file||kind!=="pdf")return;
+    setArrangingPages(true);setPdfCount(null);setPdfError(null);
+    try{setPdfCount(await invoke<number>("pdf_page_count",{path:file.path}));}
+    catch(e){setPdfError(String(e));}
+  }
+  async function saveArrangedPages(items:PageEdit[]){
+    if(!file||!arrangingPages||pdfBusy)return;
+    setPdfBusy(true);setPdfError(null);
+    try{
+      const result=await invoke<string>("pdf_arrange_pages",{
+        path:file.path,items,destination:await resolvePreferredDestination(),
+      });
+      if(!result)throw Error("PDF arrange did not produce an output");
+      setOutput(result);setSelected("Arrange Pages");
+      setArrangingPages(false);setPhase("completed");
+    }catch(cause){setPdfError(String(cause));}
+    finally{setPdfBusy(false);}
+  }
   async function applyPdfMark(mark:PdfMark){
     if(!file||pdfBusy||!pdfMarkMode)return;
     setPdfBusy(true);setPdfError(null);
@@ -747,7 +768,7 @@ export default function Orbit() {
     { label: "Rotate 90°", run: () => void openPdfTool("rotate") },
     { label: "Extract Images", run: () => void extractPdfImages() },
     { label: "Password", unavailable: "PDF encryption requires a verified PDF security engine", run: () => {} },
-    { label: "Arrange Pages", unavailable: "Page arrangement editor is not implemented yet", run: () => {} },
+    { label: "Arrange Pages", run: () => void openArrange() },
     { label: "Watermark", run: () => {setPdfError(null);setPdfMarkMode("watermark");} },
     { label: "Sign", run: () => {setPdfError(null);setPdfMarkMode("signature");} },
   ] : [];
@@ -875,6 +896,10 @@ export default function Orbit() {
       {(error || note) && <OrbitNotice key={error || note}
         message={error || note || ""} error={Boolean(error)}
         onDismiss={() => { setError(null);setNote(null); }}/>}
+      {arrangingPages && file && pdfCount !== null && <PdfArrangeDialog
+        path={file.path} name={file.name} pageCount={pdfCount} working={pdfBusy}
+        error={pdfError} onSave={items=>void saveArrangedPages(items)}
+        onClose={()=>{if(!pdfBusy){setArrangingPages(false);setPdfError(null);}}}/>}
       {pdfMarkMode && file && <PdfMarkDialog path={file.path} name={file.name}
         signature={pdfMarkMode==="signature"} working={pdfBusy} error={pdfError}
         onClose={() => {if(!pdfBusy){setPdfMarkMode(null);setPdfError(null);}}}
