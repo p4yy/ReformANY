@@ -394,9 +394,9 @@ void poll_mouse(){
 // shell pop-up or file I/O. The audio plays on a detached thread only AFTER
 // the real Orbit process successfully spawned. SND_SYNC is required when
 // PlaySound is handed a memory WAVE; never block the Win32 drag event loop.
-extern "C" void reformany_play_orbit_open_sound(float volume){
+extern "C" void reformany_play_orbit_open_sound(decltype(0.0f) volume){
     if(!(volume>0.0f))return;
-    const float safe=std::clamp(volume,0.0f,1.0f);
+    const auto safe=std::clamp(volume,0.0f,1.0f);
     std::thread([safe](){
         constexpr unsigned int rate=44100;
         constexpr unsigned int ms=205;
