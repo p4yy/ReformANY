@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ClipboardCopy, Download, FileImage, FolderOpen, Pin, QrCode, X } from "lucide-react";
@@ -28,15 +29,38 @@ export default function FloatView() {
     setDocumentLanguage(getLanguage());
     void getCurrentWindow().isAlwaysOnTop().then(setPinned).catch(() => { /* use startup default */ });
     let alive = true;
-    void invoke<FloatInfo | null>("float_file_context").then(value => {
-      if (!alive || !value) return;
-      setFile(value);
-      setQrContent(value.path);
-      void invoke<string | null>("image_thumbnail", { path: value.path })
-        .then(src => { if (alive) setPreview(src); })
-        .catch(() => { /* Non-images display a file icon. */ });
-    }).catch(reason => { if (alive) setError(String(reason)); });
-    return () => { alive = false; };
+    let requestId = 0;
+    const refresh = () => {
+      const currentRequest = ++requestId;
+      setPreview(null);
+      setError(null);
+      setNote(null);
+      setMode("preview");
+      setQrSvg(null);
+      void invoke<FloatInfo | null>("float_file_context").then(value => {
+        if (!alive || currentRequest !== requestId) return;
+        setFile(value);
+        setQrContent(value?.path || "");
+        if (!value) return;
+        void invoke<string | null>("image_thumbnail", { path: value.path })
+          .then(src => {
+            if (alive && currentRequest === requestId) setPreview(src);
+          })
+          .catch(() => { /* Non-images display their native media control. */ });
+      }).catch(reason => {
+        if (alive && currentRequest === requestId) setError(String(reason));
+      });
+    };
+    // Subscribe first: a second Float request may arrive while the initial
+    // WebView is loading. Never lose that notification or display stale media.
+    const subscription = listen("reformany:float-file-changed", refresh);
+    void subscription.then(() => { if (alive) refresh(); })
+      .catch(reason => { if (alive) setError(String(reason)); });
+    return () => {
+      alive = false;
+      ++requestId;
+      void subscription.then(unlisten => unlisten()).catch(() => {});
+    };
   }, []);
 
   async function togglePin() {
