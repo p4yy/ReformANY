@@ -392,9 +392,14 @@ fn repack(path: &str, target: &str, destination: Option<&str>) -> Result<Archive
     if inputs.is_empty() {
         return Err("The source archive has no files to convert".into());
     }
+    // Without an explicit setting, save beside the ORIGINAL archive, not
+    // beside the temporary extraction directory that is deleted on return.
+    let output_folder = destination.map(str::to_owned).or_else(|| {
+        source.parent().map(|p| p.to_string_lossy().into_owned())
+    });
     let result = create(ArchiveCreate {
         paths: inputs,
-        destination: destination.map(str::to_owned),
+        destination: output_folder,
         name: original.to_owned(),
         format: target.into(),
         password: None,
