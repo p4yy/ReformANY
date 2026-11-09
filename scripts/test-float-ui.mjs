@@ -1,7 +1,7 @@
 // Windows CI regression test: a real, bundled ReformANY EXE must open Float
 // with an image, render the React player, and load the explicitly scoped file.
 // The debugging port is enabled only in the CI job via ephemeral WebView2 policy.
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,7 +11,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 if (process.platform !== "win32") throw new Error("Float startup verification requires Windows");
 const exe = resolve(process.argv[2] || "");
 const picture = resolve(process.argv[3] || "");
-if (!exe.toLowerCase().endsWith(".exe") || !existsSync(exe) || !existsSync(picture)) {
+const ffmpeg = resolve(process.argv[4] || "");
+if (!exe.toLowerCase().endsWith(".exe") || !existsSync(exe) || !existsSync(picture) || !existsSync(ffmpeg)) {
   throw new Error("Pass the real ReformANY.exe followed by an existing test PNG");
 }
 const port = 19376;
@@ -62,6 +63,15 @@ async function evaluate(socket, expression) {
   });
 }
 try {
+  const video = join(temp, "sample.mp4"), audio = join(temp, "sample.mp3");
+  execFileSync(ffmpeg, ["-hide_banner","-loglevel","error","-y",
+    "-f","lavfi","-i","testsrc2=size=160x90:rate=10",
+    "-f","lavfi","-i","sine=frequency=440:sample_rate=44100",
+    "-t","2","-c:v","libx264","-pix_fmt","yuv420p","-c:a","aac",video],
+    {windowsHide:true,timeout:30000});
+  execFileSync(ffmpeg, ["-hide_banner","-loglevel","error","-y","-i",video,
+    "-map","0:a:0","-vn","-c:a","libmp3lame",audio],
+    {windowsHide:true,timeout:30000});
   child = spawn(exe, [], {
     windowsHide:false,
     stdio:"ignore",
@@ -164,7 +174,55 @@ try {
   if (!qrStatus?.hasImage || qrStatus.overlap || qrStatus.error) {
     throw new Error("Float QR image did not render cleanly: " + JSON.stringify(qrStatus));
   }
-  console.log("PASS: offline Float image preview, native pin toggle, and QR content layout.");
+  // Verify the actual installed Windows media stack, not just presence
+  // of <video>/<audio> tags. HTMLMediaElement must load metadata and advance.
+  async function checkMedia(path, kind) {
+    await evaluate(mainSocket,
+      'window.__TAURI_INTERNALS__.invoke("float_file", {path:' + JSON.stringify(path) + '})');
+    let opened = null;
+    for (let attempt = 0; attempt < 75; attempt++) {
+      const all = await targets().catch(() => []);
+      opened = all.find(target => target.type==="page" && target.id!==main.id &&
+        target.id!==float.id &&
+        (target.url.includes("tauri.localhost") || target.url.startsWith("tauri://")));
+      if (opened) break;
+      await sleep(250);
+    }
+    if (!opened) throw new Error("No Float "+kind+" WebView opened");
+    const mediaSocket = await connect(opened);
+    let state = null;
+    for (let attempt = 0; attempt < 45; attempt++) {
+      state = await evaluate(mediaSocket, `(() => {
+        const element=document.querySelector("${kind}");
+        return {present:!!element,ready:element?.readyState||0,
+          duration:element?.duration||0,error:element?.error?.message||null};
+      })()`);
+      if (state?.ready>=2 || state?.error) break;
+      await sleep(350);
+    }
+    if (!state?.present || state.ready<2 || !(state.duration>0) || state.error) {
+      throw new Error("Float failed real "+kind+" decoding: "+JSON.stringify(state));
+    }
+    const playState=await evaluate(mediaSocket, `(async () => {
+      const element=document.querySelector("${kind}");
+      element.muted=true;
+      try {await element.play();} catch(e){return {error:String(e)};}
+      return {playing:!element.paused,ready:element.readyState};
+    })()`);
+    if (!playState?.playing) throw new Error("Float "+kind+" did not start playback: "+JSON.stringify(playState));
+    await sleep(650);
+    const position=await evaluate(mediaSocket,
+      `document.querySelector("${kind}")?.currentTime||0`);
+    if (!(position>0)) throw new Error("Float "+kind+" never advanced playback time");
+    await evaluate(mediaSocket,`document.querySelector("${kind}").pause()`);
+    return opened.id;
+  }
+  const audioId=await checkMedia(audio,"audio");
+  // The second Float closes the previous audio target. The helper ignores
+  // only the original image page and searches for the newest live Float page.
+  float.id=audioId;
+  await checkMedia(video,"video");
+  console.log("PASS: offline Float image/MP3/MP4 playback, native pin and QR layout.");
 } finally {
   for (const socket of sockets) try { socket.close(); } catch {}
   if (child?.pid) {
