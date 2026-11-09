@@ -912,6 +912,11 @@ Section Install
     !insertmacro NSIS_HOOK_POSTINSTALL
   !endif
 
+  ; Only an explicitly enabled gesture starts observing input.
+  ; The background command loads the saved opt-in preference and exits
+  ; immediately when disabled. The listener has no WebView or console.
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "ReformANY Orbit Shake" '$\"$INSTDIR\${MAINBINARYNAME}.exe$\" --shake-listener'
+
   ; Auto close this page for passive mode
   ${If} $PassiveMode = 1
     SetAutoClose true
@@ -957,7 +962,12 @@ Section Uninstall
     !insertmacro NSIS_HOOK_PREUNINSTALL
   !endif
 
-  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  ; Stop the opt-in shell gesture listener before removing the executable.
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "ReformANY Orbit Shake"
+  IfFileExists "$INSTDIR\${MAINBINARYNAME}.exe" 0 +3
+    ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --shake-stop' $0
+    Sleep 220
+    !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   ; Delete the app directory and its content from disk
   ; Copy main executable
