@@ -4,7 +4,9 @@
 //! IDataObject validated separately may launch Orbit. This detector cannot
 //! operate outside a qualifying left-button hold in an Explorer/Desktop view.
 use serde::{Deserialize,Serialize};
-use std::{fs,path::PathBuf,sync::{Mutex,OnceLock}};
+use std::{fs,path::PathBuf};
+#[cfg(windows)]
+use std::sync::{Mutex,OnceLock};
 
 #[derive(Debug,Clone,Copy,Serialize,Deserialize)]
 #[serde(rename_all="camelCase")]
@@ -42,18 +44,22 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
 }
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
+#[cfg(any(windows,test))]
 enum Phase { Idle, Hold, Armed, Shake, Cooldown }
 #[derive(Debug)]
+#[cfg(any(windows,test))]
 pub struct Detector{
     phase:Phase,down_time:u32,shake_time:u32,cooldown_time:u32,
     origin:(i32,i32),last:(i32,i32),
     last_axis:Option<(bool,i8)>,flips:u8,travel:u32,last_flip:u32,
 }
+#[cfg(any(windows,test))]
 impl Default for Detector{
     fn default()->Self{Self{phase:Phase::Idle,down_time:0,shake_time:0,
         cooldown_time:0,origin:(0,0),last:(0,0),last_axis:None,
         flips:0,travel:0,last_flip:0}}
 }
+#[cfg(any(windows,test))]
 impl Detector{
     /// Wrap-safe milliseconds from Windows MSLLHOOKSTRUCT.time (u32).
     pub fn sample(&mut self,x:i32,y:i32,time:u32,left_down:bool,
@@ -126,7 +132,9 @@ impl Detector{
         false
     }
 }
+#[cfg(windows)]
 static SENSOR:OnceLock<Mutex<Detector>>=OnceLock::new();
+#[cfg(windows)]
 static SETTINGS:OnceLock<ShakeSettings>=OnceLock::new();
 
 #[cfg(windows)]
