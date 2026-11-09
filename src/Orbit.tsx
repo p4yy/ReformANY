@@ -457,17 +457,26 @@ export default function Orbit() {
     }
   }
 
-  async function convertDocument(target: "txt" | "md" | "html" | "pdf" | "png" | "jpg" | "docx-editable" | "docx-layout") {
+  async function convertDocument(target: "txt" | "md" | "html" | "pdf" | "png" | "jpg" | "docx" | "odt" | "rtf" | "epub" | "docx-editable" | "docx-layout") {
     if (!file || file.error || phase === "processing") return;
     const isPdf = kind === "pdf";
-    if (!isPdf && (kind !== "office" || target !== "pdf" || !officeReady)) return;
+    const isTxt = kind === "office" && file.name.toLowerCase().endsWith(".txt");
+    if (!isPdf && !isTxt && (kind !== "office" || target !== "pdf" || !officeReady)) return;
+    if (isTxt && target === "pdf" && !officeReady) return;
     setSelected(target.toUpperCase());
     setPhase("processing");
     setOutput(null);
     setError(null);
     setNote(null);
     try {
-      if (isPdf && (target === "docx-editable" || target === "docx-layout")) {
+      if (isTxt && target !== "pdf") {
+        const results = await invoke<string[]>("text_convert", {
+          path: file.path, target, destination: await resolvePreferredDestination(),
+        });
+        if (!results.length) throw new Error("TXT conversion created no output");
+        setOutput(results[0]);
+        if (results.length > 1) setNote(`Created ${results.length} pages of text output`);
+      } else if (isPdf && (target === "docx-editable" || target === "docx-layout")) {
         const destination = await resolvePreferredDestination();
         const result = target === "docx-layout"
           ? await convertPdfToLayoutDocx(file.path, destination)
@@ -833,6 +842,9 @@ export default function Orbit() {
       })) : []),
     ] :
     kind === "office" ? [
+      ...(ext === "txt" ? (["DOCX","RTF","ODT","HTML","MD","EPUB"] as const).map(label => ({
+        label, run: () => void convertDocument(label.toLowerCase() as "docx"|"rtf"|"odt"|"html"|"md"|"epub"),
+      })) : []),
       { label: "PDF", unavailable: officeReady && ext !== "md" && ext !== "markdown" ? undefined
         : ext === "md" || ext === "markdown" ? "Markdown rendering is not available yet" : "LibreOffice is required",
         run: () => void convertDocument("pdf") },
