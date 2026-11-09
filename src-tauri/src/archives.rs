@@ -368,8 +368,8 @@ pub async fn archive_extract(job: ArchiveExtract) -> Result<String, String> {
 /// Repackage an archive by *extracting verified members first*. Wrapping
 /// another archive as a single file is not a format conversion.
 fn repack(path: &str, target: &str, destination: Option<&str>) -> Result<ArchiveCreated, String> {
-    if !matches!(target, "zip" | "7z" | "tar") {
-        return Err("Repack supports ZIP, 7Z or TAR output only".into());
+    if !matches!(target, "zip" | "7z" | "tar" | "rar") {
+        return Err("Repack supports ZIP, 7Z, TAR or installed WinRAR output only".into());
     }
     let source = Path::new(path);
     verify_input(source, false)?;
