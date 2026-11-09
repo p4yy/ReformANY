@@ -4,7 +4,7 @@
 //! IDataObject validated separately may launch Orbit. This detector cannot
 //! operate outside a qualifying left-button hold in an Explorer/Desktop view.
 use serde::{Deserialize,Serialize};
-use std::{fs,path::PathBuf,sync::{Mutex,OnceLock},time::Duration};
+use std::{fs,path::PathBuf,sync::{Mutex,OnceLock}};
 
 #[derive(Debug,Clone,Copy,Serialize,Deserialize)]
 #[serde(rename_all="camelCase")]
@@ -183,6 +183,11 @@ pub fn run_listener(){
 }
 #[cfg(not(windows))]
 pub fn run_listener(){}
+
+#[cfg(windows)]
+pub fn stop_listener(){unsafe{reformany_stop_shake_listener()}}
+#[cfg(not(windows))]
+pub fn stop_listener(){}
 
 #[cfg(test)]
 mod tests{
