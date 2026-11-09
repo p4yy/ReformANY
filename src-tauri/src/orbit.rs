@@ -18,9 +18,6 @@ pub struct OrbitLaunch {
     initial_tab: Option<String>,
 }
 impl OrbitLaunch {
-    pub fn new(path: Option<PathBuf>) -> Self {
-        Self { path, initial_tab: None }
-    }
     pub fn new_with_tab(path: Option<PathBuf>, initial_tab: Option<String>) -> Self {
         Self { path, initial_tab }
     }
