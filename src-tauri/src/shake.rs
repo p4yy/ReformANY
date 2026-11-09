@@ -61,7 +61,7 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
 /// every 20ms from a standalone STA, never the UI thread.
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 #[cfg(any(windows,test))]
-enum Phase { Idle, ButtonHeld, PotentialDrag, ShakeDetected, Handled, WaitingForDrop }
+enum Phase { Idle, ButtonHeld, PotentialDrag, Handled, WaitingForDrop }
 #[derive(Debug)]
 #[cfg(any(windows,test))]
 pub struct Detector {
@@ -141,7 +141,6 @@ impl Detector{
                     if self.reversals>=3 {
                         // Handled BEFORE checking SysDragImage in C++. If
                         // absent, do not retry until the primary button resets.
-                        self.phase=Phase::ShakeDetected;
                         self.handled=true;
                         self.phase=Phase::Handled;
                         return true;
@@ -172,7 +171,6 @@ extern "C"{
     fn reformany_wait_shake_listener_exit(timeout_ms:u32)->bool;
 }
 
-#[cfg(windows)]
 /// Native polling returns 2 exactly once on a completed gesture.
 #[cfg(windows)]
 extern "C" fn tick(x:i32,y:i32,time:u32,primary:bool,eligible:bool,
@@ -192,8 +190,7 @@ extern "C" fn mark_waiting_for_drop(){
         if let Ok(mut detector)=sensor.lock(){detector.validated_drag();}
     }
 }
-/// Invoked from the listener's own STA event loop, never from the global
-/// mouse callback. Disk I/O and detector reset are outside the hook.
+/// Invoked from the listener STA, never on the main GUI thread.
 #[cfg(windows)]
 extern "C" fn reload_listener_settings(){
     let updated=read_settings();
@@ -215,7 +212,8 @@ extern "C" fn open_orbit(wide:*const u16,tab:u8){
     let chars=unsafe{std::slice::from_raw_parts(wide,length)};
     let file=std::ffi::OsString::from_wide(chars);
     let path=PathBuf::from(&file);
-    if !path.exists(){return;}
+    let Ok(metadata)=fs::symlink_metadata(&path) else{return;};
+    if !metadata.is_file() || metadata.file_type().is_symlink(){return;}
     if let Ok(exe)=std::env::current_exe(){
         let mut command=std::process::Command::new(exe);
         command.arg("orbit").arg(&path);
