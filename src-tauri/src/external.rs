@@ -88,11 +88,26 @@ pub fn engine_status() -> EngineStatus {
     }
 }
 
+/// All background encoders/archivers must run without flashing a Windows
+/// console window. This intentionally does not apply to user-requested
+/// "Open terminal" actions.
+pub fn hide_subprocess_window(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    { let _ = command; }
+}
+
 /// External processes run with argv, never through a shell, and with stdin
 /// disabled so they cannot freeze waiting for a console prompt.
 pub fn run(program: &Path, args: &[OsString], cwd: Option<&Path>) -> Result<(), String> {
     let stderr_file = tempfile::tempfile().map_err(|e| format!("Cannot create log: {e}"))?;
     let mut command = Command::new(program);
+    hide_subprocess_window(&mut command);
     command.args(args).stdin(Stdio::null()).stdout(Stdio::null())
         .stderr(stderr_file.try_clone().map_err(|e| e.to_string())?);
     if let Some(cwd) = cwd { command.current_dir(cwd); }
