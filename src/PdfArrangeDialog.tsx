@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,type DragEvent,type MouseEvent} from "react";
 import {invoke} from "@tauri-apps/api/core";
 import {GlobalWorkerOptions,getDocument} from "pdfjs-dist/legacy/build/pdf.mjs";
 import worker from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
-import {CornerUpLeft,RotateCcw,RotateCw,Trash2,X} from "lucide-react";
+import {ArrowLeft,ArrowRight,ChevronsLeft,ChevronsRight,CornerUpLeft,RotateCcw,RotateCw,Trash2,X} from "lucide-react";
 GlobalWorkerOptions.workerSrc=worker;
 type PDFDoc=Awaited<ReturnType<typeof getDocument>["promise"]>;
 export type PageEdit={sourcePage:number;rotation:number};
@@ -12,8 +12,8 @@ function decode(source:string){
   for(let i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);
   return a;
 }
-function PageTile({doc,item,active,onClick,onDragStart,onDrop}:{
-  doc:PDFDoc|null;item:PageEdit;active:boolean;onClick:(event:MouseEvent)=>void;
+function PageTile({doc,item,number,active,onClick,onDragStart,onDrop}:{
+  doc:PDFDoc|null;item:PageEdit;number:number;active:boolean;onClick:(event:MouseEvent)=>void;
   onDragStart:(event:DragEvent)=>void;onDrop:(event:DragEvent)=>void
 }){
   const canvas=useRef<HTMLCanvasElement>(null);
@@ -50,9 +50,10 @@ function PageTile({doc,item,active,onClick,onDragStart,onDrop}:{
       aria-pressed={active} title={"Original page "+item.sourcePage+"; rotate "+item.rotation+" degrees"}>
       <span className="orbit-arrange-thumb"><canvas ref={canvas}
         style={{transform:`rotate(${item.rotation}deg)`}}/></span>
-      <small>Page {item.sourcePage}{item.rotation?" · "+item.rotation+"°":""}</small>
+      <small>Page {number} · source {item.sourcePage}{item.rotation?" · "+item.rotation+"°":""}</small>
     </button>;
 }
+function clampMove(value:number,from:number,to:number){return Math.max(from,Math.min(to,value));}
 export default function PdfArrangeDialog({path,name,pageCount,working,error,onSave,onClose}:{
   path:string;name:string;pageCount:number;working:boolean;error:string|null;
   onSave:(edits:PageEdit[])=>void;onClose:()=>void;
@@ -106,6 +107,20 @@ export default function PdfArrangeDialog({path,name,pageCount,working,error,onSa
       ...p,rotation:(p.rotation+degrees+360)%360,
     }:p));
   };
+  const move=(destination:"left"|"right"|"start"|"end")=>{
+    if(!selected.length){setWarning("Select one or more pages to move.");return;}
+    const selectedSet=new Set(selected);
+    const chosen=items.filter(p=>selectedSet.has(p.sourcePage));
+    const other=items.filter(p=>!selectedSet.has(p.sourcePage));
+    if(chosen.length===items.length){setWarning("At least one unselected page is required for a move.");return;}
+    const first=items.findIndex(p=>selectedSet.has(p.sourcePage));
+    const current=items.slice(0,first).filter(p=>!selectedSet.has(p.sourcePage)).length;
+    const index=destination==="start"?0:destination==="end"?other.length
+      :clampMove(current+(destination==="left"?-1:1),0,other.length);
+    const result=[...other.slice(0,index),...chosen,...other.slice(index)];
+    if(result.every((page,i)=>items[i].sourcePage===page.sourcePage))return;
+    change(result);
+  };
   const remove=()=>{
     if(!selected.length){setWarning("Select one or more pages to remove.");return;}
     if(selected.length>=items.length){setWarning("At least one PDF page must remain.");return;}
@@ -129,11 +144,15 @@ export default function PdfArrangeDialog({path,name,pageCount,working,error,onSa
       aria-label="Arrange PDF pages" aria-modal="true" aria-busy={working}>
       <button type="button" className="orbit-dialog-close" disabled={working}
         onClick={onClose} aria-label="Close page editor"><X size={19}/></button>
-      <h2>Arrange pages</h2>
-      <p>Drag thumbnails to reorder. Ctrl/Shift-select pages to rotate or remove. Undo before saving.</p>
+      <h2>Arrange PDF pages</h2>
+      <p>Choose pages, drag to reorder, or use the move buttons. Ctrl/Shift selects multiple pages. Save a new PDF without changing the original.</p>
       <div className="orbit-dialog-file"><span title={name}>{name}</span>
         <small>{items.length}/{pageCount} pages</small></div>
-      <div className="orbit-arrange-toolbar">
+      <div className="orbit-arrange-toolbar" aria-label="Page editing tools">
+        <button type="button" onClick={()=>move("start")} disabled={working||!selected.length} title="Move selected pages to start"><ChevronsLeft size={14}/> Start</button>
+        <button type="button" onClick={()=>move("left")} disabled={working||!selected.length} title="Move selected pages one place left"><ArrowLeft size={14}/> Earlier</button>
+        <button type="button" onClick={()=>move("right")} disabled={working||!selected.length} title="Move selected pages one place right"><ArrowRight size={14}/> Later</button>
+        <button type="button" onClick={()=>move("end")} disabled={working||!selected.length} title="Move selected pages to end"><ChevronsRight size={14}/> End</button>
         <button type="button" onClick={()=>rotate(-90)} disabled={working} title="Rotate left">
           <RotateCcw size={14}/> Left</button>
         <button type="button" onClick={()=>rotate(90)} disabled={working} title="Rotate right">
@@ -144,18 +163,18 @@ export default function PdfArrangeDialog({path,name,pageCount,working,error,onSa
           <CornerUpLeft size={14}/> Undo</button>
       </div>
       <div className="orbit-arrange-pages" role="group" aria-label="Drag to reorder PDF pages">
-        {items.map((p,index)=><PageTile key={p.sourcePage} doc={doc} item={p}
+        {items.map((p,index)=><PageTile key={p.sourcePage} doc={doc} item={p} number={index+1}
           active={selected.includes(p.sourcePage)} onClick={e=>select(index,e)}
           onDragStart={e=>e.dataTransfer.setData("text/plain",String(p.sourcePage))}
           onDrop={e=>drop(e,index)}/>)}
       </div>
-      <p className="orbit-dialog-hint">Adding pages from other documents requires the separate merge engine and is not available in this editor yet.</p>
+      <p className="orbit-dialog-hint" role="status">{selected.length?selected.length+" page(s) selected":"Select thumbnails to use Move, Rotate or Delete."} · {history.length} undo step(s). Adding other PDFs requires the separate merge tool.</p>
       {warning&&<p className="orbit-dialog-error" role="status">{warning}</p>}
       {error&&<p className="orbit-dialog-error" role="alert">{error}</p>}
       <div className="orbit-dialog-footer">
         <button type="button" className="orbit-dialog-cancel" disabled={working} onClick={onClose}>Cancel</button>
         <button type="button" className="orbit-dialog-submit" disabled={working||!items.length}
-          onClick={()=>onSave(items)}>{working?"Saving…":"Apply"}</button>
+          onClick={()=>onSave(items)}>{working?"Saving…":"Save as new PDF"}</button>
       </div>
     </section>
   </div>;
