@@ -32,7 +32,7 @@ mod qr;
 mod text_convert;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
-use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_launch_file, orbit_preview, reveal_output, OrbitLaunch};
+use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_launch_file, orbit_initial_tab, orbit_preview, reveal_output, OrbitLaunch};
 use scan::expand_inputs;
 use external::engine_status;
 use media::{media_convert,media_details};
@@ -71,14 +71,16 @@ pub fn run() {
         .map(|arg| arg.to_string_lossy().into_owned()).unwrap_or_default();
     if command == "--shake-listener" { shake::run_listener(); return; }
     if command == "--shake-stop" { shake::stop_listener(); return; }
-    let orbit_path = orbit::parse_orbit_args(std::env::args_os().skip(1));
+    let orbit_args = std::env::args_os().skip(1).collect::<Vec<_>>();
+    let orbit_path = orbit::parse_orbit_args(orbit_args.iter().cloned());
+    let orbit_tab = orbit::parse_orbit_tab(orbit_args);
     let orbit_mode = orbit_path.is_some();
 
     tauri::Builder::default()
         .manage(BatchRegistry::default())
         .manage(JobRegistry::default())
         .manage(WatchRegistry::default())
-        .manage(OrbitLaunch::new(orbit_path))
+        .manage(OrbitLaunch::new_with_tab(orbit_path, orbit_tab))
         .manage(HoveRRegistry::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -91,6 +93,7 @@ pub fn run() {
             image_thumbnail,
             orbit_open_workspace,
             orbit_launch_file,
+            orbit_initial_tab,
             reveal_output,
             engine_status,
             media_convert,
