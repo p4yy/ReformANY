@@ -15,11 +15,14 @@ static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 #[derive(Default)]
 pub struct OrbitLaunch {
     path: Option<PathBuf>,
+    initial_tab: Option<String>,
 }
-
 impl OrbitLaunch {
     pub fn new(path: Option<PathBuf>) -> Self {
-        Self { path }
+        Self { path, initial_tab: None }
+    }
+    pub fn new_with_tab(path: Option<PathBuf>, initial_tab: Option<String>) -> Self {
+        Self { path, initial_tab }
     }
 }
 
@@ -27,7 +30,11 @@ impl OrbitLaunch {
 /// turn on Orbit and cannot accidentally interpret a filename as a switch.
 pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<PathBuf> {
     let args: Vec<_> = args.into_iter().collect();
-    if args.len() != 2 || args[0] != "orbit" {
+    if !(args.len()==2 || args.len()==3) || args[0] != "orbit" {
+        return None;
+    }
+    if args.len()==3 && !matches!(args[2].to_str(),
+        Some("--tab=convert"|"--tab=tools"|"--tab=actions")) {
         return None;
     }
     let path = PathBuf::from(&args[1]);
@@ -35,6 +42,14 @@ pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<Path
         return None;
     }
     Some(path)
+}
+
+pub fn parse_orbit_tab(args: impl IntoIterator<Item = OsString>) -> Option<String> {
+    let args: Vec<_> = args.into_iter().collect();
+    if parse_orbit_args(args.iter().cloned()).is_none(){return None;}
+    args.get(2).and_then(|argument|argument.to_str())
+        .and_then(|argument|argument.strip_prefix("--tab="))
+        .map(str::to_owned)
 }
 
 #[derive(Serialize)]
@@ -118,6 +133,10 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
 #[tauri::command]
 pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
     state.path.as_ref().and_then(|path| orbit_file_info(path))
+}
+#[tauri::command]
+pub fn orbit_initial_tab(state: State<'_, OrbitLaunch>) -> Option<String> {
+    state.initial_tab.clone()
 }
 
 #[tauri::command]
@@ -290,6 +309,15 @@ pub fn position_near_cursor(window: &WebviewWindow) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn orbit_accepts_only_known_tabs(){
+        use super::*;
+        let valid=["orbit","test.pdf","--tab=tools"].map(OsString::from);
+        assert_eq!(parse_orbit_args(valid.clone()),Some(PathBuf::from("test.pdf")));
+        assert_eq!(parse_orbit_tab(valid),Some("tools".to_owned()));
+        assert!(parse_orbit_args(["orbit","test.pdf","--tab=shred"].map(OsString::from)).is_none());
+        assert!(parse_orbit_args(["orbit","test.pdf","--tab=actions","extra"].map(OsString::from)).is_none());
+    }
     use super::*;
 
     #[test]
