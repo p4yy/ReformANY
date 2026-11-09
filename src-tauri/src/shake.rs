@@ -106,7 +106,8 @@ impl Detector{
                 if time.wrapping_sub(self.shake_time)>800{
                     self.phase=Phase::Cooldown;self.cooldown_time=time;return false;
                 }
-                let absx=dx.unsigned_abs(),absy=dy.unsigned_abs();
+                let absx=dx.unsigned_abs();
+                let absy=dy.unsigned_abs();
                 let axis=absx>=absy;
                 let delta=if axis{dx}else{dy};
                 if delta.unsigned_abs()<(step as u32){return false;}
