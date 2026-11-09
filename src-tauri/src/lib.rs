@@ -32,7 +32,7 @@ mod qr;
 mod text_convert;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
-use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
+use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_launch_file, orbit_preview, reveal_output, OrbitLaunch};
 use scan::expand_inputs;
 use external::engine_status;
 use media::{media_convert,media_details};
@@ -90,6 +90,7 @@ pub fn run() {
             orbit_preview,
             image_thumbnail,
             orbit_open_workspace,
+            orbit_launch_file,
             reveal_output,
             engine_status,
             media_convert,
