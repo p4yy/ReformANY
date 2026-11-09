@@ -38,7 +38,6 @@ constexpr wchar_t kMutexName[]=L"Local\\ReformANY_OrbitShakeListener_1";
 constexpr wchar_t kStopName[]=L"Local\\ReformANY_OrbitShakeStop_1";
 constexpr wchar_t kReloadName[]=L"Local\\ReformANY_OrbitShakeReload_1";
 constexpr wchar_t kPopupClass[]=L"ReformANY_OrbitShakeDropTarget";
-constexpr UINT_PTR kPollTimer=0x67;
 constexpr UINT_PTR kReleaseTimer=0x68;
 constexpr UINT_PTR kExpiryTimer=0x69;
 constexpr UINT kPublishMsg=WM_APP+0x6a;
@@ -451,7 +450,9 @@ extern "C" void reformany_win_shake_listen(
     g_validated=validated;
     MSG message{};
     PeekMessageW(&message,nullptr,0,0,PM_NOREMOVE);
-    const UINT_PTR polling=SetTimer(nullptr,kPollTimer,kPollMs,nullptr);
+    // Thread timers ignore an unallocated requested ID. Use the actual
+    // ID returned by SetTimer, otherwise polling never executes.
+    const UINT_PTR polling=SetTimer(nullptr,0,kPollMs,nullptr);
     if(polling){
         HANDLE events[2]={stop,changed};
         while(true){
@@ -470,7 +471,7 @@ extern "C" void reformany_win_shake_listen(
             while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
                 if(message.message==WM_QUIT)goto shutdown;
                 if(!message.hwnd&&message.message==WM_TIMER&&
-                   message.wParam==kPollTimer){
+                   message.wParam==polling){
                     poll_mouse();
                 }else if(!message.hwnd&&message.message==kPublishMsg){
                     if(message.wParam==1&&!g_dropPath.empty()){
@@ -484,7 +485,7 @@ extern "C" void reformany_win_shake_listen(
         }
     }
 shutdown:
-    KillTimer(nullptr,kPollTimer);
+    if(polling)KillTimer(nullptr,polling);
     reset_target();
     g_tick=nullptr;
     g_launch=nullptr;
