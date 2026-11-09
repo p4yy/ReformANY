@@ -46,12 +46,18 @@ fn escape_xml(text: &str) -> String {
 }
 fn archive(path: &Path, entries: &[(&str, String)], epub: bool) -> Result<(), String> {
     let mut writer = ZipWriter::new(File::create(path).map_err(|e| e.to_string())?);
-    if epub {
+    // EPUB and OpenDocument both require their uncompressed mimetype as the
+    // first ZIP member; otherwise strict readers may reject the package.
+    let odt = !epub && entries.iter().any(|(name, _)| *name == "mimetype");
+    if epub || odt {
         writer.start_file("mimetype", SimpleFileOptions::default()
             .compression_method(CompressionMethod::Stored)).map_err(|e| e.to_string())?;
-        writer.write_all(b"application/epub+zip").map_err(|e| e.to_string())?;
+        let mime = if epub { "application/epub+zip" }
+            else { "application/vnd.oasis.opendocument.text" };
+        writer.write_all(mime.as_bytes()).map_err(|e| e.to_string())?;
     }
     for (name, data) in entries {
+        if *name == "mimetype" && odt { continue; }
         writer.start_file(*name, SimpleFileOptions::default()
             .compression_method(CompressionMethod::Deflated)).map_err(|e| e.to_string())?;
         writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
@@ -87,7 +93,7 @@ fn odt(path: &Path, text: &str) -> Result<(), String> {
 fn epub(path: &Path, text: &str, title: &str) -> Result<(), String> {
     archive(path,&[
         ("META-INF/container.xml","<?xml version=\"1.0\"?><container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"OEBPS/package.opf\" media-type=\"application/oebps-package+xml\"/></rootfiles></container>".to_owned()),
-        ("OEBPS/package.opf",format!("<?xml version=\"1.0\"?><package xmlns=\"http://www.idpf.org/2007/opf\" version=\"3.0\" unique-identifier=\"id\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"id\">urn:uuid:3cf76dc7-a95b-4f38-8fba-1a9a96522961</dc:identifier><dc:title>{}</dc:title><dc:language>en</dc:language><meta property=\"dcterms:modified\">2026-01-01T00:00:00Z</meta></metadata><manifest><item id=\"text\" href=\"text.xhtml\" media-type=\"application/xhtml+xml\"/><item id=\"nav\" href=\"nav.xhtml\" properties=\"nav\" media-type=\"application/xhtml+xml\"/></manifest><spine><itemref idref=\"text\"/></spine></package>",escape_xml(title))),
+        ("OEBPS/package.opf",format!("<?xml version=\"1.0\"?><package xmlns=\"http://www.idpf.org/2007/opf\" version=\"3.0\" unique-identifier=\"id\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"id\">urn:uuid:{}</dc:identifier><dc:title>{}</dc:title><dc:language>en</dc:language><meta property=\"dcterms:modified\">2026-01-01T00:00:00Z</meta></metadata><manifest><item id=\"text\" href=\"text.xhtml\" media-type=\"application/xhtml+xml\"/><item id=\"nav\" href=\"nav.xhtml\" properties=\"nav\" media-type=\"application/xhtml+xml\"/></manifest><spine><itemref idref=\"text\"/></spine></package>",escape_xml(title),uuid::Uuid::new_v4())),
         ("OEBPS/text.xhtml",format!("<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>{}</title></head><body><pre>{}</pre></body></html>",escape_xml(title),escape_xml(text))),
         ("OEBPS/nav.xhtml",format!("<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\"><head><title>Contents</title></head><body><nav epub:type=\"toc\"><h1>Contents</h1><ol><li><a href=\"text.xhtml\">{}</a></li></ol></nav></body></html>",escape_xml(title))),
     ],true)
@@ -290,6 +296,12 @@ mod tests {
             let outputs=convert_text(&path.to_string_lossy(),target,None).unwrap();
             assert!(Path::new(&outputs[0]).is_file());
             assert!(fs::metadata(&outputs[0]).unwrap().len()>10);
+            if matches!(target,"odt"|"epub") {
+                let mut packaged = ZipArchive::new(File::open(&outputs[0]).unwrap()).unwrap();
+                let first = packaged.by_index(0).unwrap();
+                assert_eq!(first.name(),"mimetype");
+                assert_eq!(first.compression(),CompressionMethod::Stored);
+            }
         }
     }
 }
