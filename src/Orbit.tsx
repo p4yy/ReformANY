@@ -646,8 +646,8 @@ export default function Orbit() {
       { label: "TAR", unavailable: !engines?.sevenZip ? "Install 7-Zip" :
           kind === "archive" && ext === "tar" ? "Already TAR" : undefined,
         run: () => void archive("tar") },
-      ...(engines?.winrar ? [{ label: "RAR", unavailable: "RAR repack is unavailable; use ZIP or 7Z",
-        run: () => {} }] : []),
+      ...(engines?.winrar ? [{ label: "RAR", unavailable: kind === "archive" && ext === "rar" ? "Already RAR" : undefined,
+        run: () => void archive("rar") }] : []),
     ] : [];
 
   const description = file?.error ?? (loading ? "Reading file…"
