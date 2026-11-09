@@ -11,6 +11,7 @@ import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
 import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageDialog";
 import { convertPdfToPageImages } from "./pdfPageRender";
+import PdfMarkDialog, {type PdfMark} from "./PdfMarkDialog";
 import OrbitNotice from "./OrbitNotice";
 import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
@@ -181,6 +182,7 @@ export default function Orbit() {
   const [pdfDialog, setPdfDialog] = useState<PdfPageAction | null>(null);
   const [pdfCount, setPdfCount] = useState<number | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfMarkMode, setPdfMarkMode] = useState<"watermark"|"signature"|null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
@@ -579,6 +581,22 @@ export default function Orbit() {
     } finally { setPdfBusy(false); }
   }
 
+  async function applyPdfMark(mark:PdfMark){
+    if(!file||pdfBusy||!pdfMarkMode)return;
+    setPdfBusy(true);setPdfError(null);
+    const mode=pdfMarkMode;
+    try{
+      const result=await invoke<string>("pdf_add_mark",{
+        path:file.path,mark,visualSignature:mode==="signature",
+        destination:await resolvePreferredDestination(),
+      });
+      if(!result)throw new Error("PDF marking returned no saved document");
+      setOutput(result);setSelected(mode==="signature"?"Visual signature":"Watermark");
+      setPdfMarkMode(null);setError(null);setPhase("completed");
+    }catch(cause){setPdfError(String(cause));setPhase("ready");}
+    finally{setPdfBusy(false);}
+  }
+
   async function joinParts() {
     if (!file || !file.name.endsWith(".reformany.parts.json")) return;
     setPhase("processing"); setSelected("Join"); setError(null); setNote(null); setOutput(null);
@@ -730,8 +748,8 @@ export default function Orbit() {
     { label: "Extract Images", run: () => void extractPdfImages() },
     { label: "Password", unavailable: "PDF encryption requires a verified PDF security engine", run: () => {} },
     { label: "Arrange Pages", unavailable: "Page arrangement editor is not implemented yet", run: () => {} },
-    { label: "Watermark", unavailable: "Watermark editor is not implemented yet", run: () => {} },
-    { label: "Sign", unavailable: "PDF visual signing is not implemented yet", run: () => {} },
+    { label: "Watermark", run: () => {setPdfError(null);setPdfMarkMode("watermark");} },
+    { label: "Sign", run: () => {setPdfError(null);setPdfMarkMode("signature");} },
   ] : [];
 
   const innerActions: OrbitAction[] = tab === "convert"
@@ -857,6 +875,10 @@ export default function Orbit() {
       {(error || note) && <OrbitNotice key={error || note}
         message={error || note || ""} error={Boolean(error)}
         onDismiss={() => { setError(null);setNote(null); }}/>}
+      {pdfMarkMode && file && <PdfMarkDialog path={file.path} name={file.name}
+        signature={pdfMarkMode==="signature"} working={pdfBusy} error={pdfError}
+        onClose={() => {if(!pdfBusy){setPdfMarkMode(null);setPdfError(null);}}}
+        onSave={mark=>void applyPdfMark(mark)}/>}
       {pdfDialog && file && <PdfPageDialog action={pdfDialog} name={file.name} pageCount={pdfCount}
         working={pdfBusy} error={pdfError} onSubmit={request => void runPdfTool(request)}
         onClose={() => {if (!pdfBusy) {setPdfDialog(null);setPdfError(null);}}}/>}
