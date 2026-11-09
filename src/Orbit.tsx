@@ -50,7 +50,7 @@ function getKind(file: OrbitFile | null): FileKind {
   if (["srt", "vtt"].includes(extension)) return "subtitle";
   if (["epub", "mobi", "fb2", "fbz", "azw", "azw3", "cbz", "cbr", "cb7", "htmlz"].includes(extension)) return "ebook";
   if (value === "pdf") return "pdf";
-  if (value === "office" || ["txt", "htm", "html"].includes(extension)) return "office";
+  if (value === "office" || ["txt", "htm", "html", "md", "markdown", "doc", "docx", "odt", "rtf"].includes(extension)) return "office";
   if (["spreadsheet", "subtitle", "ebook"].includes(value)) return value as FileKind;
   if (value === "shortcut") return "shortcut";
   if (value === "application") return "application";
@@ -166,7 +166,7 @@ function OrbitRing({ items, inner, outer, label, tab, kind }: {
 export default function Orbit() {
   const [file, setFile] = useState<OrbitFile | null>(null);
   const [mousePreferences] = useState(readOrbitMousePreferences);
-  const [tab, setTab] = useState<Tab>(() => readOrbitMousePreferences().firstSection);
+  const [tab, setTab] = useState<Tab>("convert");
   const [engines, setEngines] = useState<EngineStatus | null>(null);
   const [officeReady, setOfficeReady] = useState(false);
   const [calibreReady, setCalibreReady] = useState(false);
@@ -347,7 +347,13 @@ export default function Orbit() {
     setNote(null);
     setMediaProgress(null);
     try {
-      if (kind === "image") {
+      if (kind === "image" && target === "PDF") {
+        const result = await invoke<string>("images_to_pdf", {
+          paths: [file.path], destination: await resolvePreferredDestination(),
+        });
+        setOutput(result);
+        setPhase("completed");
+      } else if (kind === "image") {
         batchId.current = await invoke<string>("convert_batch", {
           files: [{ id, path: file.path, target: target.toLowerCase(),
             quality: 88, matte: "white", options: {} }],
@@ -410,7 +416,7 @@ export default function Orbit() {
     }
   }
 
-  async function archive(action: "zip" | "7z" | "extract") {
+  async function archive(action: "zip" | "7z" | "tar" | "rar" | "extract") {
     if (!file || phase === "processing") return;
     setSelected(action === "extract" ? "Extract" : action.toUpperCase());
     setPhase("processing");
@@ -425,11 +431,17 @@ export default function Orbit() {
         setOutput(result);
       } else {
         const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
-        const result = await invoke<{ outputPaths: string[] }>("archive_create", {
-          job: { paths: [file.path], destination: await resolvePreferredDestination(), name,
-            format: action, password: null, splitMegabytes: null, level: 5 },
-        });
-        setOutput(result.outputPaths[0] || null);
+        const destination = await resolvePreferredDestination();
+        const result = kind === "archive"
+          ? await invoke<{ outputPaths: string[] }>("archive_repack", {
+              path: file.path, target: action, destination,
+            })
+          : await invoke<{ outputPaths: string[] }>("archive_create", {
+              job: { paths: [file.path], destination, name,
+                format: action, password: null, splitMegabytes: null, level: 5 },
+            });
+        if (!result.outputPaths.length) throw new Error("Archive conversion returned no saved file");
+        setOutput(result.outputPaths[0]);
       }
       setPhase("completed");
     } catch (reason) {
@@ -579,7 +591,7 @@ export default function Orbit() {
   const ext = (file?.name.split(".").at(-1) || "").toLowerCase();
   const detectedFormat = (file?.detected || "").toLowerCase();
   const mediaReady = Boolean(engines?.ffmpeg && engines?.ffprobe);
-  const imageTargets = imageFormats.filter(format => format.toLowerCase() !== detectedFormat);
+  const imageTargets = ["PDF", ...imageFormats].filter(format => format.toLowerCase() !== detectedFormat);
   const mediaTargets = (kind === "video" ? [...videoFormats, ...audioFormats] : audioFormats)
     .filter(format => format.toLowerCase() !== ext);
   const spreadsheetTargets = ["CSV", "TSV", "JSON", "XLSX"].filter(v => v.toLowerCase() !== ext);
@@ -591,7 +603,9 @@ export default function Orbit() {
   // formats remain visible but explicitly unavailable until FFmpeg is installed.
   const convertActions: OrbitAction[] = !canConvert ? [] :
     kind === "image" ? imageTargets.map(label => ({
-      label, run: () => void convert(label),
+      label, unavailable: label === "PDF" && ext === "svg"
+        ? "SVG must first be converted to a raster image" : undefined,
+      run: () => void convert(label),
     })) :
     kind === "video" || kind === "audio" ? mediaTargets.map(label => ({
       label, unavailable: mediaReady ? undefined : "Install FFmpeg and FFprobe",
@@ -606,7 +620,9 @@ export default function Orbit() {
       })) : []),
     ] :
     kind === "office" ? [
-      ...(officeReady ? [{ label: "PDF", run: () => void convertDocument("pdf") }] : []),
+      { label: "PDF", unavailable: officeReady && ext !== "md" && ext !== "markdown" ? undefined
+        : ext === "md" || ext === "markdown" ? "Markdown rendering is not available yet" : "LibreOffice is required",
+        run: () => void convertDocument("pdf") },
       ...(calibreReady && ["docx", "odt", "rtf"].includes(ext)
         ? ebookTargets.filter(label => label !== "PDF").map(label => ({
             label, run: () => void convertOther(label, "ebook_convert_file"),
@@ -620,7 +636,19 @@ export default function Orbit() {
     })) :
     kind === "ebook" && calibreReady ? ebookTargets.map(label => ({
       label, run: () => void convertOther(label, "ebook_convert_file"),
-    })) : [];
+    })) :
+    kind === "archive" || kind === "folder" ? [
+      { label: "ZIP", unavailable: kind === "archive" && ext === "zip" ? "Already ZIP" : undefined,
+        run: () => void archive("zip") },
+      { label: "7Z", unavailable: !engines?.sevenZip ? "Install 7-Zip" :
+          kind === "archive" && ext === "7z" ? "Already 7Z" : undefined,
+        run: () => void archive("7z") },
+      { label: "TAR", unavailable: !engines?.sevenZip ? "Install 7-Zip" :
+          kind === "archive" && ext === "tar" ? "Already TAR" : undefined,
+        run: () => void archive("tar") },
+      ...(engines?.winrar ? [{ label: "RAR", unavailable: "RAR repack is unavailable; use ZIP or 7Z",
+        run: () => {} }] : []),
+    ] : [];
 
   const description = file?.error ?? (loading ? "Reading file…"
     : kind === "pdf" ? "PDF · Text export"
@@ -628,19 +656,14 @@ export default function Orbit() {
     : kind === "ebook" && !calibreReady ? "Calibre required"
     : (kind === "video" || kind === "audio") && !mediaReady ? "FFmpeg and FFprobe required"
     : kind === "shortcut" || kind === "application" ? "Use Actions"
-    : kind === "archive" ? "Use Tools to extract"
-    : isFolder ? "Use Tools to archive the folder"
+    : kind === "archive" ? "Choose an available archive format"
+    : isFolder ? "Choose an archive format"
     : "No direct conversion for this file type");
   const innerActions: OrbitAction[] = tab === "convert"
     ? convertActions.slice(0, 5)
     : tab === "tools" ? [
-        ...(kind === "archive"
-          ? ((isNativeZip || engines?.sevenZip) && canConvert
-            ? [{ label: "Extract", run: () => void archive("extract") }] : [])
-          : canConvert ? [
-              { label: "ZIP", run: () => void archive("zip") },
-              ...(engines?.sevenZip ? [{ label: "7z", run: () => void archive("7z") }] : []),
-            ] : []),
+        ...(kind === "archive" && (isNativeZip || engines?.sevenZip)
+          ? [{ label: "Extract archive", run: () => void archive("extract") }] : []),
       ] : file && !file.error ? [
         { label: "Rename", run: () => { setNewName(file.name); setRenaming(true); } },
         { label: "Copy path", run: () => void act("copy") },
