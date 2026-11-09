@@ -191,7 +191,7 @@ mod tests{
             let bytes=reread.get_page_content(*page).unwrap();
             let content=lopdf::content::Content::decode(&bytes).unwrap();
             assert!(content.operations.iter().any(|op|op.operator=="Tj"&&
-                op.operands.iter().any(|x|x.as_str().is_ok_and(|s|s==b"CONFIDENTIAL"))));
+                op.operands.iter().any(|x|matches!(x,Object::String(bytes,_) if bytes.as_slice()==b"CONFIDENTIAL"))));
         }
         let signature=apply(path.to_str().unwrap(),PdfMark{
             text:"APPROVED".into(),color:"#273B2E".into(),size:20.0,
