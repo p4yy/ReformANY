@@ -31,7 +31,7 @@ export default function OrbitActionDialog({
   const title = kind === "rename" ? "Rename" : kind === "split" ? (splitPdf ? "Split PDF" : "Split binary file") : "Password-protected ZIP";
   const description = kind === "rename" ? "Choose a new file name."
     : kind === "split" ? (splitPdf ? "Create independent PDFs by approximate size, number of parts, or pages per file." : "Divide into binary volumes for later rejoining; these are not usable standalone documents.")
-    : "Protect the archive with a password.";
+    : "Create a new AES-256 encrypted ZIP. Your original file remains unchanged.";
   const Icon = kind === "rename" ? Pencil : kind === "split" ? Scissors : LockKeyhole;
   const valid = kind === "rename" ? value.trim().length > 0
     : kind === "split" ? Number.isInteger(Number(value)) && Number(value) >= (splitPdf && splitMode === "parts" ? 2 : 1) && Number(value) <= 4096
@@ -126,8 +126,13 @@ export default function OrbitActionDialog({
           <input id="orbit-dialog-confirm" type={visible ? "text" : "password"}
             autoComplete="new-password" minLength={8} maxLength={256}
             value={confirm} onChange={event => setConfirm(event.target.value)} required/>
-          {confirm && value !== confirm && <p className="orbit-dialog-error">Passwords do not match.</p>}
-          <p className="orbit-dialog-hint">AES-256 encryption. Use a compatible ZIP reader such as 7-Zip; Windows Explorer may not support it. Password is not stored.</p>
+          {value.length > 0 && value.length < 8 && <p className="orbit-dialog-error" role="status">
+            Use at least 8 characters ({8 - value.length} more needed).
+          </p>}
+          {value.length >= 8 && !confirm && <p className="orbit-dialog-hint" role="status">Confirm the password to enable Create ZIP.</p>}
+          {confirm && value !== confirm && <p className="orbit-dialog-error" role="status">Passwords do not match. Re-enter confirmation.</p>}
+          {value.length >= 8 && value === confirm && <p className="orbit-dialog-hint" role="status">Passwords match · Ready to create encrypted ZIP.</p>}
+          <p className="orbit-dialog-hint">AES-256 encrypted ZIP. If you selected an existing archive, it will be stored inside the new ZIP, not modified in place. Use 7-Zip to extract; Windows Explorer may not support AES. Password is not stored.</p>
         </>}
         {error && <p className="orbit-dialog-error" role="alert">{error}</p>}
         <div className="orbit-dialog-footer">
