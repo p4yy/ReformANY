@@ -139,8 +139,8 @@ try {
       return {wheelBottom:wheel.bottom,tabsTop:tabs.top,sectorCount:sectors.length,
         withinWheel:tabs.top<wheel.bottom-1};
     })()`);
-    if (initial.withinWheel || initial.sectorCount < 10)
-      throw new Error("Welcome Orbit tabs overlap the wheel or slices are not interactive: "+
+    if (initial.withinWheel || initial.sectorCount !== 8)
+      throw new Error("Welcome Orbit must show 8 usable Convert slices and non-overlapping tabs: "+
         JSON.stringify(initial));
     await evaluate(mainSocket,
       'document.querySelector("#welcome-orbit-tab-tools").click(); true');
