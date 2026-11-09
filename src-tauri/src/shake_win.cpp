@@ -389,63 +389,94 @@ void poll_mouse(){
 }
 } // namespace
 
-// Original, restrained opening cue: 205ms of soft filtered air and a warm
-// descending tone. Synthesized entirely in memory, with no asset download,
-// shell pop-up or file I/O. The audio plays on a detached thread only AFTER
-// the real Orbit process successfully spawned. SND_SYNC is required when
-// PlaySound is handed a memory WAVE; never block the Win32 drag event loop.
-extern "C" void reformany_play_orbit_open_sound(decltype(0.0f) volume){
-    if(!(volume>0.0f))return;
-    const auto safe=std::clamp(volume,0.0f,1.0f);
-    std::thread([safe](){
-        constexpr unsigned int rate=44100;
-        constexpr unsigned int ms=205;
-        constexpr unsigned int frames=rate*ms/1000;
-        constexpr double pi=3.14159265358979323846;
-        std::vector<unsigned char> wav(44+frames*2,0);
-        const auto u16=[&wav](size_t offset,unsigned int v){
-            wav[offset]=static_cast<unsigned char>(v&255);
-            wav[offset+1]=static_cast<unsigned char>((v>>8)&255);
-        };
-        const auto u32=[&wav](size_t offset,unsigned int v){
-            for(int i=0;i<4;i++)
-                wav[offset+i]=static_cast<unsigned char>((v>>(i*8))&255);
-        };
-        auto tag=[&wav](size_t offset,const char* chars){
-            for(int i=0;i<4;i++)wav[offset+i]=static_cast<unsigned char>(chars[i]);
-        };
-        tag(0,"RIFF");u32(4,static_cast<unsigned int>(wav.size()-8));
-        tag(8,"WAVE");tag(12,"fmt ");u32(16,16);
-        u16(20,1);u16(22,1);u32(24,rate);u32(28,rate*2);
-        u16(32,2);u16(34,16);tag(36,"data");u32(40,frames*2);
-        uint32_t seed=0x9e3779b9;
-        double filteredNoise=0.0;
-        double phase=0.0;
-        for(unsigned int i=0;i<frames;i++){
-            const double t=static_cast<double>(i)/rate;
-            const double progress=static_cast<double>(i)/frames;
-            const double attack=std::min(1.0,t/0.009);
-            const double tail=std::pow(1.0-progress,2.45);
-            const double envelope=attack*tail;
-            // Very modest downward sweep, never an alert/notification beep.
-            const double frequency=465.0-125.0*progress;
-            phase+=2.0*pi*frequency/rate;
-            seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;
-            const double white=static_cast<double>(seed&65535)/32767.5-1.0;
-            filteredNoise=0.86*filteredNoise+0.14*white;
-            const double air=filteredNoise*(0.70+0.30*progress);
-            const double body=0.55*std::sin(phase)+0.09*std::sin(2.0*phase);
-            const double sample=(body+0.30*air)*envelope*
-                (0.092*static_cast<double>(safe));
-            const int value=static_cast<int>(std::lround(
-                std::clamp(sample,-1.0,1.0)*32767.0));
-            u16(44+2*i,static_cast<unsigned int>(static_cast<uint16_t>(value)));
-        }
-        PlaySoundW(reinterpret_cast<LPCWSTR>(wav.data()),nullptr,
-            SND_MEMORY|SND_SYNC|SND_NODEFAULT);
+// ReformANY Signature Audio / "Silk Glass".
+// All three cues are original, deterministic, fade-to-zero PCM. No sampled
+// copyrighted content, beeps, external assets or hidden telemetry. The open
+// cue has a restrained airy bloom and warm, non-metallic glass; the close cue
+// folds away softly. Hover is a 48ms silk-touch brush, not a high note.
+// These tones are intentionally quiet even at the maximum user volume.
+//
+// This synchronous function is called from Rust's spawn_blocking for a
+// finished close animation, and on a detached native thread for shake-open.
+// A real WAVE memory buffer stays alive through PlaySound(SND_SYNC).
+extern "C" void reformany_play_orbit_sound_sync(unsigned char kind,
+    decltype(0.0f) level) {
+    if(!(level>0.0f)||kind>2)return;
+    const auto volume=std::clamp(level,0.0f,1.0f);
+    constexpr unsigned int rate=44100;
+    const unsigned int milliseconds=kind==0?340:kind==1?235:48;
+    const unsigned int frames=rate*milliseconds/1000;
+    constexpr double pi=3.14159265358979323846;
+    std::vector<unsigned char> wav(44+frames*2,0);
+    const auto put16=[&wav](size_t p,unsigned int value){
+        wav[p]=static_cast<unsigned char>(value&255);
+        wav[p+1]=static_cast<unsigned char>((value>>8)&255);
+    };
+    const auto put32=[&wav](size_t p,unsigned int value){
+        for(unsigned int n=0;n<4;n++)
+            wav[p+n]=static_cast<unsigned char>((value>>(8*n))&255);
+    };
+    const auto four=[&wav](size_t p,const char* word){
+        for(int n=0;n<4;n++)wav[p+n]=static_cast<unsigned char>(word[n]);
+    };
+    four(0,"RIFF");put32(4,static_cast<unsigned int>(wav.size()-8));
+    four(8,"WAVE");four(12,"fmt ");put32(16,16);
+    put16(20,1);put16(22,1);put32(24,rate);put32(28,rate*2);
+    put16(32,2);put16(34,16);four(36,"data");put32(40,frames*2);
+
+    uint32_t seed=0x51a95e4du;
+    double lowNoise=0.0;
+    double mediumNoise=0.0;
+    double phase=0.0;
+    double overtone=0.0;
+    double last=0.0;
+    for(unsigned int i=0;i<frames;i++){
+        const double t=static_cast<double>(i)/rate;
+        const double position=static_cast<double>(i)/frames;
+        const double attack=std::min(1.0,t/(kind==2?0.0028:0.011));
+        const double release=std::pow(std::max(0.0,1.0-position),
+            kind==2?2.65:kind==0?2.05:2.5);
+        const double envelope=attack*release;
+        // Filtered fabric breath: two stages soften all noise transients.
+        seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;
+        const double white=(static_cast<double>(seed&0xffff)/32767.5)-1.0;
+        const double smooth=kind==2?0.20:0.095;
+        lowNoise+=(white-lowNoise)*smooth;
+        mediumNoise+=(lowNoise-mediumNoise)*(kind==2?0.37:0.16);
+        const double air=mediumNoise;
+        const double fadeIn=std::min(1.0,t/0.045);
+        const double base=kind==0
+            ? 290.0+70.0*std::min(1.0,t/0.12)
+            : kind==1 ? 348.0-115.0*position : 270.0;
+        phase+=2.0*pi*base/rate;
+        overtone+=2.0*pi*(base*1.497+2.5)/rate;
+        const double glass=std::sin(phase)
+            +0.33*std::sin(overtone)+0.14*std::sin(2.011*phase);
+        // After the breath, the soft glass bloom briefly becomes audible;
+        // hover deliberately has no high pitched note.
+        const double glassPart=kind==2?0.13:0.39*fadeIn;
+        const double airPart=kind==2?0.87:0.61;
+        const double formed=(airPart*air+glassPart*glass)*envelope;
+        // Remove accidental DC and cap peak at under -21dBFS.
+        const double highPassed=formed-last*0.995;
+        last=formed;
+        const double sample=std::clamp(highPassed*0.095*volume,
+            -0.088,0.088);
+        const int value=static_cast<int>(std::lround(sample*32767.0));
+        put16(44+2*i,static_cast<unsigned int>(static_cast<uint16_t>(value)));
+    }
+    PlaySoundW(reinterpret_cast<LPCWSTR>(wav.data()),nullptr,
+        SND_MEMORY|SND_SYNC|SND_NODEFAULT);
+}
+extern "C" void reformany_play_orbit_sound(unsigned char kind,
+    decltype(0.0f) volume) {
+    if(!(volume>0.0f)||kind>2)return;
+    std::thread([kind,volume](){
+        reformany_play_orbit_sound_sync(kind,volume);
     }).detach();
 }
-extern "C" unsigned int reformany_native_open_sound_duration_ms(){return 205;}
+extern "C" unsigned int reformany_native_open_sound_duration_ms(){return 340;}
+extern "C" unsigned int reformany_native_close_sound_duration_ms(){return 235;}
 
 extern "C" unsigned int reformany_native_primary_button_vk(int swapped){
     return swapped?VK_RBUTTON:VK_LBUTTON;
