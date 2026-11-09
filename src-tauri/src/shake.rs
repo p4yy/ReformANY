@@ -38,7 +38,12 @@ pub fn set_shake_settings(enabled:bool,sensitivity:u8)->Result<ShakeSettings,Str
     serde_json::to_writer(stage.as_file(),&settings).map_err(|e|e.to_string())?;
     stage.persist(path()).map_err(|e|format!("Cannot save gesture preferences: {}",e.error))?;
     #[cfg(windows)]{
-        if enabled {launch_listener()?;} else {unsafe{reformany_stop_shake_listener()}}
+        if enabled {
+            // Reload sensitivity in the running listener. Do not spawn a new
+            // process on every slider movement or cache stale settings.
+            let running=unsafe{reformany_reload_shake_listener()};
+            if !running { launch_listener()?; }
+        } else {unsafe{reformany_stop_shake_listener()}}
     }
     Ok(settings)
 }
@@ -145,13 +150,14 @@ impl Detector{
 #[cfg(windows)]
 static SENSOR:OnceLock<Mutex<Detector>>=OnceLock::new();
 #[cfg(windows)]
-static SETTINGS:OnceLock<ShakeSettings>=OnceLock::new();
+static SETTINGS:OnceLock<Mutex<ShakeSettings>>=OnceLock::new();
 
 #[cfg(windows)]
 extern "C"{
     fn reformany_win_shake_listen(tick:extern "C" fn(i32,i32,u32,bool,bool)->u8,
-        launch:extern "C" fn(*const u16));
+        launch:extern "C" fn(*const u16), reload:extern "C" fn());
     fn reformany_stop_shake_listener();
+    fn reformany_reload_shake_listener()->bool;
 }
 
 #[cfg(windows)]
@@ -161,7 +167,8 @@ extern "C"{
 /// once the user deliberately shakes. No selected-file fallback exists.
 #[cfg(windows)]
 extern "C" fn tick(x:i32,y:i32,time:u32,left:bool,eligible:bool)->u8 {
-    let config=SETTINGS.get_or_init(read_settings);
+    let config=SETTINGS.get_or_init(||Mutex::new(read_settings()));
+    let Ok(config)=config.try_lock() else{return 0;};
     if !config.enabled{return 0;}
     if let Ok(mut detector)=SENSOR.get_or_init(||Mutex::new(Detector::default())).try_lock(){
         if detector.sample(x,y,time,left,eligible,config.sensitivity) {
@@ -170,6 +177,18 @@ extern "C" fn tick(x:i32,y:i32,time:u32,left:bool,eligible:bool)->u8 {
             1
         } else { 0 }
     }else{0}
+}
+/// Invoked from the listener's own STA event loop, never from the global
+/// mouse callback. Disk I/O and detector reset are outside the hook.
+#[cfg(windows)]
+extern "C" fn reload_listener_settings(){
+    let updated=read_settings();
+    if let Some(current)=SETTINGS.get(){
+        if let Ok(mut config)=current.lock(){*config=updated;}
+    }
+    if let Some(detector)=SENSOR.get(){
+        if let Ok(mut detector)=detector.lock(){*detector=Detector::default();}
+    }
 }
 #[cfg(windows)]
 extern "C" fn open_orbit(wide:*const u16){
@@ -207,7 +226,7 @@ pub fn start_when_enabled(){}
 #[cfg(windows)]
 pub fn run_listener(){
     if !read_settings().enabled{return;}
-    unsafe{reformany_win_shake_listen(tick,open_orbit);}
+    unsafe{reformany_win_shake_listen(tick,open_orbit,reload_listener_settings);}
 }
 #[cfg(not(windows))]
 pub fn run_listener(){}
