@@ -167,13 +167,13 @@ fn layout(path:&str,encoded:Vec<String>,destination:Option<&str>)->Result<String
 #[tauri::command]
 pub async fn pdf_docx_editable(path:String,destination:Option<String>)->Result<String,String>{
     tauri::async_runtime::spawn_blocking(move||editable(&path,destination.as_deref()))
-        .await.map_err(|_|"Editable DOCX worker interrupted".into())?
+        .await.map_err(|_|"Editable DOCX worker interrupted".to_owned())?
 }
 #[tauri::command]
 pub async fn pdf_docx_layout(path:String,images:Vec<String>,destination:Option<String>)
     ->Result<String,String>{
     tauri::async_runtime::spawn_blocking(move||layout(&path,images,destination.as_deref()))
-        .await.map_err(|_|"Layout DOCX worker interrupted".into())?
+        .await.map_err(|_|"Layout DOCX worker interrupted".to_owned())?
 }
 #[cfg(test)]
 mod tests{
