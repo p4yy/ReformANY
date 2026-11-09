@@ -14,6 +14,7 @@ import { convertPdfToPageImages } from "./pdfPageRender";
 import PdfMarkDialog, {type PdfMark} from "./PdfMarkDialog";
 import PdfArrangeDialog, {type PageEdit} from "./PdfArrangeDialog";
 import PdfPasswordDialog, {type PdfPasswordRequest} from "./PdfPasswordDialog";
+import ShredDialog from "./ShredDialog";
 import OrbitNotice from "./OrbitNotice";
 import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
@@ -187,6 +188,9 @@ export default function Orbit() {
   const [pdfMarkMode, setPdfMarkMode] = useState<"watermark"|"signature"|null>(null);
   const [arrangingPages, setArrangingPages] = useState(false);
   const [pdfPasswording, setPdfPasswording] = useState(false);
+  const [shredding, setShredding] = useState(false);
+  const [shredBusy, setShredBusy] = useState(false);
+  const [shredError, setShredError] = useState<string|null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
@@ -647,6 +651,20 @@ export default function Orbit() {
     finally{setPdfBusy(false);}
   }
 
+  async function confirmShred(){
+    if(!file||shredBusy||!shredding)return;
+    setShredBusy(true);setShredError(null);setSelected("Shred");
+    setPhase("processing");setError(null);setOutput(null);
+    try{
+      const result=await invoke<{fileCount:number;directories:number}>("shred_confirm",{
+        path:file.path,confirmation:"SHRED",
+      });
+      setFile(null);setShredding(false);setPhase("completed");
+      setNote("Permanently deleted "+result.fileCount+" files and "+result.directories+" folders. Secure erasure is not guaranteed on SSDs or cloud storage.");
+    }catch(e){setShredError(String(e));setPhase("ready");}
+    finally{setShredBusy(false);}
+  }
+
   async function joinParts() {
     if (!file || !file.name.endsWith(".reformany.parts.json")) return;
     setPhase("processing"); setSelected("Join"); setError(null); setNote(null); setOutput(null);
@@ -834,6 +852,9 @@ export default function Orbit() {
     : file && !file.error ? [
       { label: isFolder ? "Open folder" : kind === "shortcut" ? "Show shortcut" : "Show file",
         run: () => void act("folder") },
+      ...(kind !== "shortcut" && kind !== "application" ? [{
+        label: "Shred", danger: true, run: () => {setShredError(null);setShredding(true);},
+      }] : []),
       ...(!isFolder ? [
         { label: kind === "shortcut" ? "Copy shortcut" : "Copy file", run: () => void act("copyFile") },
         ...(kind !== "shortcut" && kind !== "application"
@@ -885,8 +906,9 @@ export default function Orbit() {
             <CheckCircle2 size={27} className="orbit-done-icon" aria-hidden="true" />
             <strong>Done</strong>
             <span className="orbit-hub-subtitle" title={output || ""}>{output?.split(/[\\/]/).pop()}</span>
-            <button className="orbit-hub-close" onClick={() => void reveal()}>Show result</button>
-            <button className="orbit-hub-close" onClick={() => {setPhase("ready"); setError(null);}}>Again</button>
+            {selected!=="Shred" && <button className="orbit-hub-close" onClick={() => void reveal()}>Show result</button>}
+            {selected==="Shred" && <span className="orbit-hub-subtitle">Permanently deleted</span>}
+            <button className="orbit-hub-close" onClick={() => {if(selected==="Shred")void close();else {setPhase("ready"); setError(null);}}}>{selected==="Shred"?"Close":"Again"}</button>
           </> : <>
             <img className="orbit-logo" src={appIcon} alt="ReformANY" />
             <strong>{tab === "convert" ? "Convert" : tab === "tools" ? "Tools" : "Actions"}</strong>
@@ -925,6 +947,9 @@ export default function Orbit() {
       {(error || note) && <OrbitNotice key={error || note}
         message={error || note || ""} error={Boolean(error)}
         onDismiss={() => { setError(null);setNote(null); }}/>}
+      {shredding && file && <ShredDialog path={file.path} name={file.name}
+        busy={shredBusy} error={shredError} onDelete={()=>void confirmShred()}
+        onClose={()=>{if(!shredBusy){setShredding(false);setShredError(null);}}}/>}
       {pdfPasswording && file && <PdfPasswordDialog name={file.name} working={pdfBusy}
         error={pdfError} onSave={request=>void applyPdfPassword(request)}
         onClose={()=>{if(!pdfBusy){setPdfPasswording(false);setPdfError(null);}}}/>}
