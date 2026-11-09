@@ -68,6 +68,7 @@ impl Default for OrbitSoundSettings{
     fn default()->Self{Self{enabled:true,volume:65}}
 }
 fn orbit_sound_path()->PathBuf{crate::job_settings::directory().join("orbit-audio.json")}
+#[cfg(windows)]
 fn read_orbit_sound_settings()->OrbitSoundSettings{
     fs::read(orbit_sound_path()).ok()
         .and_then(|data|serde_json::from_slice::<OrbitSoundSettings>(&data).ok())
