@@ -248,6 +248,19 @@ fn flatten(image: &DynamicImage, dark: bool) -> RgbImage {
     })
 }
 
+/// Dedicated native watcher entry point. Reuses the exact same validated,
+/// collision-safe image writer as a manual conversion.
+pub(crate) fn convert_watched_image(path:&Path,target:&str,destination:Option<&str>)
+    ->Result<PathBuf,String>
+{
+    let item=ConversionItem{
+        id:Uuid::new_v4().to_string(),path:path.to_string_lossy().into_owned(),
+        target:target.into(),quality:86,matte:"white".into(),
+        options:TransformOptions::default(),
+    };
+    convert_one(&item,destination,&AtomicBool::new(false))
+}
+
 fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &AtomicBool) -> Result<PathBuf, String> {
     if cancelled.load(Ordering::Relaxed) {
         return Err("cancelled".into());
