@@ -132,7 +132,7 @@ export default function OrbitActionDialog({
           {value.length >= 8 && !confirm && <p className="orbit-dialog-hint" role="status">Confirm the password to enable Create ZIP.</p>}
           {confirm && value !== confirm && <p className="orbit-dialog-error" role="status">Passwords do not match. Re-enter confirmation.</p>}
           {value.length >= 8 && value === confirm && <p className="orbit-dialog-hint" role="status">Passwords match · Ready to create encrypted ZIP.</p>}
-          <p className="orbit-dialog-hint">AES-256 encrypted ZIP. If you selected an existing archive, it will be stored inside the new ZIP, not modified in place. Use 7-Zip to extract; Windows Explorer may not support AES. Password is not stored.</p>
+          <p className="orbit-dialog-hint">AES-256 encrypted ZIP. Existing ZIP members are re-encrypted without nesting the original ZIP. Windows File Explorer cannot extract AES-encrypted archives; use ReformANY Archives → Extract or 7-Zip. The original file stays unchanged and the password is not saved.</p>
         </>}
         {error && <p className="orbit-dialog-error" role="alert">{error}</p>}
         <div className="orbit-dialog-footer">
