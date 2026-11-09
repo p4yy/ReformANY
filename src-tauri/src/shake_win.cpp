@@ -119,9 +119,10 @@ bool selected_from_browser(IShellBrowser* browser,HWND source){
     bool launched=false;
     const HDROP files=reinterpret_cast<HDROP>(medium.hGlobal);
     const UINT count=DragQueryFileW(files,0xFFFFFFFF,nullptr,0);
-    // Never guess non-filesystem shell names. Avoid multiple Orbit instances:
-    // batch gestures need a distinct selected-files workflow before release.
-    if(count>=1&&count<=128){
+    // Do not silently open just the first file from a multi-selection.
+    // Batch gestures need their own verified batch workflow; until then a
+    // multi-file drag must remain an ordinary Explorer drag/drop.
+    if(count==1){
         const UINT needed=DragQueryFileW(files,0,nullptr,0);
         if(needed>0&&needed<32760){
             std::vector<wchar_t> path(static_cast<size_t>(needed)+1,0);
