@@ -13,6 +13,7 @@ import "./product-ui.css";
 import "./desktop-polish.css";
 import "./orbit-finish.css";
 import "./orbit-reference.css";
+import "./desktop-sidebar.css";
 
 const label = isTauri() ? getCurrentWindow().label : "main";
 const orbit = label === "orbit";
