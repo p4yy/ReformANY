@@ -66,3 +66,18 @@ html[data-mode="float"],html[data-mode="float"] body,html[data-mode="float"] #ro
 .float-audio,.float-unavailable{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;text-align:center;padding:18px;box-sizing:border-box}
 .float-audio audio{width:100%;max-width:290px}
 .float-unavailable span{max-width:240px;font-size:12px;line-height:1.4;color:var(--float-muted)}
+
+/* Frameless Float. QR stays in normal flow and each control remains reachable. */
+.float-shell{overflow:hidden}
+.float-topbar{user-select:none;-webkit-user-select:none;cursor:move}
+.float-topbar button{cursor:pointer}
+.float-topbar button[aria-pressed="true"]{color:#d8e8af}
+.float-qr-content{min-height:0;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto}
+.float-qr-image{flex:none;align-self:center;width:min(100%,185px);max-width:185px;min-height:0;height:auto;padding:8px 0}
+.float-qr-image img{display:block;width:100%;height:auto;max-height:185px;aspect-ratio:1;object-fit:contain}
+.float-qr-content small{position:relative;flex:none;display:block;white-space:normal;overflow-wrap:anywhere}
+.float-content,.float-qr-content,.float-shell{scrollbar-width:thin;scrollbar-color:rgba(178,192,142,.35) transparent}
+.float-content::-webkit-scrollbar,.float-qr-content::-webkit-scrollbar{width:5px}
+.float-content::-webkit-scrollbar-thumb,.float-qr-content::-webkit-scrollbar-thumb{background:rgba(178,192,142,.32);border-radius:9px}
+.float-actions{flex-shrink:0}
+@media (max-height:480px){.float-qr-image{max-width:125px}.float-qr-image img{max-height:125px}.float-content{overflow-y:auto}}
