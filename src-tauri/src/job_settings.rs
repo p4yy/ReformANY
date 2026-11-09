@@ -4,7 +4,7 @@ use std::{env,fs,path::PathBuf};
 #[derive(Debug,Clone,Serialize,Deserialize)]
 #[serde(rename_all="camelCase")]
 pub struct QueuePolicy{mode:String}
-fn directory()->PathBuf{
+pub(crate) fn directory()->PathBuf{
     env::var_os("LOCALAPPDATA").map(PathBuf::from)
       .or_else(||env::var_os("HOME").map(|p|PathBuf::from(p).join(".config")))
       .unwrap_or_else(env::temp_dir).join("ReformANY")
