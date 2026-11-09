@@ -201,7 +201,7 @@ try {
       await sleep(120);
     }
     if(!actualSource)throw Error("Welcome launched Orbit without the chosen file");
-    await evaluate(orbitSocket,'window.__TAURI_INTERNALS__.invoke("orbit_open_workspace")');
+    await evaluate(orbitSocket,'(() => { void window.__TAURI_INTERNALS__.invoke("orbit_open_workspace"); return true; })()');
     await sleep(250);
     console.log("PASS: Welcome wheel layout, keyboard/click controls, sample feedback and real picked-file Orbit launch.");
     await evaluate(mainSocket,
