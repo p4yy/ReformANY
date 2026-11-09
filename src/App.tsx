@@ -15,7 +15,7 @@ import DataToolsPanel from "./DataToolsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
 import { getOrbitSoundsEnabled, setOrbitSoundsEnabled, getOrbitVolume, setOrbitVolume, previewOrbitSound } from "./orbitAudio";
-import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePreferences } from "./orbitMousePreferences";
+import { readOrbitMousePreferences, saveOrbitMousePreferences, shortcutFromKeyboard, validateShortcut, DEFAULT_SHORTCUTS, type OrbitMousePreferences, type OrbitSection } from "./orbitMousePreferences";
 import DesktopChrome, { isWorkspacePage as isWorkspaceSection, isPreferencesPage as isPreferencesSection, type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
 import ThemePicker from "./ThemePicker";
@@ -155,6 +155,8 @@ function App() {
   const [orbitSounds, setOrbitSounds] = useState(getOrbitSoundsEnabled);
   const [orbitVolume, setSavedOrbitVolume] = useState(getOrbitVolume);
   const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
+  const [shortcutEditing, setShortcutEditing] = useState<OrbitSection|null>(null);
+  const [shortcutError, setShortcutError] = useState<string|null>(null);
   function updateOrbitMouse(changes: Partial<OrbitMousePreferences>) {
     setOrbitMouse(current => {
       const next = { ...current, ...changes };
@@ -533,20 +535,44 @@ function App() {
             <h2>Orbit mouse control</h2>
             <p>Customize the compact wheel. These controls work inside Orbit and never intercept Windows Explorer input.</p>
             <div className="orbit-mouse-preferences">
-              <label className="orbit-mouse-setting">
-                <span><strong>Open on</strong><small>Choose the section Orbit displays first.</small></span>
-                <select aria-label="Starting Orbit section" value={orbitMouse.firstSection}
-                  onChange={event => updateOrbitMouse({ firstSection: event.target.value as OrbitMousePreferences["firstSection"] })}>
-                  <option value="convert">Convert</option>
-                  <option value="tools">Tools</option>
-                  <option value="actions">Actions</option>
-                </select>
-              </label>
+              <div className="orbit-mouse-setting">
+                <span><strong>Starting section</strong><small>Always opens on Convert with available formats.</small></span>
+                <strong>Convert</strong>
+              </div>
               <label className="orbit-mouse-setting">
                 <span><strong>Scroll between sections</strong><small>Use the mouse wheel over Orbit to move between Convert, Tools and Actions.</small></span>
                 <input type="checkbox" checked={orbitMouse.scrollSections}
                   onChange={event => updateOrbitMouse({ scrollSections: event.target.checked })}/>
               </label>
+              <div className="orbit-mouse-setting">
+                <span><strong>Section shortcuts</strong><small>Choose your own shortcuts while Orbit is open. Click a key to rebind.</small></span>
+              </div>
+              {(["convert","tools","actions"] as OrbitSection[]).map(section=><div className="orbit-mouse-setting" key={section}>
+                <span><strong>{section[0].toUpperCase()+section.slice(1)}</strong><small>Switches Orbit tab only; never runs a file action.</small></span>
+                <button type="button" className="button subtle"
+                  aria-label={`Change ${section} shortcut`}
+                  onClick={()=>{setShortcutError(null);setShortcutEditing(section);}}>
+                  {shortcutEditing===section?"Press keys…":orbitMouse.shortcuts[section]}
+                </button>
+              </div>)}
+              {shortcutEditing&&<input autoFocus readOnly aria-label="Press new shortcut"
+                placeholder="Press a modifier or a modified letter"
+                onKeyDown={event=>{
+                  event.preventDefault();event.stopPropagation();
+                  if(event.key==="Escape"){setShortcutEditing(null);return;}
+                  const next=shortcutFromKeyboard(event.nativeEvent);
+                  if(!next){setShortcutError("Choose Shift, Ctrl, Alt or a modified letter, digit or F-key.");return;}
+                  const problem=validateShortcut(next,orbitMouse.shortcuts,shortcutEditing);
+                  if(problem){setShortcutError(problem);return;}
+                  updateOrbitMouse({shortcuts:{...orbitMouse.shortcuts,[shortcutEditing]:next}});
+                  setShortcutEditing(null);setShortcutError(null);
+                }}/>}
+              {shortcutError&&<p role="alert" className="orbit-dialog-error">{shortcutError}</p>}
+              <button type="button" className="button secondary" onClick={()=>{
+                updateOrbitMouse({shortcuts:{...DEFAULT_SHORTCUTS}});
+                setShortcutEditing(null);setShortcutError(null);
+              }}>Reset section shortcuts</button>
+              <p>Hold-and-shake in Explorer is not enabled: native file-drag integration and desktop QA remain required.</p>
               <label className="orbit-mouse-setting">
                 <span><strong>Pointer loading ring</strong><small>Show a small progress indicator beside the cursor while Orbit is processing.</small></span>
                 <input type="checkbox" checked={orbitMouse.pointerSpinner}
