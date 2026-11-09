@@ -16,10 +16,11 @@ static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 pub struct OrbitLaunch {
     path: Option<PathBuf>,
     initial_tab: Option<String>,
+    from_shake: bool,
 }
 impl OrbitLaunch {
-    pub fn new_with_tab(path: Option<PathBuf>, initial_tab: Option<String>) -> Self {
-        Self { path, initial_tab }
+    pub fn new_with_tab(path: Option<PathBuf>, initial_tab: Option<String>, from_shake: bool) -> Self {
+        Self { path, initial_tab, from_shake }
     }
 }
 
@@ -31,7 +32,7 @@ pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<Path
         return None;
     }
     if args.len()==3 && !matches!(args[2].to_str(),
-        Some("--tab=convert"|"--tab=tools"|"--tab=actions")) {
+        Some("--tab=convert"|"--tab=tools"|"--tab=actions"|"--from-shake")) {
         return None;
     }
     let path = PathBuf::from(&args[1]);
@@ -47,6 +48,12 @@ pub fn parse_orbit_tab(args: impl IntoIterator<Item = OsString>) -> Option<Strin
     args.get(2).and_then(|argument|argument.to_str())
         .and_then(|argument|argument.strip_prefix("--tab="))
         .map(str::to_owned)
+}
+
+pub fn parse_orbit_from_shake(args: impl IntoIterator<Item = OsString>) -> bool {
+    let args: Vec<_> = args.into_iter().collect();
+    parse_orbit_args(args.iter().cloned()).is_some()
+        && args.get(2).and_then(|argument|argument.to_str())==Some("--from-shake")
 }
 
 #[derive(Serialize)]
@@ -134,6 +141,10 @@ pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
 #[tauri::command]
 pub fn orbit_initial_tab(state: State<'_, OrbitLaunch>) -> Option<String> {
     state.initial_tab.clone()
+}
+#[tauri::command]
+pub fn orbit_was_shaken(state: State<'_, OrbitLaunch>) -> bool {
+    state.from_shake
 }
 
 #[tauri::command]
@@ -313,6 +324,9 @@ mod tests {
         assert_eq!(parse_orbit_args(valid.clone()),Some(PathBuf::from("test.pdf")));
         assert_eq!(parse_orbit_tab(valid),Some("tools".to_owned()));
         assert!(parse_orbit_args(["orbit","test.pdf","--tab=shred"].map(OsString::from)).is_none());
+        let shake=["orbit","test.pdf","--from-shake"].map(OsString::from);
+        assert!(parse_orbit_from_shake(shake.clone()));
+        assert_eq!(parse_orbit_tab(shake),None);
         assert!(parse_orbit_args(["orbit","test.pdf","--tab=actions","extra"].map(OsString::from)).is_none());
     }
     use super::*;
