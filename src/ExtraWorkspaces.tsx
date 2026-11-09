@@ -380,10 +380,11 @@ export function ArchivePanel() {
   </div>;
 }
 
-type DocumentTask = "images" | "text" | "office" | "split";
+type DocumentTask = "images" | "text" | "txt" | "office" | "split";
 
 export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => void }) {
   const [mode, setMode] = useState<DocumentTask>("images");
+  const [textTarget, setTextTarget] = useState("docx");
   const [sources, setSources] = useState<string[]>([]);
   const [destination, setDestination] = useState<string | null>(null);
   const [office, setOffice] = useState(false);
@@ -414,6 +415,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
       const type = mode === "images"
         ? [{ name: "Raster images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }]
         : mode === "text" || mode === "split" ? [{ name: "PDF documents", extensions: ["pdf"] }]
+        : mode === "txt" ? [{ name: "Plain text", extensions: ["txt"] }]
         : [{ name: "Office documents", extensions: ["docx", "doc", "rtf", "odt", "pptx", "ppt", "odp", "xlsx", "xls", "ods", "txt", "html", "htm"] }];
       const response: unknown = await open({ multiple: mode === "images", directory: false, filters: type });
       const paths: string[] = Array.isArray(response) ? response.filter((p): p is string => typeof p === "string")
@@ -452,6 +454,12 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
         if (files.oversizedPages.length) {
           setSplitWarning("These individual pages exceed the target size: " + files.oversizedPages.join(", "));
         }
+      } else if (mode === "txt") {
+        const outputs = await invoke<string[]>("text_convert", {
+          path: sources[0], target: textTarget, destination: outputDestination,
+        });
+        if (!outputs.length) throw new Error("TXT conversion produced no document");
+        setResult(outputs[0]);
       } else {
         const path = mode === "images"
           ? await invoke<string>("images_to_pdf", { paths: sources, destination: outputDestination })
@@ -470,6 +478,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     <div className="engine-switch engine-switch-three">
       <button className={mode === "images" ? "selected" : ""} onClick={() => changeMode("images")}>Images → PDF</button>
       <button className={mode === "text" ? "selected" : ""} onClick={() => changeMode("text")}>PDF → Text</button>
+      <button className={mode === "txt" ? "selected" : ""} onClick={() => changeMode("txt")}>TXT → Formats</button>
       <button className={mode === "office" ? "selected" : ""} onClick={() => changeMode("office")}>Office → PDF</button>
       <button className={mode === "split" ? "selected" : ""} onClick={() => changeMode("split")}>Split PDF</button>
     </div>
@@ -482,6 +491,16 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
           <small>{sources.length ? sources.join(" · ") : "Only the formats supported by this operation are accepted."}</small>
         </span><Plus size={17}/>
       </button>
+      {mode === "txt" && <div className="engine-directory">
+        <label htmlFor="txt-convert-target">Convert TXT to</label>
+        <select id="txt-convert-target" value={textTarget} disabled={busy}
+          onChange={event => setTextTarget(event.target.value)}>
+          {[["docx","Word document (DOCX)"],["rtf","Rich Text (RTF)"],
+            ["odt","OpenDocument (ODT)"],["html","HTML"],["md","Markdown"],
+            ["epub","EPUB e-book"]].map(([key,label]) =>
+            <option value={key} key={key}>{label}</option>)}
+        </select>
+      </div>}
       <div className="engine-directory">
         <div><strong>Output location</strong><small>{destination || "Alongside the source file"}</small></div>
         {destination && <button className="text-action" onClick={() => setDestination(null)}>Reset</button>}
@@ -502,8 +521,9 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
       <input id="document-split-value" type="number" min={splitMode === "parts" ? 2 : 1} max={4096} step={1} value={splitValue} onChange={event => setSplitValue(event.target.value)}/></div>
     </div>}
     <div className="engine-action-row">
-      <div><strong>{mode === "office" ? office ? "LibreOffice available" : "LibreOffice is required" : "Local PDF tools"}</strong>
-        <small>{mode === "text" ? "Extract selectable PDF text. Scans require separate OCR."
+      <div><strong>{mode === "office" ? office ? "LibreOffice available" : "LibreOffice is required" : mode === "txt" ? "Offline TXT converter ready" : "Local PDF tools"}</strong>
+        <small>{mode === "txt" ? "Creates real documents from Unicode TXT, without external engines."
+          : mode === "text" ? "Extract selectable PDF text. Scans require separate OCR."
           : mode === "images" ? "One page per image · A4 layout"
           : mode === "split" ? "Each part is a valid PDF. Size splitting respects page boundaries."
           : "Document layout fidelity depends on LibreOffice."}</small>
