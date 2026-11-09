@@ -409,8 +409,9 @@ pub async fn convert_batch(
     let flags = cancelled.clone();
 
     // The registry is cleaned up by a finishing event handler below; no unbounded worker pool.
+    let workers=if crate::job_settings::current_mode()=="sequential"{1}else{MAX_WORKERS};
     tauri::async_runtime::spawn(async move {
-        let semaphore = Arc::new(Semaphore::new(MAX_WORKERS));
+        let semaphore = Arc::new(Semaphore::new(workers));
         let mut handles = Vec::new();
         for item in files {
             let app = app_for_job.clone();
