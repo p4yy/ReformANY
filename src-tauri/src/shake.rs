@@ -88,7 +88,10 @@ impl Detector{
         }
         let dx=x.saturating_sub(self.last.0);
         let dy=y.saturating_sub(self.last.1);
-        self.last=(x,y);
+        // Preserve sub-threshold pointer motion until it reaches a deliberate
+        // step. High-polling-rate mice otherwise produce only tiny WM_MOUSEMOVE
+        // deltas and a real shake is never recognized.
+        if self.phase==Phase::Hold { self.last=(x,y); }
         match self.phase {
             Phase::Hold=>{
                 // Evaluate hold age before the first deliberate move. A user
@@ -116,6 +119,7 @@ impl Detector{
                 let axis=absx>=absy;
                 let delta=if axis{dx}else{dy};
                 if delta.unsigned_abs()<(step as u32){return false;}
+                self.last=(x,y);
                 self.travel=self.travel.saturating_add(delta.unsigned_abs());
                 let sign=if delta>0{1}else{-1};
                 if let Some((last_axis,last_sign))=self.last_axis{
@@ -234,6 +238,25 @@ mod tests{
             triggered |= sample(&mut detector,*x,250,468+index as u32*25,true);
         }
         assert!(triggered,"Stationary hold followed by rapid shake should open Orbit");
+    }
+    #[test]
+    fn high_polling_rate_mouse_accumulates_small_movements(){
+        let mut d=Detector::default();
+        assert!(!sample(&mut d,400,400,0,true));
+        assert!(!sample(&mut d,400,400,350,true));
+        let mut triggered=false;
+        let mut t=360;
+        for target in [420,380,422,378,424,376] {
+            let start=d.last.0;
+            let direction=if target>start {1} else {-1};
+            let mut x=start;
+            while x!=target {
+                x+=direction;
+                triggered |= sample(&mut d,x,400,t,true);
+                t+=2;
+            }
+        }
+        assert!(triggered,"1px pointer events must accumulate into shake steps");
     }
     #[test]
     fn steady_drag_jitter_and_non_shell_events_never_trigger(){
