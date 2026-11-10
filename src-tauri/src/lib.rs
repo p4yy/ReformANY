@@ -31,6 +31,7 @@ mod pdf_docx;
 mod qr;
 mod text_convert;
 mod ui_bridge;
+mod system_volume;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_set_context, orbit_open_workspace, orbit_launch_file, orbit_initial_tab, orbit_was_shaken, orbit_preview, reveal_output, OrbitLaunch};
@@ -64,7 +65,27 @@ use auto_convert::{WatchRegistry,get_watch_rules,add_watch_rule,remove_watch_rul
 use shake::{get_shake_settings,set_shake_settings};
 use pdf_docx::{pdf_docx_editable,pdf_docx_layout};
 use qr::{qr_svg, qr_save_svg};
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// A main-window UI preference. Never intercept Orbit or tool window closes.
+struct CloseToTray(AtomicBool);
+
+#[tauri::command]
+fn set_close_to_tray(enabled: bool, state: tauri::State<'_, CloseToTray>) {
+    state.0.store(enabled, Ordering::Release);
+}
+
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 
 
 /** Separate transparent native tool window. The file remains in OrbitLaunch's
@@ -121,6 +142,7 @@ pub fn run() {
         .manage(WatchRegistry::default())
         .manage(OrbitLaunch::new_with_tab(orbit_path, orbit_tab, from_shake))
         .manage(HoveRRegistry::default())
+        .manage(CloseToTray(AtomicBool::new(true)))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             inspect_files,
@@ -189,6 +211,9 @@ pub fn run() {
             remove_watch_rule,
             get_shake_settings,
             set_shake_settings,
+            set_close_to_tray,
+            system_volume::get_system_volume,
+            system_volume::set_system_volume,
             pdf_docx_editable,
             pdf_docx_layout,
             qr_svg,
@@ -232,8 +257,40 @@ pub fn run() {
                 .shadow(false)
                 .center()
                 .build()?;
+                if let Some(icon) = app.default_window_icon().cloned() {
+                    let show = MenuItem::with_id(app, "show", "Open ReformANY", true, None::<&str>)?;
+                    let quit = MenuItem::with_id(app, "quit", "Quit ReformANY", true, None::<&str>)?;
+                    let menu = Menu::with_items(app, &[&show, &quit])?;
+                    TrayIconBuilder::new()
+                        .icon(icon)
+                        .tooltip("ReformANY — running locally")
+                        .menu(&menu)
+                        .show_menu_on_left_click(false)
+                        .on_menu_event(|app, event| {
+                            if event.id().as_ref() == "show" { show_main(app); }
+                            if event.id().as_ref() == "quit" { app.exit(0); }
+                        })
+                        .on_tray_icon_event(|tray, event| {
+                            if let TrayIconEvent::Click {
+                                button: MouseButton::Left,
+                                button_state: MouseButtonState::Up, ..
+                            } = event {
+                                show_main(tray.app_handle());
+                            }
+                        })
+                        .build(app)?;
+                }
             }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() != "main" { return; }
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.app_handle().state::<CloseToTray>().0.load(Ordering::Acquire) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .run(tauri::generate_context!())
         .expect("ReformANY failed to start");
