@@ -19,7 +19,19 @@ export function TitleBar({
   const [max, setMax] = useState(false);
   const { settings, update } = useSettings();
   useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    if (isTauri) {
+      void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+        const current = getCurrentWindow();
+        const sync = () => void current.isMaximized().then(value => { if (active) setMax(value); }).catch(() => {});
+        sync();
+        return current.onResized(sync);
+      }).then(dispose => { if (active) unlisten = dispose; else dispose(); }).catch(() => {});
+      return () => { active = false; unlisten?.(); };
+    }
     const sync = () => setMax(!!document.fullscreenElement);
+    sync();
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
