@@ -234,17 +234,24 @@ try {
         sectors:document.querySelectorAll(".orbit-wedge[role=button]").length,
         source:document.querySelector(".orbit-hub strong")?.textContent||"",
         demoHidden:!demo||getComputedStyle(demo).display==="none",
-        rootTransparent:getComputedStyle(document.body).backgroundColor==="rgba(0, 0, 0, 0)"};
+        rootTransparent:getComputedStyle(document.body).backgroundColor==="rgba(0, 0, 0, 0)",
+        actionsVisible:getComputedStyle(document.querySelector(".orbit-section-tabs")).display!=="none",
+        actionButtons:document.querySelectorAll(".orbit-section-tabs button").length,
+        actionsInsideViewport:(()=>{
+          const box=document.querySelector(".orbit-section-tabs")?.getBoundingClientRect();
+          return !!box&&box.left>=0&&box.right<=innerWidth&&box.bottom<=innerHeight;
+        })()};
     })()`);
     if(wheel.native&&wheel.disc&&wheel.sectors>=4&&wheel.source.includes("icon"))break;
     await sleep(230);
   }
   if(!wheel.native||!wheel.disc||wheel.sectors<4||!wheel.source.includes("icon")||
-    !wheel.demoHidden||!wheel.rootTransparent||Math.abs(wheel.width-520)>8)
+    !wheel.demoHidden||!wheel.rootTransparent||Math.abs(wheel.width-520)>8||
+    !wheel.actionsVisible||wheel.actionButtons!==3||!wheel.actionsInsideViewport)
     throw Error("Native Orbit is not a clean source-aware floating circle: "+JSON.stringify(wheel));
   await screenshot(orbitSocket,"04-circular-orbit.png").catch(error=>console.warn("Orbit screenshot unavailable",String(error)));
-  // Orbit tools run in their own Tauri windows, not React overlays behind
-  // the wheel. Verify one panel has exactly one frame and a transparent host.
+  // Orbit tools run in their own opaque Tauri windows, not a transparent
+  // backing WebView that renders a ghost rectangle around the panel.
   await evaluate(orbitSocket,'window.__TAURI_INTERNALS__.invoke("orbit_open_panel",{kind:"rename"})');
   let panelTarget=null;
   for(let attempt=0;attempt<55;attempt++){
@@ -263,13 +270,19 @@ try {
       count:document.querySelectorAll(".orbit-dialog[role=dialog]").length,
       title:document.querySelector(".orbit-dialog h2")?.textContent||"",
       draggable:!!document.querySelector(".orbit-dialog-titlebar"),
-      clear: getComputedStyle(document.querySelector(".orbit-dialog-backdrop")||document.body).backgroundColor==="rgba(0, 0, 0, 0)"
+      fullscreen:!!document.querySelector('button[aria-label="Fullscreen"]'),
+      backdrop:getComputedStyle(document.querySelector(".orbit-dialog-backdrop")||document.body).backgroundColor,
+      panelBackground:getComputedStyle(document.querySelector(".orbit-dialog")||document.body).backgroundColor,
+      shadow:getComputedStyle(document.querySelector(".orbit-dialog")||document.body).boxShadow
     }))()`);
     if(panelState.native&&panelState.count===1&&panelState.title==="Rename")break;
     await sleep(150);
   }
   if(!panelState.native||panelState.count!==1||panelState.title!=="Rename"||
-      !panelState.draggable||!panelState.clear)
+      !panelState.draggable||!panelState.fullscreen||
+      panelState.backdrop!=="rgb(26, 30, 21)"||
+      panelState.panelBackground!=="rgb(26, 30, 21)"||
+      panelState.shadow!=="none")
     throw Error("Orbit tool has a duplicate backdrop, missing drag handle or is not a separate panel: "+JSON.stringify(panelState));
   await screenshot(panelSocket,"05-independent-orbit-panel.png").catch(error=>console.warn("Orbit panel screenshot unavailable",String(error)));
   await evaluate(panelSocket,'document.querySelector("button[aria-label=\\\"Close\\\"]").click();true');
