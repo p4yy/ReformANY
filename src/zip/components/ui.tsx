@@ -16,17 +16,11 @@ import { useSettings, type Settings } from "../lib/settings";
 import { cx, downloadBlob, extOf, familyOf, formatBytes, sleep } from "../lib/util";
 import { NAV, type PageId } from "../shell/nav";
 import { toast } from "./Toasts";
+import ReformanyMark from "../../components/ReformanyMark";
 
 /* ───────────── Brand marks ───────────── */
 export function LogoMark({ size = 20, tile = false, ...rest }: { size?: number; tile?: boolean } & SVGProps<SVGSVGElement>) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" {...rest}>
-      {tile && <rect width="32" height="32" rx="9" fill="#4E8F72" />}
-      <path d="M22.4 20.6A7.8 7.8 0 1 1 23.6 14" stroke="#E1E6D9" strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="23.6" cy="17.6" r="1.9" fill="#B4C99F" />
-      <circle cx="16" cy="16" r="2.6" fill="#E1E6D9" />
-    </svg>
-  );
+  return <ReformanyMark size={size} tile={tile} {...rest} />;
 }
 
 /** Mouse-shake glyph shown beside the hold-and-shake setting. */
