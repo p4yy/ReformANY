@@ -201,7 +201,7 @@ export function OrbitHUD({
     if (!closingRef.current) onPick(item, shown);
   };
 
-  const typeLabel = context.kind === "folder" ? "Folder" : context.ext.charAt(0).toUpperCase() + context.ext.slice(1);
+  const typeLabel = context.kind === "folder" ? "Folder" : (context.ext || context.kind).toUpperCase();
   const sizeLabel = context.kind === "folder" ? `${context.items ?? 0} items` : formatBytes(context.size);
 
   return (
