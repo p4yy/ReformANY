@@ -226,6 +226,42 @@ try {
     !wheel.demoHidden||!wheel.rootTransparent||Math.abs(wheel.width-520)>8)
     throw Error("Native Orbit is not a clean source-aware floating circle: "+JSON.stringify(wheel));
   await screenshot(orbitSocket,"04-circular-orbit.png").catch(error=>console.warn("Orbit screenshot unavailable",String(error)));
+  // Orbit tools run in their own Tauri windows, not React overlays behind
+  // the wheel. Verify one panel has exactly one frame and a transparent host.
+  await evaluate(orbitSocket,'window.__TAURI_INTERNALS__.invoke("orbit_open_panel",{kind:"rename"})');
+  let panelTarget=null;
+  for(let attempt=0;attempt<55;attempt++){
+    const list=await targets().catch(()=>[]);
+    panelTarget=list.find(item=>item.type==="page"&&item.id!==main.id&&item.id!==orbitTarget.id&&
+      (item.url.includes("tauri.localhost")||item.url.startsWith("tauri://")));
+    if(panelTarget)break;
+    await sleep(200);
+  }
+  if(!panelTarget)throw Error("Orbit rename tool did not open an independent WebView.");
+  const panelSocket=await connect(panelTarget);
+  let panelState;
+  for(let attempt=0;attempt<35;attempt++){
+    panelState=await evaluate(panelSocket,`(() => ({
+      native:document.documentElement.classList.contains("reformany-panel-window"),
+      count:document.querySelectorAll(".orbit-dialog[role=dialog]").length,
+      title:document.querySelector(".orbit-dialog h2")?.textContent||"",
+      draggable:!!document.querySelector(".orbit-dialog-titlebar"),
+      clear: getComputedStyle(document.querySelector(".orbit-dialog-backdrop")||document.body).backgroundColor==="rgba(0, 0, 0, 0)"
+    }))()`);
+    if(panelState.native&&panelState.count===1&&panelState.title==="Rename")break;
+    await sleep(150);
+  }
+  if(!panelState.native||panelState.count!==1||panelState.title!=="Rename"||
+      !panelState.draggable||!panelState.clear)
+    throw Error("Orbit tool has a duplicate backdrop, missing drag handle or is not a separate panel: "+JSON.stringify(panelState));
+  await screenshot(panelSocket,"05-independent-orbit-panel.png").catch(error=>console.warn("Orbit panel screenshot unavailable",String(error)));
+  await evaluate(panelSocket,'document.querySelector("button[aria-label=\\\"Close\\\"]").click();true');
+  let panelClosed=false;
+  for(let attempt=0;attempt<40;attempt++){
+    await sleep(160);
+    if(!(await targets().catch(()=>[])).some(item=>item.id===panelTarget.id)){panelClosed=true;break;}
+  }
+  if(!panelClosed)throw Error("Closing an Orbit tool left an invisible secondary native window.");
   await evaluate(orbitSocket,'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));true');
   let closed=false;
   for(let attempt=0;attempt<40;attempt++){
