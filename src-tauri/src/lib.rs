@@ -32,6 +32,7 @@ mod qr;
 mod text_convert;
 mod ui_bridge;
 mod system_volume;
+mod portable_shell;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
 use orbit::{image_thumbnail, orbit_context, orbit_set_context, orbit_open_workspace, orbit_launch_file, orbit_initial_tab, orbit_was_shaken, orbit_preview, reveal_output, OrbitLaunch};
@@ -163,6 +164,13 @@ pub fn run() {
             Err(error) => { eprintln!("FAIL: portable EXE: {error}"); std::process::exit(1); }
         }
     }
+    if command == "--portable-register-context" || command == "--portable-remove-context" {
+        if let Err(error) = portable_shell::update(command == "--portable-register-context") {
+            eprintln!("Portable Explorer integration failed: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if command == "--shake-listener" { shake::run_listener(); return; }
     if command == "--shake-stop" { shake::stop_listener(); return; }
     let orbit_args = std::env::args_os().skip(1).collect::<Vec<_>>();
@@ -249,6 +257,8 @@ pub fn run() {
             set_close_to_tray,
             system_volume::get_system_volume,
             system_volume::set_system_volume,
+            portable_shell::portable_context_supported,
+            portable_shell::set_portable_orbit_context,
             pdf_docx_editable,
             pdf_docx_layout,
             qr_svg,
