@@ -28,8 +28,8 @@ enum MediaKind { Audio, Video }
 
 fn output_spec(target: &str) -> Result<(MediaKind, &'static str), String> {
     match target {
-        "mp3" | "m4a" | "wav" | "flac" | "ogg" | "opus" => Ok((MediaKind::Audio, target_extension(target))),
-        "mp4" | "webm" | "mkv" | "mov" | "avi" => Ok((MediaKind::Video, target_extension(target))),
+        "mp3" | "m4a" | "wav" | "flac" | "ogg" | "opus" | "aiff" | "wma" | "ac3" => Ok((MediaKind::Audio, target_extension(target))),
+        "mp4" | "webm" | "mkv" | "mov" | "avi" | "wmv" | "gif" => Ok((MediaKind::Video, target_extension(target))),
         _ => Err("Unsupported media destination format".into()),
     }
 }
@@ -38,15 +38,16 @@ fn target_extension(target: &str) -> &'static str {
     match target {
         "mp3" => "mp3", "m4a" => "m4a", "wav" => "wav",
         "flac" => "flac", "ogg" => "ogg", "opus" => "opus",
+        "wma" => "wma", "ac3" => "ac3", "aiff" => "aiff",
         "mp4" => "mp4", "webm" => "webm", "mkv" => "mkv",
-        "mov" => "mov", "avi" => "avi",
+        "mov" => "mov", "avi" => "avi", "wmv" => "wmv", "gif" => "gif",
         _ => "",
     }
 }
 
 fn validate_job(job: &MediaJob) -> Result<MediaKind, String> {
     let (kind, _) = output_spec(&job.target)?;
-    if !matches!(job.profile.as_str(), "standard" | "small" | "high") {
+    if !matches!(job.profile.as_str(), "standard" | "small" | "high" | "hevc") {
         return Err("Unsupported quality preset".into());
     }
     for value in [job.start_seconds, job.duration_seconds].into_iter().flatten() {
@@ -87,10 +88,13 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 "flac" => "flac",
                 "ogg" => "libvorbis",
                 "opus" => "libopus",
+                "ac3" => "ac3",
+                "wma" => "wmav2",
+                "aiff" => "pcm_s16be",
                 _ => unreachable!(),
             };
             args.extend(["-c:a".into(), codec.into()]);
-            if matches!(job.target.as_str(), "mp3" | "m4a" | "ogg" | "opus") {
+            if matches!(job.target.as_str(), "mp3" | "m4a" | "ogg" | "opus" | "wma" | "ac3") {
                 let bitrate = match job.profile.as_str() {
                     "small" => "96k",
                     "high" => "256k",
@@ -100,6 +104,13 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
             }
         }
         MediaKind::Video => {
+            if job.target == "gif" {
+                args.extend(["-map".into(), "0:v:0".into(), "-an".into(),
+                    "-vf".into(), "fps=12,scale=w=640:h=-2:flags=lanczos".into(),
+                    "-loop".into(), "0".into()]);
+                args.push(stage.as_os_str().to_os_string());
+                return Ok(args);
+            }
             args.extend([
                 "-map".into(), "0:v:0".into(),
                 "-map".into(), "0:a:0?".into(),
@@ -107,14 +118,16 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
             let codec = match job.target.as_str() {
                 "webm" => "libvpx-vp9",
                 "avi" => "mpeg4",
+                "wmv" => "wmv2",
+                _ if job.profile == "hevc" => "libx265",
                 _ => "libx264",
             };
             args.extend(["-c:v".into(), codec.into()]);
-            if job.target == "avi" {
+            if job.target == "avi" || job.target == "wmv" {
                 args.extend(["-q:v".into(), (match job.profile.as_str() {
                     "high" => "3", "small" => "8", _ => "5",
                 }).into()]);
-                args.extend(["-c:a".into(), "libmp3lame".into()]);
+                args.extend(["-c:a".into(), if job.target == "wmv" { "wmav2" } else { "libmp3lame" }.into()]);
             } else {
                 args.extend(["-crf".into(), (match job.profile.as_str() {
                     "small" => "32", "high" => "18", _ => "24",
@@ -129,6 +142,7 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                     ]);
                     if matches!(job.target.as_str(), "mp4" | "mov") {
                         args.extend(["-movflags".into(), "+faststart".into()]);
+                        if job.profile == "hevc" { args.extend(["-tag:v".into(), "hvc1".into()]); }
                     }
                 }
             }
