@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { native, runNative, nativeEngineStatus } from '../native/bridge';
 import { Activity, ArrowRight, BookOpenCheck, Check, ChevronRight, Clock3, Download, ExternalLink, FileArchive, FileCog, FileInput, FileText, FolderClock, FolderInput, Gauge, HardDrive, Image, Info, Keyboard, MousePointer2, Music2, Orbit, Palette, Plus, RefreshCw, RotateCcw, Settings2, ShieldCheck, Trash2, Volume2, X } from 'lucide-react';
@@ -6,7 +7,6 @@ import type { ActivityItem, ModuleId, Preferences, WatchRule } from '../types';
 import type { ConverterProps } from './Converters';
 import { ModuleHeader } from './Converters';
 import { CopyButton, EmptyState, Field, IconButton, InlineNote, KineticButton, Segmented, Select, SettingRow, SpringSlider, Toggle } from '../components/UI';
-import { uid } from '../lib/files';
 import { playOrbitCue } from '../orbit/sounds';
 
 export function ActivityModule({ items, onClear, navigate }: { items: ActivityItem[]; onClear: () => void; navigate: (module: ModuleId) => void }) {
@@ -71,15 +71,148 @@ export function AppearanceModule({ preferences, updatePreferences }: ConverterPr
   </div>;
 }
 
+type NativeWatchRule = {
+  id: string;
+  folder: string;
+  inputExt: string;
+  target: string;
+  destination: string | null;
+};
+type NativeWatchEvent = {
+  id: string;
+  path: string;
+  status: 'processing' | 'completed' | 'failed';
+  outputPath: string | null;
+  error: string | null;
+};
+
 export function FilesJobsModule({ preferences, updatePreferences, notify }: ConverterProps) {
-  const [folder, setFolder] = useState(''); const [incoming, setIncoming] = useState('Images'); const [output, setOutput] = useState('WebP');
-  const outputOptions: Record<string, string[]> = { Images: ['WebP', 'PNG', 'JPEG'], Video: ['MP4', 'WebM'], Audio: ['MP3', 'FLAC'], Documents: ['PDF', 'TXT'] };
-  const addRule = () => { if (native) { notify('Watcher service not enabled', 'Rules can be saved locally, but automatic background conversion requires an installed watcher. No files are being monitored.', 'default'); } if (!folder) { notify('Choose a watched folder', 'Folder watching is activated by the Tauri background service.', 'danger'); return; } const rule: WatchRule = { id: uid(), folder, incoming, output, enabled: true }; updatePreferences({ watchRules: [...preferences.watchRules, rule] }); setFolder(''); notify('Watch rule saved', `${folder} · ${incoming} → ${output}`, 'success'); };
-  return <div className="module preferences-module"><ModuleHeader eyebrow="Preferences / Files & Jobs" title={<>Set the flow.<br />Keep the receipts.</>} description="Output defaults, worker scheduling and explicit watched-folder automation." />
-    <section className="preference-section"><div className="preference-title"><FolderInput size={20} /><div><h2>Output destination</h2><p>The default used by every converter until overridden.</p></div></div><SettingRow title="Save converted files to" description="Browser exports use downloads; desktop builds can write beside originals."><Select value={preferences.destination} onChange={destination => updatePreferences({ destination })} options={['Next to original', 'Desktop', 'Downloads', 'Choose folder']} /></SettingRow></section>
-    <section className="preference-section"><div className="preference-title"><Gauge size={20} /><div><h2>Batch scheduling</h2><p>Controls actual browser image-worker concurrency.</p></div></div><SettingRow title="Worker strategy" description={preferences.scheduling === 'balanced' ? 'Balanced processes up to three images at once.' : 'Sequential waits for each image to finish before starting the next.'}><Segmented value={preferences.scheduling} onChange={scheduling => updatePreferences({ scheduling })} options={[{ value: 'sequential', label: 'Sequential' }, { value: 'balanced', label: 'Balanced' }]} /></SettingRow></section>
-    <section className="preference-section"><div className="preference-title"><FolderClock size={20} /><div><h2>Auto Convert watched folders</h2><p>Rules persist here; continuous watching requires the desktop service.</p></div></div><div className="watch-builder"><Field label="Watched folder"><div className="folder-rule-input">{folder ? <span>{folder}</span> : <span>No folder selected</span>}<KineticButton onClick={() => { if (native) { void open({ directory: true, multiple: false }).then(value => { if (typeof value === 'string') setFolder(value); }); } else notify('Desktop folder picker required', 'Run ReformANY through Tauri to select a watched folder.', 'default'); }}><FolderInput size={15} />Pick folder</KineticButton></div></Field><Field label="Incoming type"><Select value={incoming} onChange={value => { setIncoming(value); setOutput(outputOptions[value][0]); }} options={Object.keys(outputOptions)} /></Field><Field label="Convert to"><Select value={output} onChange={setOutput} options={outputOptions[incoming]} /></Field><KineticButton tone="primary" onClick={addRule}><Plus size={16} />Add rule</KineticButton></div>
-      <div className="watch-rules">{preferences.watchRules.map(rule => <div className="watch-rule" key={rule.id}><div className="watch-rule-icon"><FolderClock size={18} /></div><div><strong title={rule.folder}>{rule.folder}</strong><span>{rule.incoming} <ArrowRight size={13} /> {rule.output}</span></div><span className="desktop-service-label">Desktop service</span><Toggle label={`Enable ${rule.folder}`} checked={rule.enabled} onChange={enabled => updatePreferences({ watchRules: preferences.watchRules.map(item => item.id === rule.id ? { ...item, enabled } : item) })} /><IconButton label="Delete rule" onClick={() => updatePreferences({ watchRules: preferences.watchRules.filter(item => item.id !== rule.id) })}><Trash2 size={16} /></IconButton></div>)}{!preferences.watchRules.length && <div className="rules-empty"><FolderClock size={24} /><span>No watch rules yet. Add one above; it stays off until the desktop background service is available.</span></div>}</div></section>
+  const [folder, setFolder] = useState('');
+  const [incoming, setIncoming] = useState('PNG');
+  const [output, setOutput] = useState('WEBP');
+  const [rules, setRules] = useState<NativeWatchRule[]>([]);
+  const [loading, setLoading] = useState(native);
+  const [busy, setBusy] = useState(false);
+  const inputs = ['PNG', 'JPG', 'JPEG', 'WEBP', 'BMP', 'TIFF'];
+  const formats = ['PDF', 'PNG', 'JPEG', 'WEBP', 'BMP', 'TIFF'];
+  const supportedOutputs = formats.filter(format =>
+    (format === 'JPEG' ? 'JPG' : format) !== (incoming === 'JPEG' ? 'JPG' : incoming)
+  );
+  useEffect(() => {
+    if (!native) return;
+    let alive = true;
+    void Promise.all([
+      runNative<NativeWatchRule[]>('get_watch_rules', {}),
+      runNative<{ mode: 'balanced' | 'sequential' }>('get_queue_policy', {}),
+    ]).then(([nativeRules, queuePolicy]) => {
+      if (!alive) return;
+      setRules(nativeRules);
+      updatePreferences({ scheduling: queuePolicy.mode });
+    }).catch(error => {
+      if (alive) notify('Native preferences unavailable', String(error), 'danger');
+    }).finally(() => { if (alive) setLoading(false); });
+    let dispose: (() => void) | null = null;
+    void listen<NativeWatchEvent>('reformany:watch-job', event => {
+      if (!alive) return;
+      const job = event.payload;
+      if (job.status === 'completed' && job.outputPath) {
+        notify('Auto Convert complete', job.outputPath, 'success');
+      } else if (job.status === 'failed') {
+        notify('Auto Convert failed', job.error || job.path, 'danger');
+      }
+    }).then(unlisten => { if (alive) dispose = unlisten; else unlisten(); })
+      .catch(error => { if (alive) notify('Watcher events unavailable', String(error), 'danger'); });
+    return () => { alive = false; dispose?.(); };
+  }, [updatePreferences, notify]);
+
+  const setSchedule = async (mode: Preferences['scheduling']) => {
+    if (!native) { updatePreferences({ scheduling: mode }); return; }
+    try {
+      const saved = await runNative<{ mode: Preferences['scheduling'] }>('set_queue_policy', { mode });
+      updatePreferences({ scheduling: saved.mode });
+    } catch (error) { notify('Queue scheduling was not saved', String(error), 'danger'); }
+  };
+  const chooseSource = async () => {
+    if (!native) { notify('Desktop required', 'Watched folders require ReformANY for Windows.', 'default'); return; }
+    try {
+      const selected = await open({ directory: true, multiple: false });
+      if (typeof selected === 'string') setFolder(selected);
+    } catch (error) { notify('Folder selection failed', String(error), 'danger'); }
+  };
+  const addRule = async () => {
+    if (!native) { notify('Desktop required', 'A native Windows watcher is required; no rule has been created.', 'danger'); return; }
+    if (!folder) { notify('Select a folder', 'Choose an existing local folder to monitor.', 'danger'); return; }
+    if (busy || loading) return;
+    setBusy(true);
+    try {
+      const nativeRules = await runNative<NativeWatchRule[]>('add_watch_rule', {
+        folder,
+        inputExt: incoming.toLowerCase(),
+        target: output.toLowerCase(),
+        destination: null,
+      });
+      setRules(nativeRules);
+      setFolder('');
+      notify('Auto Convert activated', incoming + ' → ' + output + ' · ' + folder, 'success');
+    } catch (error) { notify('Could not start watched folder', String(error), 'danger'); }
+    finally { setBusy(false); }
+  };
+  const removeRule = async (rule: NativeWatchRule) => {
+    if (!native || busy) return;
+    setBusy(true);
+    try {
+      const remaining = await runNative<NativeWatchRule[]>('remove_watch_rule', { id: rule.id });
+      setRules(remaining);
+      notify('Folder monitoring stopped', rule.folder, 'success');
+    } catch (error) { notify('Could not stop watched folder', String(error), 'danger'); }
+    finally { setBusy(false); }
+  };
+  return <div className="module preferences-module">
+    <ModuleHeader eyebrow="Preferences / Files & Jobs" title={<>Set the flow.<br />Keep the receipts.</>} description="Real output locations, native worker scheduling, and automatic local image conversions." />
+    <section className="preference-section">
+      <div className="preference-title"><FolderInput size={20} /><div><h2>Output destination</h2><p>Choose where newly converted files are saved.</p></div></div>
+      <SettingRow title="Save converted files to" description="Choose folder opens the native folder picker when an export runs.">
+        <Select value={preferences.destination} onChange={destination => updatePreferences({ destination })}
+          options={['Next to original', 'Desktop', 'Downloads', 'Choose folder']} />
+      </SettingRow>
+    </section>
+    <section className="preference-section">
+      <div className="preference-title"><Gauge size={20} /><div><h2>Batch scheduling</h2><p>Shared with the native conversion engine and Orbit.</p></div></div>
+      <SettingRow title="Worker strategy" description={preferences.scheduling === 'balanced' ? 'Balanced: parallel jobs where supported.' : 'Sequential: process jobs in order.'}>
+        <Segmented value={preferences.scheduling} onChange={value => { void setSchedule(value as Preferences['scheduling']); }}
+          options={[{ value: 'sequential', label: 'Sequential' }, { value: 'balanced', label: 'Balanced' }]} />
+      </SettingRow>
+    </section>
+    <section className="preference-section">
+      <div className="preference-title"><FolderClock size={20} /><div><h2>Auto Convert watched folders</h2><p>Real Windows folder watches. Files stay local; outputs never overwrite the source.</p></div></div>
+      <div className="watch-builder">
+        <Field label="Watched folder"><div className="folder-rule-input">
+          {folder ? <span title={folder}>{folder}</span> : <span>No folder selected</span>}
+          <KineticButton onClick={() => { void chooseSource(); }}><FolderInput size={15} />Pick folder</KineticButton>
+        </div></Field>
+        <Field label="Incoming image type">
+          <Select value={incoming} onChange={value => {
+            setIncoming(value);
+            const next = formats.filter(format => (format === 'JPEG' ? 'JPG' : format) !== (value === 'JPEG' ? 'JPG' : value));
+            if (!next.includes(output)) setOutput(next[0]);
+          }} options={inputs} />
+        </Field>
+        <Field label="Convert to"><Select value={output} onChange={setOutput} options={supportedOutputs} /></Field>
+        <KineticButton tone="primary" disabled={busy || loading || !native || !folder}
+          onClick={() => { void addRule(); }}><Plus size={16} />{busy ? 'Working…' : 'Start watching'}</KineticButton>
+      </div>
+      <div className="watch-rules">
+        {rules.map(rule => <div className="watch-rule" key={rule.id}>
+          <div className="watch-rule-icon"><FolderClock size={18} /></div>
+          <div><strong title={rule.folder}>{rule.folder}</strong><span>{rule.inputExt.toUpperCase()} <ArrowRight size={13} /> {rule.target.toUpperCase()}</span></div>
+          <span className="desktop-service-label">Active native watch</span>
+          <IconButton label={'Stop watching ' + rule.folder} onClick={() => { void removeRule(rule); }}><Trash2 size={16} /></IconButton>
+        </div>)}
+        {loading && <div className="rules-empty"><FolderClock size={24}/><span>Loading native folder watches…</span></div>}
+        {!loading && !rules.length && <div className="rules-empty"><FolderClock size={24}/><span>No active folder watches. Choose a local folder and format to start the native service.</span></div>}
+      </div>
+      <InlineNote>Auto Convert supports PNG, JPG, JPEG, WebP, BMP, and TIFF inputs. PDFs and images can be outputs. Files are processed after they finish writing. Removing a watch stops future conversions.</InlineNote>
+    </section>
   </div>;
 }
 
