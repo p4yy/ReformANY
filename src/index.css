@@ -998,7 +998,41 @@ html.reformany-panel-window #root {
 
 /* Verified structure: independent scroll regions for both normal and fullscreen Orbit tools. */
 .orbit-panel-window .orbit-dialog, .orbit-panel-window .orbit-dialog-body, .orbit-panel-window .watermark-columns, .orbit-panel-window .watermark-settings { min-height: 0; min-width: 0; }
-.orbit-panel-window .orbit-dialog-body { overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+/* Orbit tool content must be reachable by mouse wheel, touchpad, and keyboard at
+   both ordinary and maximized sizes. Keep the title bar and action footer in
+   view while the working area scrolls. The old .orbit-dialog.wide rule above
+   intentionally hid overflow for its internal page grid; in a native panel it
+   won the specificity battle and could clip the tools entirely. */
+.orbit-panel-window .orbit-dialog,
+.orbit-panel-window .orbit-dialog.wide {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.orbit-panel-window .orbit-dialog-titlebar,
+.orbit-panel-window .orbit-dialog-heading,
+.orbit-panel-window .orbit-dialog-footer {
+  flex-shrink: 0;
+}
+.orbit-panel-window .orbit-dialog-body,
+.orbit-panel-window .orbit-dialog.wide .orbit-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.orbit-panel-window .watermark-columns,
+.orbit-panel-window .watermark-settings {
+  min-height: 0;
+}
+@media (max-height: 680px) {
+  .orbit-panel-window .watermark-columns {
+    height: auto;
+    min-height: 0;
+  }
+}
 .orbit-panel-window .watermark-columns { height: auto; max-height: none; }
 .orbit-panel-window .watermark-scroll, .orbit-panel-window .watermark-settings { overflow-y: auto; max-height: none; }
 .orbit-panel-window .arrange-dialog .orbit-dialog-body, .orbit-panel-window .extract-dialog .orbit-dialog-body { display: flex; flex-direction: column; }
