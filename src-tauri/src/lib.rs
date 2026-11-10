@@ -93,7 +93,8 @@ async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), Str
             .center()
             .focused(true)
             .build()
-            .map_err(|error| format!("Could not create Orbit tool window: {error}"))\n        .map(|_| ())
+            .map_err(|error| format!("Could not create Orbit tool window: {error}"))
+            .map(|_| ())
     }).await.map_err(|error| format!("Orbit panel task failed: {error}"))??;
     Ok(())
 }
