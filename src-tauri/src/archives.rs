@@ -134,8 +134,22 @@ fn create(job: ArchiveCreate) -> Result<ArchiveCreated, String> {
     if job.format == "zip" && job.split_megabytes.is_none() {
         validate_archive_name(&job.name)?;
         validate_password(&job.password)?;
-        let zip = crate::native_zip::create_native_zip(
-            &job.paths, &job.name, job.destination.as_deref(), job.password.as_deref(), job.level)?;
+        // When protecting one existing ZIP, encrypt its entries rather than
+        // packaging the ZIP file as a nested member. No plaintext extraction
+        // staging or original-archive overwrite is permitted.
+        let zip = if job.paths.len() == 1
+            && job.password.is_some()
+            && Path::new(&job.paths[0]).extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
+        {
+            crate::native_zip::repack_native_zip(
+                &job.paths[0], &job.name, job.destination.as_deref(),
+                job.password.as_deref().unwrap_or_default(), job.level)?
+        } else {
+            crate::native_zip::create_native_zip(
+                &job.paths, &job.name, job.destination.as_deref(),
+                job.password.as_deref(), job.level)?
+        };
         return Ok(ArchiveCreated { output_paths: vec![zip], format: "zip".into() });
     }
     for source in &job.paths { verify_input(Path::new(source), true)?; }
@@ -225,6 +239,7 @@ pub(crate) fn validate_member_name(name: &str) -> Result<(), String> {
 
 fn check_listing(binary: &Path, source: &Path, password: Option<&str>) -> Result<(), String> {
     let mut command = Command::new(binary);
+    crate::external::hide_subprocess_window(&mut command);
     command.args(["l", "-slt", "-bd", "-y"]);
     if let Some(password) = password {
         command.arg(format!("-p{password}"));
@@ -365,9 +380,86 @@ pub async fn archive_extract(job: ArchiveExtract) -> Result<String, String> {
         .await.map_err(|_| "Archive extraction worker failed".to_owned())?
 }
 
+/// Repackage an archive by *extracting verified members first*. Wrapping
+/// another archive as a single file is not a format conversion.
+fn repack(path: &str, target: &str, destination: Option<&str>) -> Result<ArchiveCreated, String> {
+    if !matches!(target, "zip" | "7z" | "tar" | "rar") {
+        return Err("Repack supports ZIP, 7Z, TAR or installed WinRAR output only".into());
+    }
+    let source = Path::new(path);
+    verify_input(source, false)?;
+    let original = source.file_stem().and_then(|s| s.to_str())
+        .ok_or("Archive filename is not supported")?;
+    // Extraction is confined to a private tempdir and all extracted paths
+    // undergo the existing path traversal, symlink and size checks.
+    let scratch = tempfile::Builder::new().prefix("reformany-repack-")
+        .tempdir().map_err(|e| e.to_string())?;
+    let extracted = extract(ArchiveExtract {
+        path: path.into(),
+        destination: Some(scratch.path().to_string_lossy().into_owned()),
+        password: None,
+    })?;
+    let inputs = fs::read_dir(&extracted).map_err(|e| e.to_string())?
+        .map(|item| item.map(|entry| entry.path().to_string_lossy().into_owned())
+            .map_err(|e| e.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    if inputs.is_empty() {
+        return Err("The source archive has no files to convert".into());
+    }
+    // Without an explicit setting, save beside the ORIGINAL archive, not
+    // beside the temporary extraction directory that is deleted on return.
+    let output_folder = destination.map(str::to_owned).or_else(|| {
+        source.parent().map(|p| p.to_string_lossy().into_owned())
+    });
+    let result = create(ArchiveCreate {
+        paths: inputs,
+        destination: output_folder,
+        name: original.to_owned(),
+        format: target.into(),
+        password: None,
+        split_megabytes: None,
+        level: 5,
+    })?;
+    if result.output_paths.is_empty() {
+        return Err("Archive conversion did not create an output file".into());
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn archive_repack(path: String, target: String, destination: Option<String>)
+    -> Result<ArchiveCreated, String>
+{
+    tauri::async_runtime::spawn_blocking(move || {
+        repack(&path, &target, destination.as_deref())
+    }).await.map_err(|_| "Archive repack worker failed unexpectedly".to_owned())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_zip_repack_is_real_archive_conversion() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("Original.txt");
+        fs::write(&original, "Real original content").unwrap();
+        let source = crate::native_zip::create_native_zip(
+            &[original.to_string_lossy().into_owned()], "Source", None, None, 5,
+        ).unwrap();
+        let result = repack(&source, "zip", None).unwrap();
+        assert_eq!(result.output_paths.len(), 1);
+        assert_ne!(result.output_paths[0], source);
+        let target = Path::new(&result.output_paths[0]);
+        assert!(target.exists());
+        let saved = crate::native_zip::extract_native_zip(
+            &result.output_paths[0], None, None,
+        ).unwrap();
+        assert_eq!(
+            fs::read_to_string(Path::new(&saved).join("Original.txt")).unwrap(),
+            "Real original content"
+        );
+    }
+
 
     fn sample(format: &str) -> ArchiveCreate {
         ArchiveCreate { paths: vec!["C:\\example\\doc.txt".into()],

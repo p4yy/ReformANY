@@ -12,7 +12,11 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src ipc: http://ipc.localhost; media-src 'self' asset: http://asset.localhost; frame-src 'self' asset: http://asset.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
     }
   },
   "bundle": {
@@ -35,6 +39,10 @@
       "webviewInstallMode": {
         "type": "offlineInstaller"
       }
+    },
+    "resources": {
+      "installer/install-media-engines.ps1": "installer/install-media-engines.ps1",
+      "installer/media-bundle/": "installer/media-bundle/"
     }
   }
 }

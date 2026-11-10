@@ -20,13 +20,18 @@ ManifestDPIAwareness PerMonitorV2
 {{/if}}
 
 !include MUI2.nsh
-; ReformANY dark installer branding. NSIS native progress and rollback remain intact.
-!define MUI_BGCOLOR "11151B"
-!define MUI_TEXTCOLOR "F3F6FC"
-!define MUI_INSTFILESPAGE_COLORS "DDE7F6 11151B"
+!include nsDialogs.nsh
+; Uniform graphite palette for every standard MUI page. The NSIS
+; installation and uninstallation logic remains intact.
+!define MUI_BGCOLOR "171f19"
+!define MUI_TEXTCOLOR "e8eee4"
+!define MUI_DIRECTORYPAGE_BGCOLOR "242d26"
+!define MUI_STARTMENUPAGE_BGCOLOR "242d26"
+!define MUI_INSTFILESPAGE_COLORS "e8eee4 171f19"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "colored"
-!define MUI_INSTALLCOLORS "5294F4 11151B"
+!define MUI_INSTALLCOLORS "AFC69C 171f19"
 !define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH "FitControl"
+!define MUI_CUSTOMFUNCTION_GUIINIT ReformANYDarkGUI
 !include FileFunc.nsh
 !include x64.nsh
 !include WordFunc.nsh
@@ -83,9 +88,13 @@ Var UpdateMode
 Var NoShortcutMode
 Var WixMode
 Var OldMainBinaryName
+Var MediaEngineOptIn
+Var MediaEngineCheckbox
+Var RegisterOrbitContext
+Var SkipDesktopShortcut
 
 Name "${PRODUCTNAME}"
-BrandingText "ReformANY | Private by design"
+BrandingText "ReformANY"
 OutFile "${OUTFILE}"
 
 ; We don't actually use this value as default install path,
@@ -419,7 +428,12 @@ FunctionEnd
 
 ; 5. Choose install directory page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ReformANYDarkPage
 !insertmacro MUI_PAGE_DIRECTORY
+
+ ; Optional media engine component is enabled by default on interactive installs.
+; The installer contains a verified FFmpeg release; no setup-time download.
+Page custom MediaEnginePageCreate MediaEnginePageLeave
 
 ; 6. Start menu shortcut page
 Var AppStartMenuFolder
@@ -429,9 +443,11 @@ Var AppStartMenuFolder
 !else
   !define MUI_PAGE_CUSTOMFUNCTION_PRE Skip
 !endif
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ReformANYDarkPage
 !insertmacro MUI_PAGE_STARTMENU Application $AppStartMenuFolder
 
 ; 7. Installation page
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ReformANYDarkPage
 !insertmacro MUI_PAGE_INSTFILES
 
 ; 8. Finish page
@@ -449,6 +465,87 @@ Var AppStartMenuFolder
 !define MUI_FINISHPAGE_RUN_TEXT "Launch ReformANY"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
 !insertmacro MUI_PAGE_FINISH
+
+; Set the native title bar, footer, and page colors when the wizard opens.
+; Classic Windows buttons may still follow the user's OS theme: verify on real Windows 11.
+Function MediaEnginePageCreate
+  ${If} $PassiveMode = 1
+  ${OrIf} ${Silent}
+  ${OrIf} $UpdateMode = 1
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Media conversion" "Install the tools needed for video and audio files"
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 30u "ReformANY uses FFmpeg and FFprobe to convert MP4, MKV, MOV, WebM, MP3, WAV, FLAC, and other supported formats."
+  Pop $1
+  SetCtlColors $1 e8eee4 171f19
+  ${NSD_CreateCheckbox} 0 43u 100% 24u "Install built-in offline media conversion engine"
+  Pop $MediaEngineCheckbox
+  ${If} $MediaEngineOptIn == 1
+    ${NSD_Check} $MediaEngineCheckbox
+  ${EndIf}
+  ${NSD_CreateLabel} 0 77u 100% 60u "Included with ReformANY. Verified FFmpeg and FFprobe run privately and offline. No separate download or setup required."
+  Pop $1
+  SetCtlColors $1 9eaf9f 171f19
+  nsDialogs::Show
+FunctionEnd
+
+Function MediaEnginePageLeave
+  ${NSD_GetState} $MediaEngineCheckbox $MediaEngineOptIn
+FunctionEnd
+
+; Install only when explicitly selected. Both binaries are already included
+; in the verified, offline installer. Never download anything during setup.
+Function InstallMediaEngines
+  ${If} $MediaEngineOptIn != 1
+    DetailPrint "Media engine component not selected."
+    Return
+  ${EndIf}
+  ; FFmpeg is bundled at build time, never downloaded on the user's machine.
+  IfFileExists "$INSTDIR\installer\media-bundle\ffmpeg.exe" 0 media_bundle_missing
+  IfFileExists "$INSTDIR\installer\media-bundle\ffprobe.exe" 0 media_bundle_missing
+  CreateDirectory "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\ffmpeg.exe" "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\ffprobe.exe" "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\LICENSE" "$INSTDIR\engines"
+  CopyFiles /SILENT "$INSTDIR\installer\media-bundle\SOURCE.txt" "$INSTDIR\engines"
+  IfFileExists "$INSTDIR\engines\ffmpeg.exe" 0 media_bundle_missing
+  IfFileExists "$INSTDIR\engines\ffprobe.exe" 0 media_bundle_missing
+  DetailPrint "Offline FFmpeg and FFprobe engine installed."
+  Return
+  media_bundle_missing:
+    DetailPrint "Bundled media engine missing; installation cannot proceed."
+    SetErrorLevel 6
+    Quit
+FunctionEnd
+
+Function ReformANYDarkGUI
+  ; Windows 10/11 DWM dark title bar. Failures on older versions are harmless.
+  System::Call 'DWMAPI::DwmSetWindowAttribute(p$HWNDPARENT,i20,*i1,i4)i.r0'
+  SetCtlColors $HWNDPARENT e8eee4 171f19
+  GetDlgItem $0 $HWNDPARENT 1
+  SetCtlColors $0 e8eee4 242d26
+  GetDlgItem $0 $HWNDPARENT 2
+  SetCtlColors $0 F3F4F7 202126
+  GetDlgItem $0 $HWNDPARENT 3
+  SetCtlColors $0 F3F4F7 202126
+FunctionEnd
+
+; Standard NSIS pages use a separate inner dialog. Keep its client background
+; consistent with the Welcome and Finish pages and retain accessible contrast.
+Function ReformANYDarkPage
+  FindWindow $0 "#32770" "" $HWNDPARENT
+  StrCmp $0 0 done
+  SetCtlColors $0 e8eee4 171f19
+  GetDlgItem $1 $0 1019
+  StrCmp $1 0 done
+  SetCtlColors $1 e8eee4 242d26
+  done:
+FunctionEnd
 
 Function RunMainBinary
   nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" ""
@@ -516,6 +613,26 @@ LangString choowHowToInstall 0 ""
 {{/each}}
 
 Function .onInit
+  StrCpy $RegisterOrbitContext 1
+  StrCpy $SkipDesktopShortcut 0
+  ${GetOptions} $CMDLINE "/NO_CONTEXT" $R0
+  ${IfNot} ${Errors}
+    StrCpy $RegisterOrbitContext 0
+  ${EndIf}
+  ${GetOptions} $CMDLINE "/NO_DESKTOP" $R0
+  ${IfNot} ${Errors}
+    StrCpy $SkipDesktopShortcut 1
+  ${EndIf}
+  ; Interactive installations recommend media support; silent automation
+  ; must opt in explicitly via /MEDIA=1 rather than downloading 109 MB unseen.
+  StrCpy $MediaEngineOptIn 1
+  ${If} ${Silent}
+    StrCpy $MediaEngineOptIn 0
+  ${EndIf}
+  ${GetOptions} $CMDLINE "/MEDIA=1" $R0
+  ${IfNot} ${Errors}
+    StrCpy $MediaEngineOptIn 1
+  ${EndIf}
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}
     StrCpy $PassiveMode 1
@@ -529,6 +646,10 @@ Function .onInit
   ${GetOptions} $CMDLINE "/UPDATE" $UpdateMode
   ${IfNot} ${Errors}
     StrCpy $UpdateMode 1
+  ${EndIf}
+  ${If} $PassiveMode = 1
+  ${OrIf} $UpdateMode = 1
+    StrCpy $MediaEngineOptIn 0
   ${EndIf}
 
   !if "${DISPLAYLANGUAGESELECTOR}" == "true"
@@ -713,6 +834,10 @@ Section Install
     File /a "/oname={{this}}" "{{no-escape @key}}"
   {{/each}}
 
+  ; Run the optional media component while the NSIS progress page is open.
+  ; It is installed only in this app's folder, never into system PATH.
+  Call InstallMediaEngines
+
   ; Create file associations
   {{#each file_associations as |association| ~}}
     {{#each association.ext as |ext| ~}}
@@ -787,6 +912,11 @@ Section Install
     !insertmacro NSIS_HOOK_POSTINSTALL
   !endif
 
+  ; Only an explicitly enabled gesture starts observing input.
+  ; The background command loads the saved opt-in preference and exits
+  ; immediately when disabled. The listener has no WebView or console.
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "ReformANY Orbit Shake" '$\"$INSTDIR\${MAINBINARYNAME}.exe$\" --shake-listener'
+
   ; Auto close this page for passive mode
   ${If} $PassiveMode = 1
     SetAutoClose true
@@ -832,7 +962,12 @@ Section Uninstall
     !insertmacro NSIS_HOOK_PREUNINSTALL
   !endif
 
-  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  ; Stop the opt-in shell gesture listener before removing the executable.
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "ReformANY Orbit Shake"
+  IfFileExists "$INSTDIR\${MAINBINARYNAME}.exe" 0 +3
+    ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --shake-stop' $0
+    Sleep 220
+    !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   ; Delete the app directory and its content from disk
   ; Copy main executable
@@ -847,6 +982,13 @@ Section Uninstall
   {{#each binaries}}
     Delete "$INSTDIR\\{{this}}"
   {{/each}}
+
+  ; Remove only the binaries and notices installed privately for this app.
+  Delete "$INSTDIR\engines\ffmpeg.exe"
+  Delete "$INSTDIR\engines\ffprobe.exe"
+  Delete "$INSTDIR\engines\LICENSE"
+  Delete "$INSTDIR\engines\SOURCE.txt"
+  RMDir "$INSTDIR\engines"
 
   ; Delete app associations
   {{#each file_associations as |association| ~}}
@@ -1007,6 +1149,10 @@ Function CreateOrUpdateStartMenuShortcut
 FunctionEnd
 
 Function CreateOrUpdateDesktopShortcut
+  ; Explicit opt-out from the premium setup shell. Does not change Start menu.
+  ${If} $SkipDesktopShortcut = 1
+    Return
+  ${EndIf}
   ; We used to use product name as MAINBINARYNAME
   ; migrate old shortcuts to target the new MAINBINARYNAME
   !insertmacro IsShortcutTarget "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\$OldMainBinaryName"

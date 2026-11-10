@@ -248,6 +248,19 @@ fn flatten(image: &DynamicImage, dark: bool) -> RgbImage {
     })
 }
 
+/// Dedicated native watcher entry point. Reuses the exact same validated,
+/// collision-safe image writer as a manual conversion.
+pub(crate) fn convert_watched_image(path:&Path,target:&str,destination:Option<&str>)
+    ->Result<PathBuf,String>
+{
+    let item=ConversionItem{
+        id:Uuid::new_v4().to_string(),path:path.to_string_lossy().into_owned(),
+        target:target.into(),quality:86,matte:"white".into(),
+        options:TransformOptions::default(),
+    };
+    convert_one(&item,destination,&AtomicBool::new(false))
+}
+
 fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &AtomicBool) -> Result<PathBuf, String> {
     if cancelled.load(Ordering::Relaxed) {
         return Err("cancelled".into());
@@ -409,8 +422,9 @@ pub async fn convert_batch(
     let flags = cancelled.clone();
 
     // The registry is cleaned up by a finishing event handler below; no unbounded worker pool.
+    let workers=if crate::job_settings::current_mode()=="sequential"{1}else{MAX_WORKERS};
     tauri::async_runtime::spawn(async move {
-        let semaphore = Arc::new(Semaphore::new(MAX_WORKERS));
+        let semaphore = Arc::new(Semaphore::new(workers));
         let mut handles = Vec::new();
         for item in files {
             let app = app_for_job.clone();

@@ -40,7 +40,9 @@ fn validate(job: &MediaToolJob) -> Result<(), String> {
     Ok(())
 }
 fn has_stream(file: &Path, kind: StreamKind, ffprobe: &Path) -> Result<bool, String> {
-    let result = Command::new(ffprobe)
+    let mut command = Command::new(ffprobe);
+    crate::external::hide_subprocess_window(&mut command);
+    let result = command
         .args(["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
         .arg(file).output().map_err(|e| format!("FFprobe unavailable: {e}"))?;
     if !result.status.success() { return Err("Cannot inspect source media".into()); }
@@ -150,7 +152,9 @@ fn media_tool(job: MediaToolJob) -> Result<String, String> {
     if !temporary.is_file() || fs::metadata(&temporary).map_err(|e| e.to_string())?.len() == 0 {
         return Err("FFmpeg produced no output".into());
     }
-    let verification = Command::new(&ffprobe)
+    let mut command = Command::new(&ffprobe);
+    crate::external::hide_subprocess_window(&mut command);
+    let verification = command
         .args(["-v", "error", "-show_entries", "format=format_name",
             "-of", "default=nw=1"])
         .arg(&temporary).output().map_err(|e| e.to_string())?;

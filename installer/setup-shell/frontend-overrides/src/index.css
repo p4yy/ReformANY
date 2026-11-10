@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+@theme {
+  --color-olive-bg: #1a1f14;
+  --color-olive-secondary: #232a1c;
+  --color-olive-tertiary: #2d3524;
+  --color-olive-elevated: #363f2c;
+  --color-sage-primary: #c8d4a2;
+  --color-sage-secondary: #a3b27a;
+  --color-sage-tertiary: #7d8c5c;
+  --color-success: #8cb369;
+  --color-warning: #d4a843;
+  --color-error: #c75d5d;
+  --color-info: #7a9cbf;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: #12160d;
+  color: #c8d4a2;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+::selection {
+  background: rgba(200, 212, 162, 0.28);
+  color: #f2f5e6;
+}
+
+/* ---------- Glass window treatment ---------- */
+.glass-window {
+  background: rgba(26, 31, 20, 0.95);
+  backdrop-filter: blur(40px) saturate(1.2);
+  -webkit-backdrop-filter: blur(40px) saturate(1.2);
+  border: 1px solid rgba(200, 212, 162, 0.08);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 80px -20px rgba(200, 212, 162, 0.05);
+}
+
+/* ---------- Subtle noise texture overlay ---------- */
+.noise {
+  position: relative;
+}
+.noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Keyframes ---------- */
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 22px -6px rgba(200, 212, 162, 0.28),
+      0 0 0 1px rgba(200, 212, 162, 0.14),
+      0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  }
+  50% {
+    box-shadow:
+      0 0 44px 2px rgba(200, 212, 162, 0.42),
+      0 0 0 1px rgba(200, 212, 162, 0.28),
+      0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  }
+}
+
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes shine-sweep {
+  0% {
+    transform: translateX(-160%) skewX(-18deg);
+  }
+  55%,
+  100% {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes shake-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+.animate-shake-x {
+  animation: shake-x 0.45s ease-in-out;
+}
+.animate-spin-slow {
+  animation: spin-slow 2.6s linear infinite;
+}
+
+/* ---------- Custom range slider ---------- */
+.olive-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(200, 212, 162, 0.12);
+  outline: none;
+  cursor: pointer;
+}
+.olive-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #c8d4a2;
+  border: none;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(200, 212, 162, 0.2);
+  cursor: grab;
+  transition: transform 0.15s ease;
+}
+.olive-range::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+.olive-range::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.05);
+}
+.olive-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #c8d4a2;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+}
+.olive-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(200, 212, 162, 0.12);
+}
+
+/* ---------- Scrollbars ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(200, 212, 162, 0.18) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(200, 212, 162, 0.16);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(200, 212, 162, 0.28);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Only the native shell needs a truly transparent outer window.
+   The owner-supplied glass card and olive/sage theme remain unchanged. */
+html, body, #root { background: transparent; }

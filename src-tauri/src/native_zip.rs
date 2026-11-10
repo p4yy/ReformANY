@@ -21,6 +21,19 @@ fn zip_options<'a>(password: Option<&'a str>, level: u8) -> zip::write::FileOpti
     }
 }
 
+/// ZIP DOS timestamps cannot represent years outside 1980–2107.
+/// Preserve valid source modified timestamps, otherwise use 1980 as a
+/// standards-compatible fallback (never the Windows 1899 epoch).
+fn safe_modified_time(metadata: &fs::Metadata) -> zip::DateTime {
+    metadata.modified().ok()
+        .and_then(|modified| {
+            let utc = time::OffsetDateTime::from(modified).to_offset(time::UtcOffset::UTC);
+            let plain = time::PrimitiveDateTime::new(utc.date(), utc.time());
+            zip::DateTime::try_from(plain).ok()
+        })
+        .unwrap_or(zip::DateTime::DEFAULT)
+}
+
 pub fn create_native_zip(
     paths: &[String], name: &str, destination: Option<&str>,
     password: Option<&str>, level: u8,
@@ -54,11 +67,13 @@ pub fn create_native_zip(
             if metadata.file_type().is_symlink() {
                 return Err("Symlinks are not included in ZIP packages".into());
             }
-            if !metadata.is_file() { continue; }
+            if !metadata.is_file() && !metadata.is_dir() { continue; }
             entry_count += 1;
-            total_bytes = total_bytes.saturating_add(metadata.len());
+            if metadata.is_file() {
+                total_bytes = total_bytes.saturating_add(metadata.len());
+            }
             if entry_count > MAX_ENTRIES || total_bytes > MAX_EXPANDED {
-                return Err("Archive exceeds the 20,000-file / 4 GB preview limit".into());
+                return Err("Archive exceeds the 20,000-entry / 4 GB safety limit".into());
             }
             let name = if path.is_dir() {
                 let inside = item.strip_prefix(path).map_err(|e| e.to_string())?;
@@ -70,7 +85,14 @@ pub fn create_native_zip(
             if !seen.insert(name.to_lowercase()) {
                 return Err(format!("Duplicate archive entry name: {name}"));
             }
-            writer.start_file(name, zip_options(password, level))
+            if metadata.is_dir() {
+                writer.add_directory(format!("{name}/"), zip_options(None, level)
+                    .last_modified_time(safe_modified_time(&metadata)))
+                    .map_err(|e| format!("Cannot add ZIP directory: {e}"))?;
+                continue;
+            }
+            writer.start_file(name, zip_options(password, level)
+                .last_modified_time(safe_modified_time(&metadata)))
                 .map_err(|e| format!("Cannot add file to ZIP: {e}"))?;
             let copied = std::io::copy(
                 &mut File::open(&item).map_err(|e| e.to_string())?
@@ -84,7 +106,106 @@ pub fn create_native_zip(
     }
     if entry_count == 0 { return Err("No regular files were found to archive".into()); }
     writer.finish().map_err(|e| format!("Cannot finalize ZIP: {e}"))?;
+    verify_native_zip(&archive_path, password)?;
     publish(&archive_path, &output_dir, name, "zip")
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
+
+/** Fully read every entry before publication so corrupt data or an invalid
+ * encryption password never produces a misleading completed notification. */
+fn verify_native_zip(path: &Path, password: Option<&str>) -> Result<(), String> {
+    let mut archive = ZipArchive::new(File::open(path).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("ZIP verification failed: {e}"))?;
+    if archive.len() > MAX_ENTRIES {
+        return Err("ZIP contains too many entries".into());
+    }
+    let mut expanded = 0u64;
+    for index in 0..archive.len() {
+        let mut item = if let Some(password) = password {
+            archive.by_index_decrypt(index, password.as_bytes())
+        } else {
+            archive.by_index(index)
+        }.map_err(|e| format!("ZIP verification cannot open entry: {e}"))?;
+        expanded = expanded.saturating_add(item.size());
+        if expanded > MAX_EXPANDED {
+            return Err("ZIP verification exceeded 4 GB safety limit".into());
+        }
+        if !item.is_dir() {
+            let expected = item.size();
+            let copied = std::io::copy(&mut item, &mut std::io::sink())
+                .map_err(|e| format!("ZIP entry failed integrity verification: {e}"))?;
+            if copied != expected {
+                return Err("ZIP entry content differs from its recorded size".into());
+            }
+        }
+    }
+    Ok(())
+}
+
+/** Encrypt the existing ZIP's actual members rather than creating a ZIP
+ * containing another ZIP. The input is never modified or unpacked to disk. */
+pub fn repack_native_zip(
+    source: &str, name: &str, destination: Option<&str>,
+    password: &str, level: u8,
+) -> Result<String, String> {
+    if password.len() < 8 || password.len() > 1024 {
+        return Err("Choose a ZIP password between 8 and 1024 characters".into());
+    }
+    if !(1..=9).contains(&level) {
+        return Err("Invalid ZIP compression level".into());
+    }
+    let input = Path::new(source);
+    verify_input(input, false)?;
+    let output = output_dir(input, destination)?;
+    let stage = tempfile::Builder::new().prefix(".reformany-repack-")
+        .tempdir_in(&output).map_err(|e| e.to_string())?;
+    let staged_path = stage.path().join("protected.zip");
+    let mut input_zip = ZipArchive::new(File::open(input).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("The existing ZIP is invalid: {e}"))?;
+    if input_zip.is_empty() || input_zip.len() > MAX_ENTRIES {
+        return Err("ZIP must contain between 1 and 20,000 entries".into());
+    }
+    let mut writer = ZipWriter::new(File::create(&staged_path).map_err(|e| e.to_string())?);
+    let mut seen = HashSet::new();
+    let mut total = 0u64;
+    for index in 0..input_zip.len() {
+        // A separately encrypted source needs its original password first.
+        // Do not silently repackage encrypted bytes as if they were plaintext.
+        let mut member = input_zip.by_index(index)
+            .map_err(|e| format!("Cannot read source ZIP member (an encrypted source must be unlocked first): {e}"))?;
+        let path = member.enclosed_name().ok_or("Unsafe path in source ZIP")?.to_path_buf();
+        let path_string = path.to_string_lossy().replace('\\', "/");
+        super::archives::validate_member_name(&path_string)?;
+        if member.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000) {
+            return Err("Symlinks in ZIP files are not repackaged".into());
+        }
+        if !seen.insert(path_string.to_lowercase()) {
+            return Err("Source ZIP contains duplicate names".into());
+        }
+        if member.is_dir() {
+            writer.add_directory(format!("{}/", path_string.trim_end_matches('/')),
+                zip_options(None, level).last_modified_time(member.last_modified().unwrap_or(zip::DateTime::DEFAULT)))
+                .map_err(|e| format!("Cannot preserve ZIP folder: {e}"))?;
+        } else {
+            total = total.saturating_add(member.size());
+            if total > MAX_EXPANDED {
+                return Err("Source ZIP exceeds the 4 GB expanded-size limit".into());
+            }
+            writer.start_file(path_string, zip_options(Some(password), level)
+                .last_modified_time(member.last_modified().unwrap_or(zip::DateTime::DEFAULT)))
+                .map_err(|e| format!("Cannot encrypt ZIP entry: {e}"))?;
+            let expected = member.size();
+            let copied = std::io::copy(&mut member, &mut writer)
+                .map_err(|e| format!("Source ZIP entry is corrupt: {e}"))?;
+            if copied != expected {
+                return Err("Source ZIP entry size mismatch".into());
+            }
+        }
+    }
+    writer.finish().map_err(|e| format!("Cannot finalize protected ZIP: {e}"))?;
+    verify_native_zip(&staged_path, Some(password))?;
+    publish(&staged_path, &output, name, "zip")
         .map(|path| path.to_string_lossy().into_owned())
 }
 
@@ -164,6 +285,41 @@ pub fn extract_native_zip(
 mod tests {
     use super::*;
 
+
+    #[test]
+    fn repacks_existing_zip_members_not_the_zip_file() {
+        let folder = tempfile::tempdir().unwrap();
+        let source = folder.path().join("source.zip");
+        let mut plain = ZipWriter::new(File::create(&source).unwrap());
+        plain.add_directory("nested/", SimpleFileOptions::default()).unwrap();
+        plain.start_file("nested/hello.txt", SimpleFileOptions::default()).unwrap();
+        plain.write_all(b"hello from source").unwrap();
+        plain.finish().unwrap();
+        let output = repack_native_zip(&source.to_string_lossy(), "protected",
+            Some(&folder.path().to_string_lossy()), "SecretPassword!", 5).unwrap();
+        let unwrapped = extract_native_zip(&output,
+            Some(&folder.path().to_string_lossy()), Some("SecretPassword!")).unwrap();
+        assert_eq!(fs::read(Path::new(&unwrapped).join("nested/hello.txt")).unwrap(),
+            b"hello from source");
+        assert!(!Path::new(&unwrapped).join("source.zip").exists());
+        assert!(source.exists(), "Original ZIP must remain unchanged");
+    }
+
+    #[test]
+    fn preserves_empty_folders_in_password_zip() {
+        let folder = tempfile::tempdir().unwrap();
+        let source = folder.path().join("Pictures");
+        fs::create_dir_all(source.join("empty/child")).unwrap();
+        fs::write(source.join("portrait.txt"), b"file data").unwrap();
+        let output = create_native_zip(&[source.to_string_lossy().to_string()],
+            "all-pictures", Some(&folder.path().to_string_lossy()),
+            Some("SecretPassword!"), 5).unwrap();
+        let unwrapped = extract_native_zip(&output,
+            Some(&folder.path().to_string_lossy()), Some("SecretPassword!")).unwrap();
+        assert!(Path::new(&unwrapped).join("Pictures/empty/child").is_dir());
+        assert_eq!(fs::read(Path::new(&unwrapped).join("Pictures/portrait.txt")).unwrap(),
+            b"file data");
+    }
     #[test]
     fn creates_aes_zip_and_roundtrips_without_installed_7zip() {
         let dir = tempfile::tempdir().unwrap();
@@ -174,6 +330,53 @@ mod tests {
         let extracted = extract_native_zip(&path, Some(&dir.path().to_string_lossy()), Some("CorrectHorseBattery")).unwrap();
         assert_eq!(fs::read(Path::new(&extracted).join("hello.txt")).unwrap(), b"Some important content");
         assert_eq!(fs::read(input).unwrap(), b"Some important content");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normal_zip_extracts_using_windows_explorer_engine() {
+        // Expand-Archive is PowerShell's Windows ZIP extraction path; unlike
+        // AES-enabled 7-Zip, it must consume ordinary ReformANY ZIPs.
+        use sha2::{Digest,Sha256};
+        let temp=tempfile::tempdir().unwrap();
+        let source=temp.path().join("vid.mp4");
+        let data=(0..131_073usize).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+        fs::write(&source,&data).unwrap();
+        let empty=temp.path().join("empty.txt");
+        fs::write(&empty,[]).unwrap();
+        let archive=create_native_zip(&[
+            source.to_string_lossy().into_owned(),
+            empty.to_string_lossy().into_owned(),
+        ],"Normal",Some(&temp.path().to_string_lossy()),None,5).unwrap();
+        let extracted=temp.path().join("WindowsExtract");
+        let mut cmd=std::process::Command::new("powershell.exe");
+        cmd.args(["-NoProfile","-NonInteractive","-Command",
+            "Expand-Archive -LiteralPath $env:REFORMANY_TEST_ZIP -DestinationPath $env:REFORMANY_TEST_OUT -Force"])
+            .env("REFORMANY_TEST_ZIP",&archive)
+            .env("REFORMANY_TEST_OUT",&extracted);
+        let result=cmd.output().unwrap();
+        assert!(result.status.success(),"Windows ZIP extractor rejected normal archive: {}",
+            String::from_utf8_lossy(&result.stderr));
+        let copy=fs::read(extracted.join("vid.mp4")).unwrap();
+        assert_eq!(Sha256::digest(&copy),Sha256::digest(&data));
+        assert_eq!(fs::metadata(extracted.join("empty.txt")).unwrap().len(),0);
+        let source_metadata=fs::metadata(&source).unwrap();
+        let expected=safe_modified_time(&source_metadata);
+        let zip=ZipArchive::new(File::open(&archive).unwrap()).unwrap();
+        assert_eq!(zip.file_names().count(),2);
+        assert!(expected.year()>=1980);
+    }
+
+    #[test]
+    fn zip_entries_never_have_invalid_dos_timestamps() {
+        let folder=tempfile::tempdir().unwrap();
+        let source=folder.path().join("data.txt");
+        fs::write(&source,b"date test").unwrap();
+        let archive=create_native_zip(&[source.to_string_lossy().into_owned()],
+            "datecheck",Some(&folder.path().to_string_lossy()),None,5).unwrap();
+        let mut zip=ZipArchive::new(File::open(&archive).unwrap()).unwrap();
+        let stamp=zip.by_index(0).unwrap().last_modified().unwrap();
+        assert!((1980..=2107).contains(&stamp.year()));
     }
 
     #[test]
@@ -215,5 +418,7 @@ mod tests {
         let output = create_native_zip(&[input.to_string_lossy().to_string()],
             "Private", Some(&dir.path().to_string_lossy()), Some("GoodPassword"), 5).unwrap();
         assert!(extract_native_zip(&output, None, None).is_err());
+        assert!(extract_native_zip(&output, None, Some("IncorrectPassword")).is_err());
+        assert!(extract_native_zip(&output, None, Some("GoodPassword")).is_ok());
     }
 }

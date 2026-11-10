@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, design/desktop-orbit-ui-refinement]
   workflow_dispatch:
 
 permissions:
@@ -30,8 +30,16 @@ jobs:
           workspaces: "src-tauri -> target"
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
+      - name: Enforce HoveR naming across tracked source and documents
+        run: node scripts/check-hover-terminology.mjs
       - name: Build frontend
         run: npm run build
+      # Stage the real FFmpeg and FFprobe executables BEFORE any Tauri/Rust build.
+      # The user-facing setup EXE and runtime operate entirely offline.
+      - name: Prepare verified bundled FFmpeg and FFprobe
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/prepare-media-bundle.ps1
       # Tauri's Windows unit test EXEs lack Common Controls v6 by default.
       # Compile, embed the test-only manifest, then run the actual tests.
       - name: Compile Windows Rust tests
@@ -57,15 +65,138 @@ jobs:
             Write-Warning "Transient NSIS HTTP 504 on attempt $attempt; retrying in 30 seconds."
             Start-Sleep -Seconds 30
           }
-      - name: Verify installed Orbit context-menu entries
+      # The real main EXE must open a new HoveR WebView and render a chosen
+      # picture. Catch the user's blank-white HoveR regression before release.
+      - name: Verify HoveR opens a responsive image preview offline
         shell: pwsh
+        timeout-minutes: 3
         run: |
-          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
-          if (!$installer) { throw "No installer was produced" }
-          ./scripts/test-orbit-installer.ps1 -Installer $installer.FullName
+          $exe = (Resolve-Path 'src-tauri/target/release/reformany.exe').Path
+          $picture = (Resolve-Path 'src-tauri/icons/icon.png').Path
+          $policy = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments'
+          New-Item -Path $policy -Force | Out-Null
+          New-ItemProperty -Path $policy -Name 'ReformANY.exe' -Value '--remote-debugging-port=19376 --remote-allow-origins=*' -PropertyType String -Force | Out-Null
+          try {
+            $ffmpeg = (Resolve-Path 'src-tauri/installer/media-bundle/ffmpeg.exe').Path
+            node scripts/test-hover-ui.mjs $exe $picture $ffmpeg
+            if ($LASTEXITCODE -ne 0) { throw 'HoveR image playback smoke test failed' }
+          } finally {
+            Remove-ItemProperty -Path $policy -Name 'ReformANY.exe' -ErrorAction SilentlyContinue
+          }
+      - name: Upload verified main-UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Desktop-Screenshots', github.event.number) || 'ReformANY-Desktop-Screenshots' }}
+          path: test-screenshots/*.png
+          if-no-files-found: warn
+      # Publish a testable EXE as soon as packaging succeeds. Integration
+      # tests continue below and may still fail; users must see CI status.
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Windows-test', github.event.number) || 'ReformANY-0.3.0-Windows-preview' }}
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+      # The user-supplied ZIP is the authoritative React design.
+      # NSIS continues as a completely silent backend (invoked only with /S).
+      - name: Prepare original five-step premium installer UI
+        shell: pwsh
+        run: |
+          $reference = Join-Path $env:RUNNER_TEMP 'ReformANY-Premium-Reference'
+          $frontend = Join-Path $PWD 'installer/setup-shell/frontend'
+          $overrides = Join-Path $PWD 'installer/setup-shell/frontend-overrides'
+          Expand-Archive -LiteralPath 'installer/reference/premium-installer-ui-prompt.zip' -DestinationPath $reference -Force
+          New-Item -ItemType Directory -Path $frontend -Force | Out-Null
+          Copy-Item -Path (Join-Path $reference '*') -Destination $frontend -Recurse -Force
+          Get-ChildItem -LiteralPath $overrides -File -Recurse | ForEach-Object {
+            $relative = $_.FullName.Substring($overrides.Length).TrimStart([char]92, [char]47)
+            $target = Join-Path $frontend $relative
+            New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+            Copy-Item -LiteralPath $_.FullName -Destination $target -Force
+          }
+          # Remove the reference playground app; only the real installer is shipped.
+          Remove-Item -LiteralPath (Join-Path $frontend 'src/App.tsx') -Force
+          New-Item -ItemType Directory -Path (Join-Path $frontend 'public') -Force | Out-Null
+          Copy-Item 'src-tauri/icons/icon.png' (Join-Path $frontend 'public/brand.png') -Force
+          $icons = 'installer/setup-shell/src-tauri/icons'
+          New-Item -ItemType Directory -Path $icons -Force | Out-Null
+          Copy-Item 'src-tauri/icons/icon.ico' (Join-Path $icons 'icon.ico') -Force
+          Copy-Item 'src-tauri/icons/icon.png' (Join-Path $icons 'icon.png') -Force
+      - name: Compile actual premium React installer UI
+        shell: pwsh
+        run: |
+          Push-Location 'installer/setup-shell/frontend'
+          try {
+            npm install --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend npm install failed' }
+            npx tsc --noEmit
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend TypeScript failed' }
+            npm run build
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend Vite build failed' }
+          } finally { Pop-Location }
+      - name: Build frameless Windows premium setup executable
+        shell: pwsh
+        timeout-minutes: 35
+        run: |
+          $native = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (-not $native) { throw 'No real NSIS engine was built' }
+          $env:REFORMANY_NSIS_PAYLOAD = $native.FullName
+          $frontendHtml = 'installer/setup-shell/frontend/dist/index.html'
+          if (-not (Test-Path -LiteralPath $frontendHtml -PathType Leaf)) {
+            throw 'The premium React frontend was not built. Refusing to compile an empty setup EXE.'
+          }
+          cargo build --release --features custom-protocol --manifest-path 'installer/setup-shell/src-tauri/Cargo.toml'
+          if ($LASTEXITCODE -ne 0) { throw 'Premium Tauri setup compilation failed' }
+          $premium = 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe'
+          if (-not (Test-Path -LiteralPath $premium)) { throw 'Premium setup exe missing' }
+          & $premium --verify-payload
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled NSIS engine verification failed' }
+          Write-Host "Premium installer binary: $premium"
+      # The old setup launched localhost:1421 instead of embedded React because
+      # its cargo release build lacked Tauri's custom-protocol feature. This
+      # startup test is mandatory: no broken UI gets published as an artifact.
+      - name: Verify actual premium EXE opens bundled React UI offline
+        shell: pwsh
+        timeout-minutes: 4
+        run: |
+          # WebView2 Runtime 150 can ignore the remote-debugging environment
+          # variable in elevated hosts. The GitHub runner is elevated, so use
+          # a scoped Microsoft-documented WebView2 policy only during this test.
+          # It is NEVER embedded in, installed by, or applied on users' PCs.
+          $premium = (Resolve-Path 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe').Path
+          $policy = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments'
+          $exeName = 'reformany-setup.exe'
+          New-Item -Path $policy -Force | Out-Null
+          New-ItemProperty -Path $policy -Name $exeName -Value '--remote-debugging-port=19375 --remote-allow-origins=*' -PropertyType String -Force | Out-Null
+          try {
+            node scripts/test-premium-setup-ui.mjs $premium
+            if ($LASTEXITCODE -ne 0) { throw 'Premium setup UI failed startup smoke test' }
+          } finally {
+            Remove-ItemProperty -Path $policy -Name $exeName -ErrorAction SilentlyContinue
+          }
+      - name: Upload premium frameless setup EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Premium-Setup', github.event.number) || 'ReformANY-Premium-Setup-preview' }}
+          path: installer/setup-shell/src-tauri/target/release/reformany-setup.exe
+          if-no-files-found: error
+      - name: Verify real NSIS opt-out flags
+        shell: pwsh
+        run: |
+          $native = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (-not $native) { throw 'No real NSIS engine was built' }
+          ./scripts/test-setup-flags.ps1 -Installer $native.FullName
+      - name: Verify installed Orbit context-menu entries
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (!$installer) { throw "No installer was produced" }
+          ./scripts/test-orbit-installer.ps1 -Installer $installer.FullName
+      - name: Verify optional FFmpeg install and real transcodes
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (!$installer) { throw "No installer was produced" }
+          ./scripts/test-media-installer.ps1 -Installer $installer.FullName
