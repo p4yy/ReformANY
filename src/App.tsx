@@ -8,7 +8,7 @@ import { DocumentsModule, EbooksModule, PreviewModule, SpreadsheetsModule, Subti
 import { ActivityModule, AppearanceModule, EnginesModule, FilesJobsModule, GuideModule } from './modules/System';
 import { OverviewModule } from './modules/Overview';
 import { OrbitHUD } from './orbit/OrbitHUD';
-import FloatWindow from './native/FloatWindow';
+import HoveRView from './HoveRView';
 import { defaultPreferences, type ActivityItem, type ModuleId, type Preferences, type QueueItem, type ToastMessage } from './types';
 import { uid } from './lib/files';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -61,7 +61,7 @@ export default function App() {
   }, [closeState, navigate, fullscreen]);
   useEffect(() => { const handler = (event: Event) => notify('File operation', (event as CustomEvent<string>).detail, 'danger'); window.addEventListener('reformany:notice', handler); return () => window.removeEventListener('reformany:notice', handler); }, [notify]);
   const common = { preferences, updatePreferences, notify, log };
-  if (isNativeFloatRoute) return <FloatWindow notify={notify} />;
+  if (isNativeFloatRoute) return <HoveRView />;
   if (isNativeOrbitRoute) return <>
     <OrbitHUD native preferences={preferences} onClose={() => void closeCurrentNativeWindow()} notify={notify} log={log} />
     <div className="toast-stack" aria-live="polite">{toasts.map(toast => <div className={`toast ${toast.tone || 'default'}`} key={toast.id}><div className="toast-icon">{toast.tone === 'danger' ? <X size={16} /> : <Check size={16} />}</div><div><strong>{toast.title}</strong>{toast.message && <p>{toast.message}</p>}</div><IconButton label="Dismiss notification" onClick={() => setToasts(current => current.filter(item => item.id !== toast.id))}><X size={14} /></IconButton></div>)}</div>
