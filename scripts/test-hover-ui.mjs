@@ -5,7 +5,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname, delimiter } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
 if (process.platform !== "win32") throw new Error("HoveR startup verification requires Windows");
@@ -88,7 +88,7 @@ async function screenshot(socket, filename) {
   await writeFile(join(dir, filename), Buffer.from(result,"base64"));
 }
 try {
-  const video = join(temp, "sample.mp4"), audio = join(temp, "sample.mp3");
+  const video = join(temp, "sample.mp4"), audio = join(temp, "sample.mp3"), mkv = join(temp, "sample.mkv");
   execFileSync(ffmpeg, ["-hide_banner","-loglevel","error","-y",
     "-f","lavfi","-i","testsrc2=size=160x90:rate=10",
     "-f","lavfi","-i","sine=frequency=440:sample_rate=44100",
@@ -97,11 +97,14 @@ try {
   execFileSync(ffmpeg, ["-hide_banner","-loglevel","error","-y","-i",video,
     "-map","0:a:0","-vn","-c:a","libmp3lame",audio],
     {windowsHide:true,timeout:30000});
+  execFileSync(ffmpeg, ["-hide_banner","-loglevel","error","-y","-i",video,"-c","copy",mkv],
+    {windowsHide:true,timeout:30000});
   child = spawn(exe, [], {
     windowsHide:false,
     stdio:"ignore",
     env:{
       ...process.env,
+      PATH:dirname(ffmpeg)+delimiter+(process.env.PATH||""),
       WEBVIEW2_USER_DATA_FOLDER:join(temp,"webview"),
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:
         "--remote-debugging-port=" + port + " --remote-allow-origins=*",
@@ -345,6 +348,22 @@ try {
   }
   await checkMedia(audio,"audio");
   await checkMedia(video,"video");
+  // WebView2 does not play every desktop codec/container. Verify the real
+  // bundled FFmpeg can decode an MKV first frame into HoveR's still preview.
+  await evaluate(mainSocket,
+    'window.__TAURI_INTERNALS__.invoke("hover_file",{path:' + JSON.stringify(mkv) + '})');
+  let mkvReady=false;
+  for(let attempt=0;attempt<50;attempt++){
+    const preview=await evaluate(socket,`(() => ({
+      found:!!document.querySelector('img[alt="Decoded video frame preview"]'),
+      width:document.querySelector('img[alt="Decoded video frame preview"]')?.naturalWidth||0,
+      message:document.querySelector('.hover-note')?.textContent||''
+    }))()`);
+    if(preview.found&&preview.width>0){mkvReady=true;break;}
+    await sleep(270);
+  }
+  if(!mkvReady) throw Error("MKV image preview did not decode using the bundled FFmpeg engine.");
+  console.log("PASS: real MKV thumbnail decoded in HoveR using FFmpeg.");
   // Regression: users reported that the custom X did nothing. This must
   // destroy the native WebView, not merely hide React content.
   await evaluate(socket,
