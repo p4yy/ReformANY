@@ -894,6 +894,11 @@ html.reformany-panel-window,html.reformany-panel-window body,html.reformany-pane
 .orbit-os.native { width: 100vw; height: 100dvh; background: transparent !important; overflow: hidden; }
 .orbit-os.native .orbit-os-close,.orbit-os.native .orbit-help,.orbit-os.native .orbit-section-tabs,.orbit-os.native .orbit-file-chip { display: none !important; }
 .orbit-os.native .orbit-composition { top: 50% !important; left: 50% !important; height: 520px !important; width: 520px !important; }
+/* A native Orbit window is 580 logical px high: global max-height:780px
+   breakpoint must not shrink its 520px disc inside a full-size 520px SVG.
+   Keep the circle and its hit targets the same size on every host screen. */
+.orbit-os.native .orbit-disc { width: 520px !important; height: 520px !important; }
+.orbit-os.native .orbit-hub { width: 142px; height: 142px; }
 .orbit-panel-window { width: 100vw; height: 100dvh; display: grid; place-items: center; background: transparent; }
 .orbit-panel-window .orbit-dialog-backdrop { position: relative; inset: auto; width: 100%; height: 100%; background: transparent !important; backdrop-filter: none !important; padding: 16px; }
 .orbit-panel-window .orbit-dialog { max-width: calc(100vw - 32px) !important; max-height: calc(100dvh - 32px) !important; margin: auto; overflow: hidden; }
