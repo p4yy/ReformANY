@@ -166,8 +166,8 @@ export function MediaModule(props: ConverterProps) {
 }
 
 const mediaTools = [
-  { id: 'compress-video', name: 'Compress video', icon: Video, detail: 'H.264 · CRF 28', accept: 'video/*', output: 'MP4' },
-  { id: 'compress-audio', name: 'Compress audio', icon: Music2, detail: 'Bitrate 128 kb/s', accept: 'audio/*', output: 'MP3' },
+  { id: 'compress-video', name: 'Compress video', icon: Video, detail: 'H.264 · CRF 30', accept: 'video/*', output: 'MP4' },
+  { id: 'compress-audio', name: 'Compress audio', icon: Music2, detail: 'Bitrate 96 kb/s', accept: 'audio/*', output: 'MP3' },
   { id: 'normalize', name: 'Normalize loudness', icon: Volume2, detail: 'EBU R128 · −16 LUFS', accept: 'audio/*', output: 'WAV' },
   { id: 'merge-audio', name: 'Merge audio', icon: Combine, detail: '2–12 sources', accept: 'audio/*', output: 'MP3' },
   { id: 'merge-video', name: 'Merge video', icon: Film, detail: 'Scale to 720p', accept: 'video/*', output: 'MP4' },
