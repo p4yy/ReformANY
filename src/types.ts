@@ -39,6 +39,9 @@ export interface Preferences {
   theme: 'system' | 'light' | 'dark';
   language: string;
   orbitSounds: boolean;
+  orbitOpeningSound: boolean;
+  orbitClosingSound: boolean;
+  orbitHoverSound: boolean;
   orbitVolume: number;
   orbitStart: 'convert' | 'tools' | 'actions';
   orbitScroll: boolean;
@@ -55,6 +58,7 @@ export interface Preferences {
 
 export const defaultPreferences: Preferences = {
   theme: 'dark', language: 'English (United States)', orbitSounds: true,
+  orbitOpeningSound: true, orbitClosingSound: true, orbitHoverSound: true,
   orbitVolume: 65, orbitStart: 'convert', orbitScroll: true,
   orbitModifiers: { convert: 'Shift', tools: 'Ctrl', actions: 'Alt' },
   holdShake: true, shakeSensitivity: 58, pointerRing: true,

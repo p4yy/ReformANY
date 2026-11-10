@@ -46,7 +46,7 @@ export function ImagesModule({ preferences, updatePreferences, notify, log, queu
   const run = async () => {
     const runnable = queue.filter(item => item.status !== 'done');
     if (!runnable.length) { notify('Your queue is empty', 'Add at least one image to begin.', 'danger'); return; }
-    if (!settings.maxEdge || settings.maxEdge >= 16) { setWorking(true); } else { notify('Maximum edge is too small', 'Use 0 for original size or at least 16 pixels.', 'danger'); return; }
+    if (!settings.maxEdge || (settings.maxEdge >= 128 && settings.maxEdge <= 8192)) { setWorking(true); } else { notify('Maximum edge is too small', 'Use 0 for original size or 128–8192 pixels.', 'danger'); return; }
     if (native) {
       setWorking(true);
       try {
@@ -104,7 +104,7 @@ export function ImagesModule({ preferences, updatePreferences, notify, log, queu
         {fineTune && <div className="fine-tune-body">
           <Field label="Destination"><Select value={destination} onChange={value => { setDestination(value); updatePreferences({ destination: value }); }} options={['Next to original', 'Desktop', 'Downloads', 'Choose folder']} /></Field>
           <Field label="Background"><Select value={settings.background} onChange={background => setSettings({ ...settings, background })} options={[{ value: 'Transparent', label: 'Transparent' }, { value: '#E1E6D9', label: 'Warm paper' }, { value: '#11140E', label: 'Deep olive' }, { value: '#F4F3EA', label: 'Warm white' }]} /></Field>
-          <Field label="Resize max edge" hint="0 keeps original"><NumberStepper label="Maximum edge in pixels" value={settings.maxEdge} onChange={maxEdge => setSettings({ ...settings, maxEdge })} min={0} max={16000} unit="px" /></Field>
+          <Field label="Resize max edge" hint="0 keeps original"><NumberStepper label="Maximum edge in pixels" value={settings.maxEdge} onChange={maxEdge => setSettings({ ...settings, maxEdge })} min={0} max={8192} unit="px" /></Field>
           <Field label="Rotation"><KineticButton onClick={() => setSettings({ ...settings, rotate: (settings.rotate + 90) % 360 })}><RotateCw size={16} />Clockwise · {settings.rotate}°</KineticButton></Field>
           <div className="check-setting"><div><strong>Grayscale</strong><small>Perceptual luminance</small></div><Toggle label="Grayscale" checked={settings.grayscale} onChange={grayscale => setSettings({ ...settings, grayscale })} /></div>
         </div>}
@@ -168,9 +168,8 @@ export function MediaModule(props: ConverterProps) {
 const mediaTools = [
   { id: 'compress-video', name: 'Compress video', icon: Video, detail: 'H.264 · CRF 28', accept: 'video/*', output: 'MP4' },
   { id: 'compress-audio', name: 'Compress audio', icon: Music2, detail: 'Bitrate 128 kb/s', accept: 'audio/*', output: 'MP3' },
-  { id: 'normalize', name: 'Normalize loudness', icon: Volume2, detail: 'EBU R128 · −16 LUFS', accept: 'audio/*,video/*', output: 'Same container' },
-  { id: 'merge-audio', name: 'Merge audio', icon: Combine, detail: '2–12 sources', accept: 'audio/*', output: 'M4A' },
-  { id: 'normalize', name: 'Normalize audio', icon: Volume2, detail: 'Stable loudness · WAV', accept: 'audio/*', output: 'WAV' },
+  { id: 'normalize', name: 'Normalize loudness', icon: Volume2, detail: 'EBU R128 · −16 LUFS', accept: 'audio/*', output: 'WAV' },
+  { id: 'merge-audio', name: 'Merge audio', icon: Combine, detail: '2–12 sources', accept: 'audio/*', output: 'MP3' },
   { id: 'merge-video', name: 'Merge video', icon: Film, detail: 'Scale to 720p', accept: 'video/*', output: 'MP4' },
   { id: 'rotate', name: 'Rotate 90°', icon: RotateCw, detail: 'Clockwise transform', accept: 'video/*', output: 'MP4' },
   { id: 'flip-h', name: 'Flip horizontal', icon: FlipHorizontal2, detail: 'Mirror on X axis', accept: 'video/*', output: 'MP4' },
