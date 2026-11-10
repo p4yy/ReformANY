@@ -128,6 +128,41 @@ pub fn run() {
     // A separate user-session process can remain active after the UI exits.
     let command = std::env::args_os().nth(1)
         .map(|arg| arg.to_string_lossy().into_owned()).unwrap_or_default();
+    // Headless production probe: use only embedded engines, with a fresh
+    // per-user cache, to prove this portable exe can truly encode offline.
+    if command == "--portable-self-test" {
+        let ffmpeg = external::find_binary("ffmpeg");
+        let ffprobe = external::find_binary("ffprobe");
+        let success = (|| -> Result<(), String> {
+            let ffmpeg = ffmpeg.ok_or("Embedded FFmpeg missing")?;
+            let ffprobe = ffprobe.ok_or("Embedded FFprobe missing")?;
+            let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+            let audio = dir.path().join("portable-audio.wav");
+            let mut encode = std::process::Command::new(&ffmpeg);
+            external::hide_subprocess_window(&mut encode);
+            let outcome = encode.args([
+                "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                "anullsrc=r=44100:cl=mono", "-t", "0.2",
+                "-c:a", "pcm_s16le", "-y",
+            ]).arg(&audio).status().map_err(|e| e.to_string())?;
+            if !outcome.success() || std::fs::metadata(&audio).map_or(true, |m| m.len() < 44) {
+                return Err("Bundled FFmpeg could not encode actual WAV audio".into());
+            }
+            let mut probe = std::process::Command::new(&ffprobe);
+            external::hide_subprocess_window(&mut probe);
+            let outcome = probe.args(["-v", "error", "-show_entries",
+                "stream=codec_name", "-of", "default=noprint_wrappers=1"])
+                .arg(&audio).output().map_err(|e| e.to_string())?;
+            if !outcome.status.success() || !String::from_utf8_lossy(&outcome.stdout).contains("pcm_s16le") {
+                return Err("Bundled FFprobe could not inspect encoded audio".into());
+            }
+            Ok(())
+        })();
+        match success {
+            Ok(()) => { println!("PASS: portable EXE encodes and probes real audio offline."); return; }
+            Err(error) => { eprintln!("FAIL: portable EXE: {error}"); std::process::exit(1); }
+        }
+    }
     if command == "--shake-listener" { shake::run_listener(); return; }
     if command == "--shake-stop" { shake::stop_listener(); return; }
     let orbit_args = std::env::args_os().skip(1).collect::<Vec<_>>();
