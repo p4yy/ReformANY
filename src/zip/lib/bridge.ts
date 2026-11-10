@@ -4,7 +4,7 @@
  * placeholders in the design ZIP, not implemented Windows backend functions.
  */
 import { sleep, uid } from './util';
-import { nativeConvertImages } from '../../native/bridge';
+import { loadNativeFile, nativeConvertImages } from '../../native/bridge';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 export const CMD = {
@@ -196,8 +196,19 @@ async function orbitAction(args: Record<string, unknown>): Promise<unknown> {
     }
     if (ext === 'pdf') {
       if (target === 'docx-edit') return raw('pdf_docx_editable', { path, destination: null });
-      if (target === 'docx-layout') return raw('pdf_docx_layout', { path, images: false, destination: null });
-      return raw('pdf_to_text_format', { path, target, destination: null });
+      if (target === 'docx-layout' || target === 'png' || target === 'jpg') {
+        const file = await loadNativeFile(path);
+        if (!file.nativeBytesLoaded) throw new Error('The selected PDF is too large to render in the local editor.');
+        const { renderPdfPageImages } = await import('./pdf');
+        const outputFormat = target === 'jpg' ? 'jpg' : 'png';
+        const images = await renderPdfPageImages(file, outputFormat);
+        if (target === 'docx-layout') return raw('pdf_docx_layout', { path, images, destination: null });
+        return raw('pdf_save_rendered_pages', { path, target, images, destination: null });
+      }
+      if (['txt', 'md', 'html'].includes(target)) {
+        return raw('pdf_to_text_format', { path, target, destination: null });
+      }
+      throw new Error(`PDF → ${target.toUpperCase()} is not supported by the installed local engine.`);
     }
     if (['zip','7z','tar','rar'].includes(target)) return raw('archive_create', { job: {
       paths: [path], destination: null, name: path.split(/[\\/]/).pop() || 'Archive',
