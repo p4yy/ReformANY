@@ -54,6 +54,13 @@ export default function App() {
       .catch(error => { if (live) notify('Shake preferences unavailable', String(error), 'danger'); });
     return () => { live = false; };
   }, [notify, updatePreferences]);
+  // Keep the main-window close behavior in sync with the native Windows tray.
+  useEffect(() => {
+    if (!isTauri || isNativeOrbitRoute || isNativePanelRoute || isNativeFloatRoute) return;
+    void runNative('set_close_to_tray', { enabled: preferences.closeToTray })
+      .catch(error => notify('Could not update tray behavior', String(error), 'danger'));
+  }, [preferences.closeToTray, notify]);
+
   // Mirror separate Orbit process audio settings to the native playback engine.
   useEffect(() => {
     if (!isTauri || isNativeOrbitRoute || isNativePanelRoute || isNativeFloatRoute) return;
@@ -113,7 +120,10 @@ export default function App() {
   if (closeState === 'closed') return <div className="closed-desktop"><div className="closed-window"><Brand /><div className="closed-orbit"><Orbit size={36} /></div><h1>ReformANY is closed.</h1><p>Your preferences and local activity remain in this browser profile. No conversion is running.</p><KineticButton tone="primary" onClick={() => { setCloseState('open'); setMinimized(false); }}>Reopen ReformANY</KineticButton></div></div>;
   return <>
     <div className={minimized ? 'app-minimized' : ''}>
-      <AppShell active={active} navigate={navigate} queueCount={queue.filter(item => item.status === 'queued' || item.status === 'working').length} activityCount={activity.length} collapsed={collapsed} onToggleCollapsed={() => setCollapsed(!collapsed)} mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(!mobileOpen)} autoCompact={autoCompact} altDown={altDown} onCommand={() => setPaletteOpen(true)} onOrbit={openOrbit} maximized={maximized} onMaximize={() => { if (isTauri) void getCurrentWindow().isMaximized().then(async current => { if (current) await getCurrentWindow().unmaximize(); else await getCurrentWindow().maximize(); setMaximized(!current); }); else setMaximized(!maximized); }} onMinimize={() => { if (isTauri) void getCurrentWindow().minimize(); else setMinimized(true); }} onClose={() => setCloseState('confirm')} focused={focused} fullscreen={fullscreen}>{module}</AppShell>
+      <AppShell active={active} navigate={navigate} queueCount={queue.filter(item => item.status === 'queued' || item.status === 'working').length} activityCount={activity.length} collapsed={collapsed} onToggleCollapsed={() => setCollapsed(!collapsed)} mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(!mobileOpen)} autoCompact={autoCompact} altDown={altDown} onCommand={() => setPaletteOpen(true)} onOrbit={openOrbit} maximized={maximized} onMaximize={() => { if (isTauri) void getCurrentWindow().isMaximized().then(async current => { if (current) await getCurrentWindow().unmaximize(); else await getCurrentWindow().maximize(); setMaximized(!current); }); else setMaximized(!maximized); }} onMinimize={() => { if (isTauri) void getCurrentWindow().minimize(); else setMinimized(true); }} onClose={() => {
+        if (isTauri && preferences.closeToTray) void getCurrentWindow().close();
+        else setCloseState('confirm');
+      }} focused={focused} fullscreen={fullscreen}>{module}</AppShell>
     </div>
     {minimized && <button className="minimized-dock" onClick={() => setMinimized(false)}><Brand /><span>Restore window</span></button>}
     <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navigate={navigate} onOrbit={openOrbit} onToggleCollapsed={() => setCollapsed(!collapsed)} onToggleTheme={() => updatePreferences({ theme: preferences.theme === 'dark' ? 'light' : 'dark' })} onClearQueue={() => { setQueue([]); notify('Image queue cleared', 'Source files were not modified.'); }} queueCount={queue.length} theme={preferences.theme} />
