@@ -18,7 +18,7 @@ async function toFile(item: QueueItem): Promise<File> {
   if (item.file) return item.file;
   if (isTauri && item.path) {
     // Read the verified local file via the existing native bridge. Never use
-    // fetch()/an asset URL: the desktop application has an offline-only policy.
+    // HTTP or asset URL access: the desktop app must remain entirely offline.
     const { loadNativeFile } = await import("../../native/bridge");
     return loadNativeFile(item.path);
   }
