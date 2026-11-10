@@ -15,7 +15,7 @@ pub struct ShakeSettings {
     pub sensitivity:u8,
 }
 impl Default for ShakeSettings {
-    fn default()->Self{Self{enabled:false,sensitivity:3}}
+    fn default()->Self{Self{enabled:true,sensitivity:3}}
 }
 fn path()->PathBuf{crate::job_settings::directory().join("orbit-gesture.json")}
 fn read_settings()->ShakeSettings{
