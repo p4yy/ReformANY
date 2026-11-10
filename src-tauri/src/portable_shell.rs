@@ -1,5 +1,6 @@
 //! Per-user Explorer context menu support for the single portable EXE.
 //! Unlike the NSIS install hooks, this uses HKCU only (no elevation).
+#[cfg(all(windows, feature = "portable-media"))]
 use std::{env, path::PathBuf, process::Command};
 
 #[cfg(all(windows, feature = "portable-media"))]
