@@ -171,6 +171,37 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     }
     return outputs.length === 1 ? await downloadBlob(outputs[0], outputs[0].name) : await downloadBlob(await createZip(outputs, 0), `${file.name.replace(/\.pdf$/i, '')}-${format}-pages.zip`);
   };
+  /** Actual PDF page images for the native layout-preserving DOCX writer.
+   * Keep the browser-side workload capped to protect the native window. */
+  const pdfLayoutPageImages = async (): Promise<string[]> => {
+    if (!file.file || (native && !(file.file as File & { nativeBytesLoaded?: boolean }).nativeBytesLoaded))
+      throw new Error('This PDF cannot be rendered locally (48 MB editor limit).');
+    const document = await getDocument({ data: new Uint8Array(await file.file.arrayBuffer()) }).promise;
+    if (document.numPages < 1 || document.numPages > 60)
+      throw new Error('Layout DOCX supports 1 to 60 pages.');
+    const images: string[] = [];
+    let bytes = 0;
+    for (let number = 1; number <= document.numPages; number++) {
+      const page = await document.getPage(number);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(1.35, Math.sqrt(4_000_000 / (base.width * base.height)));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvasContext: canvas.getContext('2d')!, viewport, canvas }).promise;
+      const encoded = canvas.toDataURL('image/png').split(',')[1] || '';
+      canvas.width = 0;
+      canvas.height = 0;
+      if (!encoded || encoded.length > 20 * 1024 * 1024 * 4 / 3)
+        throw new Error('A rendered PDF page is too large for the native DOCX writer.');
+      bytes += encoded.length;
+      if (bytes > 120 * 1024 * 1024)
+        throw new Error('Rendered page images exceed the memory-safe export limit.');
+      images.push(encoded);
+    }
+    return images;
+  };
   const convert = async (target: string) => {
     if (native && desktop) {
       const source = file.path;
@@ -187,8 +218,11 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
       } else if (file.kind === 'folder') {
         const result = await runNative<{ outputPaths: string[] }>('archive_create', { job: { paths: [source], destination: null, name: file.name, format: target, password: null, splitMegabytes: null, level: 5 } });
         output = result.outputPaths[0] || '';
-      } else if (file.kind === 'pdf' && ['docx-edit', 'docx-layout'].includes(target)) {
-        output = await runNative<string>('ebook_convert_file', { job: { path: source, target: 'docx', destination: null } });
+      } else if (file.kind === 'pdf' && target === 'docx-edit') {
+        output = await runNative<string>('pdf_docx_editable', { path: source, destination: null });
+      } else if (file.kind === 'pdf' && target === 'docx-layout') {
+        const images = await pdfLayoutPageImages();
+        output = await runNative<string>('pdf_docx_layout', { path: source, images, destination: null });
       } else if (file.kind === 'pdf' && ['txt', 'md', 'html'].includes(target)) {
         output = await runNative<string>('pdf_to_text_format', { path: source, target, destination: null });
       } else if (file.kind === 'pdf' && ['png', 'jpg'].includes(target)) { output = await pdfImages(target as 'png' | 'jpg') || 'PDF pages exported'; }
@@ -229,8 +263,20 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     if (native && !pathOf(file.file)) { notify('File not ready', 'Orbit has not loaded an Explorer selection yet.', 'default'); return; }
     setPointer({ x: event.clientX, y: event.clientY });
     const rect = disc.current?.getBoundingClientRect(); if (rect) { setPulse({ x: event.clientX - rect.left, y: event.clientY - rect.top, id: uid() }); setTimeout(() => setPulse(null), 420); }
+    if (wedge.id === 'extract-images' && file.kind === 'pdf') {
+      setBusy(true);
+      try {
+        const output = await runNative<{ outputPaths: string[]; skippedUnsupported: number }>(
+          'pdf_extract_images', { path: file.path, destination: null });
+        if (!output.outputPaths.length) throw new Error('No compatible embedded PDF images were found.');
+        notify('Embedded images extracted', output.outputPaths.length + ' files saved · ' + output.outputPaths[0], 'success');
+        log('PDF embedded images extracted', output.outputPaths.join(' · '), 'Orbit');
+      } catch (error) { notify('PDF image extraction failed', String(error), 'danger'); }
+      finally { setBusy(false); }
+      return;
+    }
     if (wedge.id === 'hover' && native && desktop) { await runNative<void>('hover_file', { path: file.path }); return; }
-    if (['shred', 'rename', 'watermark', 'split-pdf', 'hover', 'arrange', 'password-zip', 'split-binary', 'more-tools', 'sign'].includes(wedge.id)) { openDialog(wedge.id as OrbitDialogKind); return; }
+    if (['shred', 'rename', 'watermark', 'split-pdf', 'hover', 'arrange', 'password-zip', 'split-binary', 'more-tools', 'sign', 'pdf-password'].includes(wedge.id)) { openDialog(wedge.id as OrbitDialogKind); return; }
     if (wedge.id.startsWith('to-')) { setBusy(true); try { await convert(wedge.id.slice(3)); } catch (error) { notify('Orbit action not completed', error instanceof Error ? error.message : 'Conversion failed.', 'danger'); log('Orbit conversion stopped', error instanceof Error ? error.message : 'Conversion failed', 'Orbit', 'error'); } finally { setBusy(false); } return; }
     if (wedge.id === 'copy-path') { await navigator.clipboard.writeText(file.path); notify('Path copied', file.path, 'success'); return; }
     if (wedge.id === 'copy-file') { if (native && desktop) { const dest = await nativeCopyFile(file.path); if (dest) notify('File copied', dest, 'success'); return; } if (file.file) { await downloadBlob(file.file, `Copy of ${file.name}`); notify('Copy downloaded', 'The source File object was not modified.', 'success'); } else notify('Choose a local file', 'Browser preview items without bytes cannot be copied.', 'danger'); return; }

@@ -10,7 +10,7 @@ import { CopyButton, Field, FileContextRow, IconButton, InlineNote, KineticButto
 
 const BrowserFile = globalThis.File;
 
-export type OrbitDialogKind = 'shred' | 'rename' | 'sign' | 'watermark' | 'split-pdf' | 'hover' | 'arrange' | 'password-zip' | 'split-binary' | 'more-tools';
+export type OrbitDialogKind = 'shred' | 'rename' | 'sign' | 'watermark' | 'split-pdf' | 'hover' | 'arrange' | 'password-zip' | 'split-binary' | 'more-tools' | 'pdf-password';
 interface DialogProps {
   file: OrbitFile;
   onClose: () => void;
@@ -327,11 +327,60 @@ export function SignDialog({ file, onClose, notify }: DialogProps) {
   </OrbitDialogFrame>;
 }
 
+
+export function PdfPasswordDialog({ file, onClose, notify }: DialogProps) {
+  const [mode, setMode] = useState<'protect' | 'unlock'>('protect');
+  const [password, setPassword] = useState('');
+  const [working, setWorking] = useState(false);
+  const act = async () => {
+    if (!desktop || !pathOf(file.file)) {
+      notify('Native PDF tool required', 'Use the installed Windows desktop application.', 'danger');
+      return;
+    }
+    if (mode === 'protect' && password.length < 8) {
+      notify('Stronger password required', 'Use at least eight characters to encrypt the PDF.', 'danger');
+      return;
+    }
+    if (!password) { notify('Password required', 'Enter the current PDF owner password.', 'danger'); return; }
+    setWorking(true);
+    try {
+      const saved = await runNative<string>(mode === 'protect' ? 'pdf_protect' : 'pdf_unlock', {
+        path: file.path, password, destination: null,
+      });
+      setPassword('');
+      notify(mode === 'protect' ? 'Protected PDF saved' : 'Unlocked PDF saved', saved, 'success');
+      onClose();
+    } catch (error) { notify('PDF password operation failed', String(error), 'danger'); }
+    finally { setWorking(false); }
+  };
+  return <OrbitDialogFrame title="PDF protection" subtitle="Encrypt with AES-256 or remove protection using the correct owner password." icon={<LockKeyhole size={22}/>} file={file} onClose={onClose}
+    footer={<><KineticButton tone="ghost" onClick={onClose}>Cancel</KineticButton>
+      <KineticButton tone="primary" disabled={working || password.length === 0} onClick={() => void act()}>
+        {working ? <LoaderCircle size={16} className="spin"/> : <Check size={16}/>}
+        {mode === 'protect' ? 'Save protected copy' : 'Save unlocked copy'}
+      </KineticButton></>}>
+    <div className="dialog-form">
+      <Field label="Operation">
+        <Select value={mode} onChange={value => { setMode(value as 'protect' | 'unlock'); setPassword(''); }}
+          options={[{ value: 'protect', label: 'Encrypt PDF' }, { value: 'unlock', label: 'Remove protection' }]} />
+      </Field>
+      <Field label={mode === 'protect' ? 'New PDF password' : 'Current owner password'}>
+        <input type="password" autoComplete="new-password" className="text-input"
+          value={password} minLength={mode === 'protect' ? 8 : undefined} maxLength={127}
+          onChange={event => setPassword(event.target.value)}
+          onKeyDown={event => { if (event.key === 'Enter' && !working) void act(); }}/>
+      </Field>
+      <InlineNote>Only a new copy is saved. The source file remains unchanged. Passwords are never written to logs or settings.</InlineNote>
+    </div>
+  </OrbitDialogFrame>;
+}
+
 export function OrbitDialogRouter({ kind, ...props }: DialogProps & { kind: OrbitDialogKind }) {
   if (kind === 'shred') return <ShredDialog {...props} />;
   if (kind === 'rename') return <RenameDialog {...props} />;
   if (kind === 'watermark') return <WatermarkDialog {...props} />;
   if (kind === 'sign') return <SignDialog {...props} />;
+  if (kind === 'pdf-password') return <PdfPasswordDialog {...props} />;
   if (kind === 'split-pdf') return <SplitPdfDialog {...props} />;
   if (kind === 'hover') return <HoverDialog {...props} />;
   if (kind === 'arrange') return <ArrangeDialog {...props} />;

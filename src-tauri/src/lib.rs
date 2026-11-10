@@ -73,7 +73,7 @@ use tauri::{WebviewUrl, WebviewWindowBuilder};
 fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), String> {
     if !matches!(kind.as_str(), "sign" | "watermark" | "split-pdf" |
         "arrange" | "password-zip" | "split-binary" | "rename" |
-        "shred" | "more-tools") {
+        "shred" | "more-tools" | "pdf-password") {
         return Err("Unsupported Orbit tool".into());
     }
     let wide = matches!(kind.as_str(), "sign" | "watermark" | "arrange");
