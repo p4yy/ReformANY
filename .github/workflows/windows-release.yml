@@ -242,6 +242,34 @@ jobs:
             $env:LOCALAPPDATA = $oldLocalAppData
             $env:PATH = $oldPath
           }
+      - name: Verify portable Explorer context menus without NSIS or admin rights
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $exe = (Resolve-Path 'portable-output/ReformANY.exe').Path
+          try {
+            $register = Start-Process -FilePath $exe -ArgumentList '--portable-register-context' -Wait -PassThru
+            if ($register.ExitCode -ne 0) { throw "Portable shell registration exited $($register.ExitCode)" }
+            foreach ($kind in @('*', 'Directory')) {
+              $path = "HKCU:\\Software\\Classes\\$kind\\shell\\ReformANYOrbit"
+              $item = Get-Item -LiteralPath $path -ErrorAction Stop
+              $verb = $item.GetValue('MUIVerb')
+              $icon = $item.GetValue('Icon')
+              $command = (Get-Item -LiteralPath "$path\\command" -ErrorAction Stop).GetValue('')
+              $expected = '"' + $exe + '" orbit "%1"'
+              if ($verb -ne 'ReformANY Orbit' -or $icon -ne "$exe,0" -or $command -ne $expected) {
+                throw "Invalid portable Explorer $kind menu: verb=$verb icon=$icon cmd=$command"
+              }
+            }
+          } finally {
+            $remove = Start-Process -FilePath $exe -ArgumentList '--portable-remove-context' -Wait -PassThru
+            if ($remove.ExitCode -ne 0) { throw "Portable registry cleanup exited $($remove.ExitCode)" }
+            foreach ($kind in @('*','Directory')) {
+              if (Test-Path -LiteralPath "HKCU:\\Software\\Classes\\$kind\\shell\\ReformANYOrbit") {
+                throw "Portable Explorer $kind context menu was not unregistered"
+              }
+            }
+          }
       # Internal PR artifacts are a GitHub Actions transport ZIP. Final users
       # must receive only the raw portable EXE through a signed-off Release asset.
       - name: Upload one portable EXE for Windows acceptance testing
