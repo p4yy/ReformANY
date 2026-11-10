@@ -909,3 +909,41 @@ html.reformany-panel-window,html.reformany-panel-window body,html.reformany-pane
 .orbit-panel-window .watermark-dialog .orbit-dialog-body { overflow: auto; }
 .orbit-panel-window .watermark-columns { min-height: 320px; height: min(540px, calc(100dvh - 260px)); }
 .orbit-panel-window .toast-stack { position: fixed; z-index: 500; right: 22px; bottom: 22px; }
+
+/* Native tools are real opaque windows, not transparent fullscreen overlays.
+   The circular Orbit overlay deliberately remains transparent and unchanged. */
+html.reformany-panel-window,
+html.reformany-panel-window body,
+html.reformany-panel-window #root {
+  background: #1A1E15 !important;
+  overflow: hidden;
+}
+.orbit-panel-window { background: #1A1E15 !important; }
+.orbit-panel-window .orbit-dialog-backdrop {
+  background: #1A1E15 !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+  animation: none !important;
+}
+.orbit-panel-window .orbit-dialog,
+.orbit-panel-window .orbit-dialog.wide {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  background: #1A1E15 !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+.orbit-panel-window .orbit-dialog-titlebar {
+  -webkit-app-region: drag;
+  cursor: move;
+}
+.orbit-panel-window .orbit-dialog-titlebar button,
+.orbit-panel-window .orbit-dialog-titlebar a,
+.orbit-panel-window .orbit-dialog-titlebar input,
+.orbit-panel-window .orbit-dialog-titlebar [role="button"] {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
