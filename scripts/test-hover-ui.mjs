@@ -129,189 +129,109 @@ try {
     await sleep(650);
   }
   if (!ready) throw new Error("Main app did not load its bundled UI");
-  // Verify the installed desktop UI, not just Vite compilation. This catches
-  // the screenshot-reported double navigation and broken sidebar collapse.
-  if (await evaluate(mainSocket, 'Boolean(document.querySelector(".welcome-primary"))')) {
-    const initial = await evaluate(mainSocket, `(() => {
-      const wheel=document.querySelector(".welcome-orbit").getBoundingClientRect();
-      const tabs=document.querySelector(".welcome-orbit-tabs").getBoundingClientRect();
-      const sectors=document.querySelectorAll(".welcome-radial-sector[role=button]");
-      return {wheelBottom:wheel.bottom,tabsTop:tabs.top,sectorCount:sectors.length,
-        withinWheel:tabs.top<wheel.bottom-1};
-    })()`);
-    if (initial.withinWheel || initial.sectorCount !== 8)
-      throw new Error("Welcome Orbit must show 8 usable Convert slices and non-overlapping tabs: "+
-        JSON.stringify(initial));
-    await evaluate(mainSocket,
-      'document.querySelector("#welcome-orbit-tab-tools").click(); true');
-    await sleep(110);
-    const toolsEnabled = await evaluate(mainSocket,
-      'Boolean(document.querySelector("#welcome-orbit-tab-tools[aria-selected=true]") && document.querySelectorAll(".welcome-radial-sector[role=button]").length >= 5)');
-    if (!toolsEnabled) throw new Error("Welcome Tools section did not switch wheel segments");
-    await evaluate(mainSocket, `(() => {
-      const zip=[...document.querySelectorAll(".welcome-radial-sector")]
-        .find(node=>node.querySelector("title")?.textContent==="ZIP");
-      if(!zip)throw Error("ZIP sector missing");
-      zip.dispatchEvent(new MouseEvent("click",{bubbles:true}));
-      return true;
-    })()`);
-    await sleep(110);
-    const zipSelected = await evaluate(mainSocket, `(() => ({
-      title:document.querySelector(".welcome-orbit-action-copy strong")?.textContent,
-      chosen:document.querySelector(".welcome-radial-sector.is-selected title")?.textContent
-    }))()`);
-    if (zipSelected.title!=="ZIP"||zipSelected.chosen!=="ZIP")
-      throw new Error("Welcome Orbit sector click did not select the correct action: "+JSON.stringify(zipSelected));
-    await evaluate(mainSocket,
-      'document.querySelector(".welcome-orbit-demo-controls button").click(); true');
-    await sleep(80);
-    const demoWorked = await evaluate(mainSocket,
-      'Boolean(document.querySelector(".welcome-orbit-done")?.textContent.includes("no files were changed"))');
-    if (!demoWorked) throw new Error("Welcome Orbit sample action has no interactive feedback");
-    await evaluate(mainSocket,`(() => {
-      document.querySelector("#welcome-orbit-tab-tools").dispatchEvent(
-        new KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}));
-      return true;
-    })()`);
-    await sleep(120);
-    const actionsEnabled = await evaluate(mainSocket,
-      'Boolean(document.querySelector("#welcome-orbit-tab-actions[aria-selected=true]"))');
-    if (!actionsEnabled) throw new Error("Welcome Orbit keyboard section switch did not work");
-    await screenshot(mainSocket,"00-welcome-interactive-orbit.png").catch(error =>
-      console.warn("Welcome screenshot unavailable:",String(error)));
-    // Clicking Use my file routes through this exact same command. The
-    // native process must launch Orbit on the chosen file, not a fake overlay.
-    await evaluate(mainSocket,
-      'window.__TAURI_INTERNALS__.invoke("orbit_launch_file",{path:' + JSON.stringify(picture) + '})');
-    let realOrbit=null;
-    for(let attempt=0;attempt<55;attempt++){
-      const pages=await targets().catch(()=>[]);
-      realOrbit=pages.find(page=>page.type==="page"&&page.id!==main.id&&
-        (page.url.includes("tauri.localhost")||page.url.startsWith("tauri://")));
-      if(realOrbit)break;
-      await sleep(210);
-    }
-    if(!realOrbit)throw Error("Welcome cannot launch actual Orbit for a selected file");
-    const orbitSocket=await connect(realOrbit);
-    let actualSource=false;
-    for(let attempt=0;attempt<25;attempt++){
-      actualSource=Boolean(await evaluate(orbitSocket,
-        'document.body.innerText.includes('+JSON.stringify(picture.split(/[\\/]/).pop())+')'));
-      if(actualSource)break;
-      await sleep(120);
-    }
-    if(!actualSource)throw Error("Welcome launched Orbit without the chosen file");
-    // A successful shake now launches the exact same real Orbit file route.
-    // Assert the full first Orbit wheel, not any three-choice intermediate UI.
-    const firstScreen=await evaluate(orbitSocket, `(() => ({
-      selectedTab:document.querySelector(".orbit-section-tabs [role=tab][aria-selected=true]")?.textContent?.trim(),
-      hub:document.querySelector(".orbit-hub strong")?.textContent?.trim(),
-      sectors:document.querySelectorAll(".orbit-ref-sector[role=menuitem]").length,
-      wheel:!!document.querySelector(".orbit-rings[aria-label='Convert to format']")
-    }))()`);
-    if(!firstScreen.wheel||firstScreen.hub!=="Convert"||firstScreen.sectors<4||
-       firstScreen.selectedTab?.toLowerCase()!=="convert") {
-      throw Error("Orbit did not open full first Convert wheel: "+JSON.stringify(firstScreen));
-    }
-
-    // Orbit runs in a separate process. Sending "Open workspace" creates a
-    // second independent main window and poisons HoveR's single-window check.
-    // Exercise Orbit's actual Close control and ensure the launched child
-    // exited before proceeding with the main application's HoveR tests.
-    await evaluate(orbitSocket,
-      'document.querySelector("button[aria-label=\\\"Close Orbit\\\"]").click(); true');
-    let orbitClosed = false;
-    for (let attempt = 0; attempt < 45; attempt++) {
-      await sleep(200);
-      const pages = await targets().catch(() => []);
-      orbitClosed = !pages.some(page => page.id === realOrbit.id);
-      if (orbitClosed) break;
-    }
-    if (!orbitClosed) throw new Error("Real Orbit window remained open after its Close control");
-    console.log("PASS: Welcome wheel layout, keyboard/click controls, sample feedback and real picked-file Orbit launch/close.");
-    await evaluate(mainSocket,
-      'document.querySelector(".welcome-primary").click(); true');
-    await sleep(400);
-  }
-  const sidebar = await evaluate(mainSocket, `(() => {
-    const aside=document.querySelector(".reformany-sidebar");
-    const main=document.querySelector(".main");
-    const categories=document.querySelectorAll('nav[aria-label="Workspace tools"] button');
-    return {found:!!aside, width:aside?.getBoundingClientRect().width||0,
-      categories:categories.length, main:!!main,
-      horizontalNav:!!document.querySelector(".workspace-scroll")};
+  // The supplied redesign replaces the original sidebar classes, welcome
+  // wizard and settings selectors. Validate the ACTUAL new shell, not a ghost
+  // selector from the earlier stable frontend.
+  const layout = await evaluate(mainSocket, `(() => {
+    const shell=document.querySelector(".app-shell");
+    const sidebar=document.querySelector(".sidebar");
+    const main=document.querySelector(".app-main");
+    const pages=document.querySelectorAll(".sidebar-nav button[data-module]");
+    const left=sidebar?.getBoundingClientRect();
+    const right=main?.getBoundingClientRect();
+    return {shell:!!shell,sidebar:!!sidebar,width:left?.width||0,
+      pages:pages.length,main:!!main,nonoverlap:!!left&&!!right&&left.right<=right.left+2,
+      brand:!!document.querySelector(".brand-symbol img")};
   })()`);
-  if (!sidebar.found || !sidebar.main || sidebar.categories !== 9 ||
-      sidebar.horizontalNav || sidebar.width < 210) {
-    throw new Error("Desktop sidebar layout invalid: " + JSON.stringify(sidebar));
+  if (!layout.shell || !layout.sidebar || !layout.main || !layout.brand ||
+      layout.width<180 || layout.pages<12 || !layout.nonoverlap) {
+    throw Error("Redesigned desktop navigation is missing or overlaps content: "+JSON.stringify(layout));
   }
-  await screenshot(mainSocket, "01-images-workspace.png").catch(error =>
-    console.warn("Images screenshot unavailable:",String(error)));
-  await evaluate(mainSocket,
-    'document.querySelector("button[aria-label=\\\"Collapse navigation sidebar\\\"]").click(); true');
-  await sleep(300);
-  const compact = await evaluate(mainSocket, `(() => ({
-    width:document.querySelector(".reformany-sidebar")?.getBoundingClientRect().width,
-    saved:localStorage.getItem("reformany:sidebar-collapsed"),
-    iconCount:document.querySelectorAll('nav[aria-label="Workspace tools"] button svg').length
-  }))()`);
-  if (Math.abs((compact.width||0)-74)>4 || compact.saved!=="true" || compact.iconCount!==9) {
-    throw new Error("Sidebar collapse or persistence failed: "+JSON.stringify(compact));
-  }
-  await evaluate(mainSocket,
-    'document.querySelector("button[aria-label=\\\"Expand navigation sidebar\\\"]").click(); true');
-  await sleep(250);
-  await evaluate(mainSocket,
-    'document.querySelector("button[aria-label=\\\"Guide\\\"]").click(); true');
-  await sleep(250);
-  const guide = await evaluate(mainSocket, `(() => ({
-    heading:document.querySelector(".guide-page h1")?.innerText,
-    steps:document.querySelectorAll(".guide-steps section").length
-  }))()`);
-  if (guide.heading!=="Guide" || guide.steps<8) {
-    throw new Error("Guide navigation or workflow help failed: "+JSON.stringify(guide));
-  }
-  await screenshot(mainSocket, "02-guide.png").catch(error =>
-    console.warn("Guide screenshot unavailable:",String(error)));
-  await evaluate(mainSocket,
-    'document.querySelectorAll(\'nav[aria-label="Workspace tools"] button\')[1].click(); true');
-  await sleep(250);
-  const media = await evaluate(mainSocket,
-    'Boolean(document.body.innerText.includes("Convert to") && document.body.innerText.includes("Quality"))');
-  if (!media) throw new Error("Audio/video workspace did not render from sidebar navigation");
-  await screenshot(mainSocket, "03-audio-video.png").catch(error =>
-    console.warn("Media screenshot unavailable:",String(error)));
-
-  // The new Orbit audio controls must be interactive on installed Windows.
-  await evaluate(mainSocket,
-    'document.querySelector(\'nav[aria-label="Preferences"] button[aria-label="Appearance"]\').click();true');
+  await screenshot(mainSocket,"01-images-workspace.png").catch(error=>console.warn("Images screenshot unavailable",String(error)));
+  await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Collapse sidebar\\\"]").click();true');
   await sleep(280);
-  const cueCount=await evaluate(mainSocket,
-    'document.querySelectorAll(".orbit-audio-event").length');
-  if(cueCount!==3)throw Error("Orbit sound controls must have Opening, Closing and Hover");
-  const cueLabels=await evaluate(mainSocket,
-    'Array.from(document.querySelectorAll(".orbit-audio-event-setting input")).map(input=>input.getAttribute("aria-label")).join(",")');
-  if(cueLabels!=="Opening sound,Closing sound,Hover sound")
-    throw Error("Orbit sound labels not accessible: "+cueLabels);
-  await evaluate(mainSocket,
-    'document.querySelector(\'input[aria-label="Opening sound"]\').click();true');
-  await sleep(180);
-  const storedMute=await evaluate(mainSocket,
-    'localStorage.getItem("reformany.orbitAudio.open")==="off" && document.querySelector(\'button[aria-label="Preview Orbit opening sound"]\').disabled');
-  if(!storedMute)throw Error("Opening sound mute did not persist");
-  await evaluate(mainSocket,
-    'document.querySelector(\'input[aria-label="Opening sound"]\').click();true');
-  await sleep(180);
-  const nativeCue=await evaluate(mainSocket,
-    'window.__TAURI_INTERNALS__.invoke("orbit_play_sound",{kind:"hover"}).then(()=>true,()=>false)');
-  if(!nativeCue)throw Error("Native hover cue did not run");
-  await screenshot(mainSocket,"03a-orbit-audio-preferences.png").catch(error=>
-    console.warn("Orbit audio screenshot unavailable:",String(error)));
-  await evaluate(mainSocket,
-    'document.querySelectorAll(\'nav[aria-label="Workspace tools"] button\')[1].click();true');
-  await sleep(180);
-  console.log("PASS: three independent Orbit cues, persistent mute and native preview.");
-  console.log("PASS: sidebar layout, collapse persistence, Guide and media navigation.");
+  const collapsed = await evaluate(mainSocket, `(() => ({
+    rail:document.querySelector(".app-shell")?.classList.contains("rail"),
+    width:document.querySelector(".sidebar")?.getBoundingClientRect().width||0,
+    iconCount:document.querySelectorAll(".sidebar-nav button[data-module] svg").length
+  }))()`);
+  if (!collapsed.rail || Math.abs(collapsed.width-64)>5 || collapsed.iconCount<12)
+    throw Error("Redesigned compact navigation failed: "+JSON.stringify(collapsed));
+  await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Expand sidebar\\\"]").click();true');
+  await sleep(280);
+  await evaluate(mainSocket,'document.querySelector("button[data-module=\\\"guide\\\"]").click();true');
+  await sleep(250);
+  const guide = await evaluate(mainSocket,`(() => ({
+    active:!!document.querySelector('button[data-module="guide"].active'),
+    content:document.querySelector(".content-inner")?.textContent?.length||0
+  }))()`);
+  if (!guide.active || guide.content<150) throw Error("Redesigned guide did not render: "+JSON.stringify(guide));
+  await screenshot(mainSocket,"02-guide.png").catch(error=>console.warn("Guide screenshot unavailable",String(error)));
+  await evaluate(mainSocket,'document.querySelector("button[data-module=\\\"media\\\"]").click();true');
+  await sleep(240);
+  const media=await evaluate(mainSocket,`(() => ({
+    active:!!document.querySelector('button[data-module="media"].active'),
+    content:document.querySelector(".content-inner")?.textContent?.length||0
+  }))()`);
+  if(!media.active||media.content<120)throw Error("Native media converter workspace not rendered: "+JSON.stringify(media));
+  await screenshot(mainSocket,"03-audio-video.png").catch(error=>console.warn("Media screenshot unavailable",String(error)));
+  await evaluate(mainSocket,'document.querySelector("button[data-module=\\\"appearance\\\"]").click();true');
+  await sleep(240);
+  const audioUI=await evaluate(mainSocket,`(() => {
+    const content=document.querySelector(".content-inner")?.textContent||"";
+    return {open:content.includes("Opening sound"),close:content.includes("Closing sound"),
+      hover:content.includes("Wedge hover sound"),shake:content.includes("Hold-and-shake")};
+  })()`);
+  if(!audioUI.open||!audioUI.close||!audioUI.hover||!audioUI.shake)
+    throw Error("Native Orbit audio/Shake controls missing: "+JSON.stringify(audioUI));
+  const audioBridge=await evaluate(mainSocket,`(async()=>({
+    cue:await window.__TAURI_INTERNALS__.invoke("orbit_play_sound",{kind:"hover"}).then(()=>true,()=>false),
+    shake:await window.__TAURI_INTERNALS__.invoke("get_shake_settings").then(v=>v&&v.sensitivity>=1&&v.sensitivity<=5,false)
+  }))()`);
+  if(!audioBridge.cue||!audioBridge.shake)throw Error("Native sound/Shake integration failed: "+JSON.stringify(audioBridge));
+  await screenshot(mainSocket,"03a-orbit-audio-preferences.png").catch(error=>console.warn("Appearance screenshot unavailable",String(error)));
+  // Launch the real Explorer-route Orbit in a separate process. The native
+  // window must show a circular wheel only, no preview File Explorer rectangle.
+  await evaluate(mainSocket,'window.__TAURI_INTERNALS__.invoke("orbit_launch_file",{path:'+
+    JSON.stringify(picture)+'})');
+  let orbitTarget=null;
+  for(let attempt=0;attempt<65;attempt++){
+    const list=await targets().catch(()=>[]);
+    orbitTarget=list.find(page=>page.type==="page"&&page.id!==main.id&&
+      (page.url.includes("tauri.localhost")||page.url.startsWith("tauri://")));
+    if(orbitTarget)break;
+    await sleep(220);
+  }
+  if(!orbitTarget)throw Error("Native Explorer-file Orbit did not launch.");
+  const orbitSocket=await connect(orbitTarget);
+  let wheel;
+  for(let attempt=0;attempt<45;attempt++){
+    wheel=await evaluate(orbitSocket,`(() => {
+      const disc=document.querySelector(".orbit-disc");
+      const demo=document.querySelector(".explorer-mock");
+      return {native:!!document.querySelector(".orbit-os.native"),disc:!!disc,
+        width:disc?.getBoundingClientRect().width||0,
+        sectors:document.querySelectorAll(".orbit-wedge[role=button]").length,
+        source:document.querySelector(".orbit-hub strong")?.textContent||"",
+        demoHidden:!demo||getComputedStyle(demo).display==="none",
+        rootTransparent:getComputedStyle(document.body).backgroundColor==="rgba(0, 0, 0, 0)"};
+    })()`);
+    if(wheel.native&&wheel.disc&&wheel.sectors>=4&&wheel.source.includes("icon"))break;
+    await sleep(230);
+  }
+  if(!wheel.native||!wheel.disc||wheel.sectors<4||!wheel.source.includes("icon")||
+    !wheel.demoHidden||!wheel.rootTransparent||Math.abs(wheel.width-520)>8)
+    throw Error("Native Orbit is not a clean source-aware floating circle: "+JSON.stringify(wheel));
+  await screenshot(orbitSocket,"04-circular-orbit.png").catch(error=>console.warn("Orbit screenshot unavailable",String(error)));
+  await evaluate(orbitSocket,'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));true');
+  let closed=false;
+  for(let attempt=0;attempt<40;attempt++){
+    await sleep(180);
+    const list=await targets().catch(()=>[]);
+    if(!list.some(x=>x.id===orbitTarget.id)){closed=true;break;}
+  }
+  if(!closed)throw Error("Native Orbit did not close on Escape.");
+  console.log("PASS: redesigned navigation, native preferences, circular Orbit and keyboard dismissal.");
   const promise = 'window.__TAURI_INTERNALS__.invoke("hover_file", { path:' + JSON.stringify(picture) + '})';
   await evaluate(mainSocket, promise);
   let hover;
@@ -329,7 +249,7 @@ try {
     result = await evaluate(socket, `(() => ({
       text:document.body?.innerText?.slice(0,300) || "",
       mediaLoaded:Boolean(document.querySelector(".hover-preview img[alt='Selected image preview']")?.naturalWidth),
-      mode:document.documentElement.dataset.mode
+      mode:document.querySelector(".hover-shell")?"hover":"missing"
     }))()`);
     if (result?.mode === "hover" && result.text.includes("ReformANY HoveR") && result.mediaLoaded) break;
     await sleep(650);
