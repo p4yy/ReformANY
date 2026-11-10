@@ -127,7 +127,7 @@ try {
   let ready = false;
   while (Date.now() < deadline) {
     ready = Boolean(await evaluate(mainSocket,
-      'Boolean(window.__TAURI_INTERNALS__ && document.body && document.body.innerText.includes("ReformANY"))'));
+      'Boolean(window.__TAURI_INTERNALS__ && document.querySelector(".shell .titlebar .brand[aria-label=\\\"ReformANY\\\"]") && document.querySelector("#sidebar") && document.querySelector("#main"))'));
     if (ready) break;
     await sleep(650);
   }
