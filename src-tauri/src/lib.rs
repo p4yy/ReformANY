@@ -16,9 +16,11 @@ mod subtitles;
 mod spreadsheets;
 mod engine_progress;
 mod file_parts;
+mod ui_bridge;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
-use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
+use orbit::{image_thumbnail, orbit_context, orbit_launch_ui, orbit_open_workspace, orbit_preview, reveal_output, OrbitLaunch};
+use ui_bridge::{ui_file_stat, ui_file_read, ui_save_output, ui_shred, ui_destination};
 use scan::expand_inputs;
 use external::engine_status;
 use media::media_convert;
@@ -52,6 +54,12 @@ pub fn run() {
             convert_batch,
             cancel_batch,
             orbit_context,
+            orbit_launch_ui,
+            ui_file_stat,
+            ui_file_read,
+            ui_save_output,
+            ui_shred,
+            ui_destination,
             orbit_preview,
             image_thumbnail,
             orbit_open_workspace,
@@ -90,8 +98,8 @@ pub fn run() {
                     WebviewUrl::App("index.html".into()),
                 )
                 .title("ReformANY Orbit")
-                .inner_size(400.0, 400.0)
-                .resizable(false)
+                .inner_size(660.0, 760.0)
+                .resizable(true)
                 .decorations(false)
                 .transparent(true)
                 .always_on_top(true)
@@ -106,8 +114,9 @@ pub fn run() {
                     WebviewUrl::App("index.html".into()),
                 )
                 .title("ReformANY")
-                .inner_size(1120.0, 760.0)
-                .min_inner_size(750.0, 580.0)
+                .inner_size(1280.0, 820.0)
+                .min_inner_size(960.0, 640.0)
+                .decorations(false)
                 .center()
                 .build()?;
             }
