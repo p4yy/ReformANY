@@ -27,7 +27,7 @@ pub fn update(enabled: bool) -> Result<(), String> {
     {
         let tool = registry_tool()?;
         let executable = env::current_exe().map_err(|e| format!("Executable path unavailable: {e}"))?;
-        let command = format!("\\\"{}\\\" orbit \\\"%1\\\"", executable.display());
+        let command = format!("\"{}\" orbit \"%1\"", executable.display());
         let icon = format!("{},0", executable.display());
         for path in [
             r"HKCU\Software\Classes\*\shell\ReformANYOrbit",
