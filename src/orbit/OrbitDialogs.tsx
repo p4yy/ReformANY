@@ -7,6 +7,7 @@ import type { OrbitFile, ToastMessage } from '../types';
 import { arrangePdf, createZip, downloadBlob, ext, formatBytes, generateQrSvg, middleEllipsis, splitBinary, splitPdf, watermarkPdf } from '../lib/files';
 import { native as desktop, nativeShred, nativeReveal, runNative, pathOf } from '../native/bridge';
 import { CopyButton, Field, FileContextRow, IconButton, InlineNote, KineticButton, NumberStepper, ProgressBar, Select, SpringSlider } from '../components/UI';
+import ReformanyMark from '../components/ReformanyMark';
 
 const BrowserFile = globalThis.File;
 
@@ -63,7 +64,7 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
     <div className="orbit-dialog-body">{children}</div>{footer && <footer className="orbit-dialog-footer">{footer}</footer>}
   </section></div>;
 }
-function OrbitMark() { return <span className="orbit-mark"><img src="/brand/reformany-icon.png" alt="" /></span>; }
+function OrbitMark() { return <span className="orbit-mark"><ReformanyMark size={16} /></span>; }
 function MaximizeLabel() { return <ExternalLink size={14} />; }
 
 export function ShredDialog({ file, onClose, notify, onShred }: DialogProps) {
