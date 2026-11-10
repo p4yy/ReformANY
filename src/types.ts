@@ -47,6 +47,7 @@ export interface Preferences {
   orbitScroll: boolean;
   orbitModifiers: { convert: string; tools: string; actions: string };
   closeToTray: boolean;
+  portableOrbitContext: boolean;
   holdShake: boolean;
   shakeSensitivity: number;
   pointerRing: boolean;
@@ -62,7 +63,7 @@ export const defaultPreferences: Preferences = {
   orbitOpeningSound: true, orbitClosingSound: true, orbitHoverSound: true,
   orbitVolume: 65, orbitStart: 'convert', orbitScroll: true,
   orbitModifiers: { convert: 'Shift', tools: 'Ctrl', actions: 'Alt' },
-  closeToTray: true,
+  closeToTray: true, portableOrbitContext: true,
   holdShake: true, shakeSensitivity: 60, pointerRing: true,
   showIntroduction: true, destination: 'Next to original', scheduling: 'balanced',
   watchRules: [], recentFormats: {},
