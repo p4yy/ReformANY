@@ -8,6 +8,7 @@ import { native as desktop, loadNativeFile, pathOf, runNative, nativeConvertImag
 import { listen } from '@tauri-apps/api/event';
 import { OrbitDialogRouter, type OrbitDialogKind } from './OrbitDialogs';
 import { playOrbitCue } from './sounds';
+import ReformanyMark from '../components/ReformanyMark';
 
 type Wedge = { id: string; label: string; icon: LucideIcon; danger?: boolean };
 /** Native Orbit section shortcuts; supports both modifiers and custom chords. */
@@ -345,7 +346,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
           const middle = (index + .5) * 360 / ring.items.length, position = point(ring.labelRadius, middle); const isHovered = hovered === `${ringIndex}-${index}`;
           return <div key={`label-${ringIndex}-${index}`} className={`wedge-label ${ring.items.length <= 3 ? 'large' : ''} ${wedge.danger ? 'danger' : ''} ${isHovered ? 'hovered' : ''}`} style={{ left: `${position.x / 5.2}%`, top: `${position.y / 5.2}%` }}><wedge.icon size={ring.items.length <= 3 ? 24 : 20} strokeWidth={1.5} /><span>{wedge.label}</span></div>;
         }))}
-        <div className="orbit-hub"><div className="hub-logo"><img src="/brand/reformany-icon.png" alt="" /><i /></div><strong title={file.name}>{file.name.length > 20 ? `${file.name.slice(0, 18)}…` : file.name}</strong><span>{file.typeLabel || file.kind} · {formatBytes(file.size)}</span><small>Esc · close</small></div>
+        <div className="orbit-hub"><div className="hub-logo"><ReformanyMark size={27} /></div><strong title={file.name}>{file.name.length > 20 ? `${file.name.slice(0, 18)}…` : file.name}</strong><span>{file.typeLabel || file.kind} · {formatBytes(file.size)}</span><small>Esc · close</small></div>
         {pulse && <span key={pulse.id} className="wedge-click-pulse" style={{ left: pulse.x, top: pulse.y }} />}
       </div>
       <div className="orbit-section-tabs">{(['convert', 'tools', 'actions'] as OrbitSection[]).map(item => <button type="button" className={section === item ? 'active' : ''} key={item} title={`${item[0].toUpperCase() + item.slice(1)} · ${preferences.orbitModifiers[item]}`} aria-keyshortcuts={preferences.orbitModifiers[item]} onClick={() => switchSection(item)}>{item === 'convert' ? <ArrowLeftRight size={14} /> : item === 'tools' ? <Wand2 size={14} /> : <MousePointer2 size={14} />}{item[0].toUpperCase() + item.slice(1)}<kbd>{preferences.orbitModifiers[item]}</kbd></button>)}</div>
