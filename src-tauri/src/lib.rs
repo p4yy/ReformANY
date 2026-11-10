@@ -88,7 +88,9 @@ async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), Str
             .resizable(true)
             .decorations(false)
             .shadow(false)
-            .transparent(true)
+            // Only the circular Orbit window is transparent. Tool windows
+            // must be fully opaque to prevent Windows compositor ghost frames.
+            .transparent(false)
             .always_on_top(true)
             .center()
             .focused(true)
