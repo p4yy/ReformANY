@@ -58,9 +58,12 @@ export function OrbitStage({ standalone, onClose, onNavigate }: { standalone?: b
       return;
     }
     if (item.id === "more-tools") {
-      if (isTauri) void invoke(CMD.orbitAction, { action: item.id, path: context.path }).catch(() => {});
-      onClose();
-      onNavigate?.("media");
+      // One labeled action, one destination; keep errors visible.
+      if (isTauri) {
+        void invoke(CMD.orbitAction, { action: item.id, path: context.path })
+          .then(onClose)
+          .catch(e => toast({ tone: "danger", title: "More tools could not open", body: String(e) }));
+      } else onNavigate?.("media");
       return;
     }
     if (item.id === "copy-path") {
