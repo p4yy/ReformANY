@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 export const isNativeFloatRoute = isTauri && getCurrentWindow().label === 'hover';
+export const isNativePanelRoute = isTauri && getCurrentWindow().label.startsWith('orbit-panel-');
 export const isNativeOrbitRoute = isTauri && (getCurrentWindow().label === 'orbit' || new URLSearchParams(window.location.search).get('orbit') === '1');
 
 export async function openNativeOrbit() {
