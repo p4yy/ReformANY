@@ -46,6 +46,7 @@ export interface Preferences {
   orbitStart: 'convert' | 'tools' | 'actions';
   orbitScroll: boolean;
   orbitModifiers: { convert: string; tools: string; actions: string };
+  closeToTray: boolean;
   holdShake: boolean;
   shakeSensitivity: number;
   pointerRing: boolean;
