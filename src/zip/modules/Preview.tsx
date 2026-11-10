@@ -17,10 +17,10 @@ const ZOOMS = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 2, 3];
 async function toFile(item: QueueItem): Promise<File> {
   if (item.file) return item.file;
   if (isTauri && item.path) {
-    // Desktop: read through the asset protocol (needs assetProtocol scope in tauri.conf.json).
-    const { convertFileSrc } = await import("@tauri-apps/api/core");
-    const res = await fetch(convertFileSrc(item.path));
-    return new File([await res.blob()], item.name);
+    // Read the verified local file via the existing native bridge. Never use
+    // fetch()/an asset URL: the desktop application has an offline-only policy.
+    const { loadNativeFile } = await import("../../native/bridge");
+    return loadNativeFile(item.path);
   }
   throw new Error("This file is not readable here.");
 }

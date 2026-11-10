@@ -236,7 +236,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const kind = detected.includes('folder') || detected.includes('directory') ? 'folder' : x === 'pdf' ? 'pdf' :
         ['png','jpg','jpeg','webp','gif','bmp','tiff','tif','svg','ico','tga','avif','qoi'].includes(x) ? 'image' :
         ['mp4','mov','webm','avi','mkv','wmv'].includes(x) ? 'video' :
-        ['mp3','wav','ogg','opus','flac','m4a','aac','aiff','wma'].includes(x) ? 'audio' : 'folder';
+        ['mp3','wav','ogg','opus','flac','m4a','aac','aiff','wma'].includes(x) ? 'audio' : 'text';
       const pages = kind === 'pdf' ? await raw<number>('pdf_page_count', { path: ctx.path }).catch(() => 1) : undefined;
       return { kind, name: ctx.name, ext: x, size: ctx.bytes, path: ctx.path, pages } as T;
     }

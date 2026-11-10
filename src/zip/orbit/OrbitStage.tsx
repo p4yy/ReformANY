@@ -25,6 +25,7 @@ export function OrbitStage({ standalone, onClose, onNavigate }: { standalone?: b
   const [kind, setKind] = useState<Kind>("image");
   const [samples, setSamples] = useState(SAMPLES);
   const [live, setLive] = useState<OrbitContext | null>(null);
+  const [nativeError, setNativeError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const [closeSignal, setCloseSignal] = useState(0);
   const context = live ?? samples[kind];
@@ -34,11 +35,11 @@ export function OrbitStage({ standalone, onClose, onNavigate }: { standalone?: b
     if (!isTauri) return;
     let off = () => {};
     let dead = false;
-    invoke<OrbitContext>(CMD.orbitContext).then((c) => !dead && c && setLive(c)).catch(() => {});
-    listen<OrbitContext>(EVT.orbitShow, (c) => {
-      setDialog(null);
-      setLive(c);
-    }).then((u) => (dead ? u() : (off = u)));
+    const refreshContext = () => void invoke<OrbitContext>(CMD.orbitContext)
+      .then((c) => { if (!dead && c) { setNativeError(null); setLive(c); } })
+      .catch(e => { if (!dead) setNativeError(String(e)); });
+    refreshContext();
+    listen<unknown>(EVT.orbitShow, refreshContext).then((u) => (dead ? u() : (off = u)));
     return () => {
       dead = true;
       off();
@@ -87,6 +88,17 @@ export function OrbitStage({ standalone, onClose, onNavigate }: { standalone?: b
       ...s,
       [kind]: { ...s[kind], name, ext: s[kind].kind === "folder" ? "" : extOf(name), path: s[kind].path.replace(/[^\\]+$/, name) },
     }));
+
+  // Never show the ZIP's sample Explorer file in a real Windows Orbit.
+  // Hold the screen until the actual selected file is loaded by native IPC.
+  if (standalone && isTauri && !live) return (
+    <div className="orbit-stage" role="dialog" aria-modal="true" aria-label="Orbit">
+      <div className="native-orbit-loading" role="status">
+        <p>{nativeError ?? "Opening selected file…"}</p>
+        {nativeError && <button className="btn btn-ghost" onClick={onClose}>Close</button>}
+      </div>
+    </div>
+  );
 
   return (
     <div className="orbit-stage" role="dialog" aria-modal="true" aria-label="Orbit">

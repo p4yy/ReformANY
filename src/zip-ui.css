@@ -2188,3 +2188,15 @@
 .orbit-panel-window .orbit-dialog { border-color: var(--border); box-shadow: none !important; }
 .orbit-panel-window .orbit-dialog-titlebar { background: var(--bg-surface); }
 .orbit-panel-window .orbit-dialog-footer { background: var(--bg-surface); }
+
+/* Native ZIP Orbit: truly transparent Windows host, even before theme changes. */
+html.orbit-window, html.orbit-window body, html.orbit-window #root {
+  background: transparent !important;
+}
+.native-orbit-loading { max-width: 23rem; padding: 1rem; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-primary); text-align: center; }
+.native-orbit-loading p { overflow-wrap: anywhere; }
+/* Always expose the working document rather than clipping content in a short
+   panel; all PDF previews and their options have independent vertical scroll. */
+.orbit-panel-window .orbit-dialog-body { scrollbar-width: auto; }
+.orbit-panel-window .watermark-preview { min-height: 0; }
+.orbit-panel-window .extract-grid, .orbit-panel-window .arrange-grid { overscroll-behavior: contain; }

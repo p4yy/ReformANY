@@ -25,7 +25,7 @@ import { CMD, invoke, isTauri } from "../lib/bridge";
 import type { Section } from "../lib/settings";
 import { toast } from "../components/Toasts";
 
-export type Kind = "image" | "video" | "audio" | "pdf" | "folder";
+export type Kind = "image" | "video" | "audio" | "pdf" | "folder" | "text";
 export type DialogKind = "shred" | "rename" | "watermark" | "split" | "hover" | "arrange";
 
 export interface OrbitContext {
@@ -66,6 +66,7 @@ const CONVERT: Record<Kind, OrbitItem[]> = {
   audio: MEDIA,
   pdf: fmt(["DOCX|Editable", "TXT", "MD", "HTML", "DOCX|Layout", "PNG", "JPG"]),
   folder: fmt(["ZIP", "7Z", "TAR", "RAR"]),
+  text: fmt(["PDF", "DOCX", "HTML", "MD", "TXT"]),
 };
 
 const passwordZip: OrbitItem = { id: "password-zip", label: "Password ZIP", icon: FileLock2 };
@@ -88,6 +89,7 @@ const TOOLS: Record<Kind, OrbitItem[]> = {
     { id: "watermark", label: "Watermark", icon: Stamp, dialog: "watermark" },
   ],
   folder: [moreTools, passwordZip],
+  text: FILE_TOOLS,
 };
 
 const rename: OrbitItem = { id: "rename", label: "Rename", icon: PencilLine, dialog: "rename" };
@@ -120,6 +122,7 @@ export const SAMPLES: Record<Kind, OrbitContext> = {
   audio: { kind: "audio", name: "interview-take-03.wav", ext: "wav", size: 41.2 * 1024 * 1024, path: "C:\\Users\\you\\Music\\Recordings\\interview-take-03.wav" },
   pdf: { kind: "pdf", name: "lease-agreement-2025.pdf", ext: "pdf", size: 2.4 * 1024 * 1024, pages: 12, path: "C:\\Users\\you\\Documents\\Contracts\\lease-agreement-2025.pdf" },
   folder: { kind: "folder", name: "Q3 deliverables", ext: "", size: null, items: 38, path: "C:\\Users\\you\\Desktop\\Q3 deliverables" },
+  text: { kind: "text", name: "meeting-notes.txt", ext: "txt", size: 1536, path: "C:\\Users\\you\\Documents\\meeting-notes.txt" },
 };
 
 /**
