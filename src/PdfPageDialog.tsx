@@ -7,7 +7,7 @@ export type PdfPageRequest = { pages: string | null; degrees: number };
 function validateRange(input: string, count: number, optional: boolean): { error: string | null; selected: number } {
   if (!input.trim()) return optional
     ? { error: null, selected: count }
-    : { error: "Enter pages such as 1,3-5,9.", selected: 0 };
+    : { error: "Enter a page range such as 1, 3-5, 9.", selected: 0 };
   if (!Number.isInteger(count) || count < 1) return { error: "PDF page count is unavailable.", selected: 0 };
   const seen = new Set<number>();
   let last = 0;
@@ -66,7 +66,7 @@ export default function PdfPageDialog({
         <small>{pageCount === null ? "Reading pages…" : pageCount + " pages"}</small>
       </div>
       <form onSubmit={submit}>
-        <label htmlFor={id+"-range"}>{action === "extract" ? "Pages to extract" : "Pages to rotate (empty = all)"}</label>
+        <label htmlFor={id+"-range"}>{action === "extract" ? "Page range" : "Page range (leave blank for all pages)"}</label>
         <input id={id+"-range"} autoFocus value={pages} onChange={e=>setPages(e.target.value)}
           placeholder={action === "extract" ? "e.g. 1, 3-5, 9" : "All pages or 1, 3-5"}/>
         <div className="orbit-page-helper"><span>Separate pages with commas; use a hyphen for a range. Duplicates are not allowed.</span>
