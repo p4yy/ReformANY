@@ -198,6 +198,30 @@ try {
   if(!layout.shell||layout.oldShell||!layout.sidebar||!layout.main||!layout.brand||
      !(isCompactLayout||isWideLayout)||layout.pages<12||!layout.nonoverlap)
     throw Error("ZIP desktop navigation is missing, overlaps or kept old shell: "+JSON.stringify(layout));
+
+  // P0 visual acceptance: check the *rendered* selected sage control and
+  // wordmark text boxes instead of trusting class names or source CSS alone.
+  const visualP0=await evaluate(mainSocket,`(() => {
+    const brand=document.querySelector(".shell .titlebar .brand");
+    const suffix=brand?.querySelector("b");
+    const selected=document.querySelector('.page:not([hidden]) .chip[aria-checked="true"]');
+    const range=document.createRange();
+    if(brand?.firstChild?.nodeType===3)range.selectNodeContents(brand.firstChild);
+    const word=brand?.firstChild?.nodeType===3?range.getBoundingClientRect():null;
+    const any=suffix?.getBoundingClientRect();
+    const style=selected?getComputedStyle(selected):null;
+    const rgb=s=>(s.match(/[\\d.]+/g)||[]).slice(0,3).map(Number);
+    const lum=s=>{const parts=rgb(s).map(v=>v/255).map(v=>v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*parts[0]+.7152*parts[1]+.0722*parts[2];};
+    const contrast=style?(Math.max(lum(style.color),lum(style.backgroundColor))+.05)/(Math.min(lum(style.color),lum(style.backgroundColor))+.05):0;
+    return {wordmarkGap:word&&any?any.left-word.right:null,
+      selected:!!selected,foreground:style?.color,background:style?.backgroundColor,
+      contrast:Math.round(contrast*100)/100};
+  })()`);
+  if(visualP0.wordmarkGap===null||visualP0.wordmarkGap<-1||
+     !visualP0.selected||visualP0.contrast<4.5)
+    throw Error("ReformANY wordmark or active sage-chip readability regressed: "+JSON.stringify(visualP0));
+  console.log("PASS: native header wordmark separated; selected format chip contrast "+
+    visualP0.contrast+":1.");
   await screenshot(mainSocket,"01-images-workspace.png").catch(error=>console.warn("Images screenshot unavailable",String(error)));
   if(isWideLayout) {
     await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Collapse sidebar\\\"]").click();true');
@@ -253,6 +277,25 @@ try {
   })()`);
   if(!audioUI.sound||!audioUI.volume||!audioUI.shake||!audioUI.shortcut)
     throw Error("ZIP Orbit audio/Shake controls missing: "+JSON.stringify(audioUI));
+
+  // P0: native dropdowns must not inherit the legacy .field flex-column
+  // wrapper, which vertically displaced chevrons and their text.
+  const selectGeometry=await evaluate(mainSocket,`(() => {
+    const list=[...document.querySelectorAll('.page:not([hidden]) select.field')]
+      .filter(el=>el.getBoundingClientRect().width>10);
+    return {count:list.length,controls:list.map(el=>({
+      label:el.getAttribute("aria-label")||el.value,
+      height:Math.round(el.getBoundingClientRect().height*10)/10,
+      display:getComputedStyle(el).display,
+      align:getComputedStyle(el).alignItems,
+      lineHeight:getComputedStyle(el).lineHeight,
+      marginBottom:getComputedStyle(el).marginBottom
+    })).slice(0,12)};
+  })()`);
+  if(selectGeometry.count<2||selectGeometry.controls.some(x=>
+       x.height<28||x.height>42||x.display==="flex"||x.marginBottom!=="0px"))
+    throw Error("Settings selects are clipped/misaligned by legacy field rules: "+JSON.stringify(selectGeometry));
+  console.log("PASS: native Settings select alignment and intrinsic heights verified.");
   const audioBridge=await evaluate(mainSocket,`(async()=>({
     cue:await window.__TAURI_INTERNALS__.invoke("orbit_play_sound",{kind:"hover"}).then(()=>true,()=>false),
     shake:await window.__TAURI_INTERNALS__.invoke("get_shake_settings").then(v=>v&&v.sensitivity>=1&&v.sensitivity<=5,false)
@@ -298,6 +341,19 @@ try {
     !wheel.rootTransparent||wheel.width<345||wheel.width>510||
     !wheel.actionsVisible||wheel.actionButtons!==3||!wheel.actionsInsideViewport)
     throw Error("ZIP-native Orbit is not a clean source-aware floating circle: "+JSON.stringify(wheel));
+
+  const centeredHub=await evaluate(orbitSocket,`(() => {
+    const disc=document.querySelector(".orbit-root .orbit-disc");
+    const hub=document.querySelector(".orbit-root .orbit-disc svg.orbit-svg .hub-bg");
+    const d=disc?.getBoundingClientRect(), h=hub?.getBoundingClientRect();
+    return {disc:!!d,hub:!!h,centerDx:d&&h?Math.round((h.left+h.width/2)-(d.left+d.width/2)):null,
+      centerDy:d&&h?Math.round((h.top+h.height/2)-(d.top+d.height/2)):null,
+      hubPos:hub?.parentElement?getComputedStyle(hub.parentElement).position:null};
+  })()`);
+  if(!centeredHub.disc||!centeredHub.hub||
+     Math.abs(centeredHub.centerDx)>6||Math.abs(centeredHub.centerDy)>6)
+    throw Error("SVG Orbit center is detached from the radial wheel: "+JSON.stringify(centeredHub));
+  console.log("PASS: native Orbit SVG hub centered within 6px of disc.");
   await screenshot(orbitSocket,"04-circular-orbit.png").catch(error=>console.warn("Orbit screenshot unavailable",String(error)));
   // Orbit tools run in their own opaque Tauri windows, not a transparent
   // backing WebView that renders a ghost rectangle around the panel.
