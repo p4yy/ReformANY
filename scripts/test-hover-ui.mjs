@@ -313,7 +313,7 @@ try {
     await sleep(500);
   }
   if (!hover) throw new Error("HoveR did not navigate to bundled UI: " + JSON.stringify(last));
-  const socket = await connect(hover);
+  let socket = await connect(hover);
   let result;
   while (Date.now() < deadline) {
     result = await evaluate(socket, `(() => ({
@@ -380,14 +380,30 @@ try {
     // HoveR is intentionally one reusable WebView. A second native window
     // risks "webview with label hover already exists" during async close.
     // Its React view must replace the previously selected media in place.
-    const mediaSocket = socket;
+    // WebView2 may suspend an existing debugger socket briefly when HoveR
+    // replaces an image/QR with its first hardware-decoded audio/video stream.
+    // Reconnect ONCE on a CDP transport timeout, but do not skip actual media
+    // readiness or playback checks. A hung renderer still fails on the retry.
+    let mediaSocket = socket;
+    let retriedCdp = false;
     let state = null;
     for (let attempt = 0; attempt < 45; attempt++) {
-      state = await evaluate(mediaSocket, `(() => {
-        const element=document.querySelector("${kind}");
-        return {present:!!element,ready:element?.readyState||0,
-          duration:element?.duration||0,error:element?.error?.message||null};
-      })()`);
+      try {
+        state = await evaluate(mediaSocket, `(() => {
+          const element=document.querySelector("${kind}");
+          return {present:!!element,ready:element?.readyState||0,
+            duration:element?.duration||0,error:element?.error?.message||null};
+        })()`);
+      } catch (error) {
+        if (retriedCdp || !String(error).includes("CDP evaluation timed out")) throw error;
+        const live = (await targets()).find(target => target.id === hover.id);
+        if (!live) throw new Error("HoveR closed or changed WebView while loading "+kind);
+        retriedCdp = true;
+        console.warn("WebView2 debugger timed out during "+kind+" startup; reconnecting once.");
+        mediaSocket = await connect(live);
+        socket = mediaSocket;
+        continue;
+      }
       if (state?.ready>=2 || state?.error) break;
       await sleep(350);
     }
