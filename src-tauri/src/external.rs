@@ -26,7 +26,59 @@ fn bundled_binary(name: &str) -> Option<PathBuf> {
     ].into_iter().find(|path| path.is_file())
 }
 
+
+/* Portable build: audited Windows media engines are compiled into the single
+   ReformANY.exe. On first use they are extracted to an app-owned per-user
+   cache with SHA-256 verification. Users distribute ONE executable; no
+   external engine download, installation or PATH modifications are needed. */
+#[cfg(all(windows, feature = "portable-media"))]
+fn portable_binary(name: &str) -> Option<PathBuf> {
+    use sha2::{Digest, Sha256};
+    use std::sync::OnceLock;
+    static FFMPEG: OnceLock<Option<PathBuf>> = OnceLock::new();
+    static FFPROBE: OnceLock<Option<PathBuf>> = OnceLock::new();
+    fn unpack(name: &str, bytes: &[u8]) -> Option<PathBuf> {
+        let local = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+        let folder = local.join("ReformANY").join("portable-engines").join(env!("CARGO_PKG_VERSION"));
+        fs::create_dir_all(&folder).ok()?;
+        let final_path = folder.join(format!("{name}.exe"));
+        let expected = Sha256::digest(bytes);
+        let valid = (|| {
+            let mut existing = File::open(&final_path).ok()?;
+            let mut hasher = Sha256::new();
+            let mut buffer = [0u8; 64 * 1024];
+            loop {
+                let count = existing.read(&mut buffer).ok()?;
+                if count == 0 { break; }
+                hasher.update(&buffer[..count]);
+            }
+            Some(hasher.finalize() == expected)
+        })().unwrap_or(false);
+        if !valid {
+            let mut stage = tempfile::Builder::new().prefix(".portable-engine-")
+                .tempfile_in(&folder).ok()?;
+            stage.write_all(bytes).ok()?;
+            stage.as_file_mut().sync_all().ok()?;
+            if final_path.exists() { fs::remove_file(&final_path).ok()?; }
+            stage.persist(&final_path).ok()?;
+        }
+        Some(final_path)
+    }
+    match name {
+        "ffmpeg" => FFMPEG.get_or_init(|| unpack("ffmpeg", include_bytes!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/ffmpeg.exe")
+        ))).clone(),
+        "ffprobe" => FFPROBE.get_or_init(|| unpack("ffprobe", include_bytes!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/ffprobe.exe")
+        ))).clone(),
+        _ => None,
+    }
+}
+
 pub fn find_binary(name: &str) -> Option<PathBuf> {
+    #[cfg(all(windows, feature = "portable-media"))]
+    if let Some(binary) = portable_binary(name) { return Some(binary); }
     if let Some(binary) = bundled_binary(name) { return Some(binary); }
     // Windows installers commonly use these locations. PATH resolution is
     // supported but no untrusted file name becomes an executable command.
