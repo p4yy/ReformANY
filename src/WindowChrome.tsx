@@ -8,7 +8,7 @@ import {appIcon} from "./brand";
  * windows. Only noninteractive header space starts a native window drag.
  */
 export default function WindowChrome({title, maximizable=true, compact=false, onClose}:{
-  title:string; maximizable?:boolean; compact?:boolean; onClose?:()=>void;
+  title:string; maximizable?:boolean; compact?:boolean; onClose?:()=>void|Promise<void>;
 }) {
   const win=useMemo(()=>getCurrentWindow(),[]);
   const [maximized,setMaximized]=useState(false);
@@ -50,7 +50,10 @@ export default function WindowChrome({title, maximizable=true, compact=false, on
         {maximized?<Copy size={14}/>:<Square size={13}/>}
       </button>}
       <button type="button" className="window-chrome-close" aria-label="Close"
-        title="Close" onClick={onClose ? onClose : ()=>void run(()=>win.close())}><X size={18}/></button>
+        title="Close" onClick={()=>void run(async()=>{
+          if (onClose) await onClose();
+          else await win.close();
+        })}><X size={18}/></button>
     </div>
     {failure&&<span className="window-chrome-error" role="alert">{failure}</span>}
   </header>;
