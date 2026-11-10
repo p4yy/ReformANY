@@ -220,7 +220,7 @@ type EngineState = { name: string; description: string; status: 'ready' | 'missi
 export function EnginesModule(props: ConverterProps) {
   const [checking, setChecking] = useState(false); const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
-  const detected = (key: string) => capabilities[key.toLowerCase()] === true;
+  const detected = (key: string) => capabilities[key] === true || capabilities[key.toLowerCase()] === true;
   const refresh = async () => { setChecking(true); try { if (!native) throw new Error('Desktop capabilities are unavailable in this browser.'); const result = await nativeEngineStatus(); result.calibre = await runNative<boolean>('ebook_engine_available', {}); result.libreoffice = await runNative<boolean>('office_available', {}); setCapabilities(result); setCheckedAt(Date.now()); props.notify('Engine status refreshed', 'Detected actual local executables. No installation changes were made.', 'success'); } catch(error) { props.notify('Engine check failed', String(error), 'danger'); } finally { setChecking(false); } };
   useEffect(() => { if (native) void refresh(); }, []);
   const engines: EngineState[] = [
