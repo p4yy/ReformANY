@@ -176,13 +176,13 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
   const pdfLayoutPageImages = async (): Promise<string[]> => {
     if (!file.file || (native && !(file.file as File & { nativeBytesLoaded?: boolean }).nativeBytesLoaded))
       throw new Error('This PDF cannot be rendered locally (48 MB editor limit).');
-    const document = await getDocument({ data: new Uint8Array(await file.file.arrayBuffer()) }).promise;
-    if (document.numPages < 1 || document.numPages > 60)
+    const pdfDocument = await getDocument({ data: new Uint8Array(await file.file.arrayBuffer()) }).promise;
+    if (pdfDocument.numPages < 1 || pdfDocument.numPages > 60)
       throw new Error('Layout DOCX supports 1 to 60 pages.');
     const images: string[] = [];
     let bytes = 0;
-    for (let number = 1; number <= document.numPages; number++) {
-      const page = await document.getPage(number);
+    for (let number = 1; number <= pdfDocument.numPages; number++) {
+      const page = await pdfDocument.getPage(number);
       const base = page.getViewport({ scale: 1 });
       const scale = Math.min(1.35, Math.sqrt(4_000_000 / (base.width * base.height)));
       const viewport = page.getViewport({ scale });
