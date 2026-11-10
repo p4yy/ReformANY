@@ -730,3 +730,17 @@ html[data-mode="orbit"] .orbit-logo {
   background:transparent;
   box-shadow:none;
 }
+
+
+/* Pale-sage active navigation always uses its contrasting ink, including the
+   welcome Orbit dock. Disabled controls keep their semantics and legibility. */
+html[data-mode="main"] .welcome-orbit-tabs button.active {
+  color:#1a1f14;
+}
+html[data-mode="orbit"] .orbit-section-tabs button.is-active,
+html[data-mode="orbit"] .orbit-section-tabs button.is-active:hover {
+  color:var(--ref-active-ink);
+}
+html[data-mode="main"] .appearance-theme-option.is-selected {
+  color:var(--text);
+}
