@@ -5,7 +5,8 @@ use image::{ImageFormat, ImageReader};
 use std::ffi::OsString;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tokio::sync::Semaphore;
 
 // A decoded 40MP image can require substantial memory. Generate only one
@@ -14,12 +15,12 @@ static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 
 #[derive(Default)]
 pub struct OrbitLaunch {
-    path: Option<PathBuf>,
+    path: Mutex<Option<PathBuf>>,
 }
 
 impl OrbitLaunch {
     pub fn new(path: Option<PathBuf>) -> Self {
-        Self { path }
+        Self { path: Mutex::new(path) }
     }
 }
 
@@ -96,12 +97,13 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
 
 #[tauri::command]
 pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
-    state.path.as_ref().and_then(|path| orbit_file_info(path))
+    state.path.lock().ok().and_then(|guard| guard.as_ref().and_then(|path| orbit_file_info(path)))
 }
 
 #[tauri::command]
 pub async fn orbit_preview(state: State<'_, OrbitLaunch>) -> Result<Option<String>, String> {
-    let path = match state.path.clone() {
+    let current = state.path.lock().map_err(|_| "Orbit context is locked".to_owned())?.clone();
+    let path = match current {
         Some(path) => path,
         None => return Ok(None),
     };
@@ -148,6 +150,38 @@ fn make_preview(path: &Path) -> Result<Option<String>, String> {
     )))
 }
 
+
+#[tauri::command]
+pub fn orbit_launch_ui(app: AppHandle, state: State<'_, OrbitLaunch>, path: String) -> Result<(), String> {
+    let selected = PathBuf::from(path);
+    let info = orbit_file_info(&selected).ok_or("Cannot open selected file")?;
+    if let Some(error) = info.error { return Err(error); }
+    {
+        let mut slot = state.path.lock().map_err(|_| "Orbit context lock failed".to_owned())?;
+        *slot = Some(selected);
+    }
+    if let Some(window) = app.get_webview_window("orbit") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        let _ = app.emit_to("orbit", "reformany:orbit-context-updated", ());
+        return Ok(());
+    }
+    let window = WebviewWindowBuilder::new(
+        &app, "orbit", WebviewUrl::App("index.html".into()),
+    )
+        .title("ReformANY Orbit")
+        .inner_size(660.0, 760.0)
+        .resizable(true)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .focused(true)
+        .build().map_err(|e| e.to_string())?;
+    position_near_cursor(&window);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn orbit_open_workspace(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
@@ -160,8 +194,9 @@ pub async fn orbit_open_workspace(app: AppHandle) -> Result<(), String> {
             WebviewUrl::App("index.html".into()),
         )
         .title("ReformANY")
-        .inner_size(1120.0, 760.0)
-        .min_inner_size(750.0, 580.0)
+        .inner_size(1280.0, 820.0)
+        .min_inner_size(960.0, 640.0)
+        .decorations(false)
         .center()
         .build()
         .map_err(|e| e.to_string())?;
