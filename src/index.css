@@ -991,3 +991,6 @@ html.reformany-panel-window #root {
 @media (prefers-reduced-motion: reduce) {
   .orbit-os.native .orbit-section-tabs, .orbit-os.native.closing .orbit-section-tabs { animation: none !important; }
 }
+
+.shake-toggle-control { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--accent-bright); }
+.shake-toggle-control .orbit-switch { margin-left: 8px; }
