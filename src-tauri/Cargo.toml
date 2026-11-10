@@ -9,6 +9,10 @@ description = "Independent desktop file conversion application"
 name = "reformany_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+portable-media = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
