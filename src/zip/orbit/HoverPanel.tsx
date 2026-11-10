@@ -7,7 +7,7 @@ import { CMD, invoke, isTauri, win } from "../lib/bridge";
 import { copyText, downloadBlob, formatBytes, stem } from "../lib/util";
 import { PanelShell, type DialogProps } from "./PanelShell";
 
-const KIND_LABEL = { image: "Image", video: "Video", audio: "Audio", pdf: "PDF document", folder: "Folder" } as const;
+const KIND_LABEL = { image: "Image", video: "Video", audio: "Audio", pdf: "PDF document", folder: "Folder", text: "Text document" } as const;
 
 /** Offline QR: computed here, never requested from a service. */
 function buildQr(text: string): { svg: string; modules: number } | { error: string } {
