@@ -404,14 +404,14 @@ try {
   // destroy the native WebView, not merely hide React content.
   await evaluate(socket,
     'document.querySelector("button[aria-label=\\\"Close hovering preview\\\"]").click(); true');
-  let closed = false;
+  let hoverClosed = false;
   for (let attempt = 0; attempt < 35; attempt++) {
     await sleep(180);
     const live = await targets().catch(() => []);
-    closed = !live.some(target => target.id === hover.id);
-    if (closed) break;
+    hoverClosed = !live.some(target => target.id === hover.id);
+    if (hoverClosed) break;
   }
-  if (!closed) throw new Error("HoveR close button left the native preview window running");
+  if (!hoverClosed) throw new Error("HoveR close button left the native preview window running");
   await evaluate(mainSocket,
     'window.__TAURI_INTERNALS__.invoke("hover_file", {path:' + JSON.stringify(picture) + '})');
   let reopened = null;
