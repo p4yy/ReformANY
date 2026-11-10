@@ -293,7 +293,7 @@ try {
     })).slice(0,12)};
   })()`);
   if(selectGeometry.count<2||selectGeometry.controls.some(x=>
-       x.height<28||x.height>42||x.display==="flex"||x.marginBottom!=="0px"))
+       x.height<28||x.height>42||x.align!=="center"||x.marginBottom!=="0px"))
     throw Error("Settings selects are clipped/misaligned by legacy field rules: "+JSON.stringify(selectGeometry));
   console.log("PASS: native Settings select alignment and intrinsic heights verified.");
   const audioBridge=await evaluate(mainSocket,`(async()=>({
