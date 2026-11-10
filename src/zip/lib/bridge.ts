@@ -5,6 +5,7 @@
  */
 import { sleep, uid } from './util';
 import { loadNativeFile, nativeConvertImages } from '../../native/bridge';
+import { renderPdfPageImages } from './pdf';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 export const CMD = {
@@ -199,7 +200,6 @@ async function orbitAction(args: Record<string, unknown>): Promise<unknown> {
       if (target === 'docx-layout' || target === 'png' || target === 'jpg') {
         const file = await loadNativeFile(path);
         if (!file.nativeBytesLoaded) throw new Error('The selected PDF is too large to render in the local editor.');
-        const { renderPdfPageImages } = await import('./pdf');
         const outputFormat = target === 'jpg' ? 'jpg' : 'png';
         const images = await renderPdfPageImages(file, outputFormat);
         if (target === 'docx-layout') return raw('pdf_docx_layout', { path, images, destination: null });
