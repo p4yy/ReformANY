@@ -10,6 +10,12 @@ on:
   pull_request:
     branches: [main, design/desktop-orbit-ui-refinement]
   workflow_dispatch:
+    inputs:
+      all_20_acceptance_checks_signed_off:
+        description: "Release only after all 20 regression requirements have been independently verified"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -239,3 +245,40 @@ jobs:
           name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Portable-EXE-test', github.event.number) || 'ReformANY-Portable-EXE-test' }}
           path: portable-output/ReformANY.exe
           if-no-files-found: error
+
+  # Actions artifacts are ZIP transport envelopes; final release users get
+  # exactly ONE raw .exe, not an artifact ZIP, a folder or an installer.
+  # This gate deliberately requires main + successful Windows job + explicit
+  # confirmation of the full 20-item acceptance checklist.
+  publish_portable:
+    needs: windows
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.all_20_acceptance_checks_signed_off == true }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Retrieve verified single-file portable executable
+        uses: actions/download-artifact@v4
+        with:
+          name: ReformANY-Portable-EXE-test
+          path: release-output
+      - name: Confirm EXACTLY one executable with no installers or ZIP files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find release-output -maxdepth 1 -type f | wc -l)" -eq 1
+          test -f release-output/ReformANY.exe
+          test "$(head -c 2 release-output/ReformANY.exe)" = "MZ"
+          sha256sum release-output/ReformANY.exe
+      - name: Publish direct-download Windows EXE as one GitHub Release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="v0.3.0-portable"
+          gh release create "$version" "release-output/ReformANY.exe#ReformANY.exe" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ReformANY $version — verified portable Windows EXE" \
+            --notes "Single-file offline ReformANY EXE. All 20 release acceptance checks must be signed off before the publish workflow is dispatched." \
+            --target "$GITHUB_SHA"
