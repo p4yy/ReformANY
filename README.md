@@ -1,73 +1,80 @@
-<img src="https://raw.githubusercontent.com/p4yy/ReformANY/main/src-tauri/icons/icon.png" alt="ReformANY app icon" width="72" height="72">
+<p align="center">
+  <img src="public/brand/reformany-icon.png" alt="ReformANY green app icon" width="76" height="76">
+</p>
 
-# ReformANY
+<h1 align="center">ReformANY</h1>
 
-**Convert anything. Effortlessly.**
-
-A focused, privacy-first file conversion workspace for Windows.  
-**Designed and developed by Acev Dev Co.**
-
-ReformANY brings useful conversion, preview and file actions into one restrained desktop experience. Work stays on your computer—no account, cloud upload or telemetry required.
-
-## What it does
-
-**Convert**  
-Transform supported images, audio and video files. Process supported Office documents, PDFs and e-books using local engines where required.
-
-**Preview**  
-Read PDFs as rendered pages—including embedded imagery—and view TXT and Markdown files in a clean document reader.
-
-**Archive**  
-Create and extract ZIP files, including encrypted ZIP. Use supported locally installed 7-Zip and WinRAR tools for additional archive formats.
-
-**Orbit**  
-Right-click a file in Windows Explorer to open a compact circular shortcut with three sections: **Convert · Tools · Actions**. Orbit also offers optional navigation sounds.
-
-The exact routes depend on the file and the local engines available. [See supported formats and limitations](docs/FORMAT_SUPPORT.md).
-
-## Built to stay local
-
-- **No account.** No login, subscription connection or cloud workspace.
-- **No uploads or app telemetry.** First-party conversion commands are local, not API-backed.
-- **Original files preserved.** Results are written separately, with output collision protection.
-- **Source visible.** This repository is public for independent inspection and accountability.
-
-Some features require locally installed FFmpeg, 7-Zip, WinRAR, LibreOffice or Calibre. The current preview does **not** bundle every engine. We are still completing end-to-end Windows and security testing; publishing source code alone is not a security certification.
-
-Read the [offline and privacy contract](docs/PRIVACY.md), [dependency provenance](docs/PROVENANCE.md) and [development verification notes](docs/DEVELOPMENT.md).
-
-## Try the Windows preview
-
-Open [Windows builds on GitHub Actions](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml), choose a **successful** build and download its installer artifact.
-
-The current build is a **preview (0.3.0)** and is **not code-signed**. Windows may display a security warning. Download only from this repository, and inspect the workflow and source before installing. Windows 11 may show the Orbit right-click option under **Show more options**.
-
-ReformANY uses a dark branded installer, with an installation progress indicator and a launch option upon completion.
-
-## Build from source
-
-Requires Node.js 22+, a stable Rust toolchain and the [Tauri 2 Windows prerequisites](https://v2.tauri.app/start/prerequisites/).
-
-```sh
-npm install
-npm run privacy:check
-npm run tauri dev
-```
-
-Build the installer on Windows:
-
-```sh
-npm run tauri build
-```
-
-For details, see [architecture](docs/ARCHITECTURE.md), [QA guidance](docs/DEVELOPMENT.md) and [the roadmap](docs/ROADMAP.md).
-
-## License
-
-© 2026 Acev Dev Co. All rights reserved. ReformANY is source-available, not open source.
-
-[Publisher](https://github.com/p4yy) · [Full license](LICENSE) · [Reuse terms](docs/REUSE_AND_ATTRIBUTION.md)
+<p align="center"><strong>File work, simplified.</strong></p>
+<p align="center">
+  A local-first Windows workspace for conversion, preview, and everyday file utilities.
+</p>
+<p align="center">
+  <a href="docs/PRODUCT_GALLERY.md">Explore the interface</a> ·
+  <a href="docs/FORMAT_SUPPORT.md">Supported formats</a> ·
+  <a href="docs/DEVELOPMENT.md">Development &amp; testing</a>
+</p>
 
 ---
 
-<small>ReformANY is under active development. Features are described according to their current implementation—not promises of universal conversion or guaranteed compatibility.</small>
+### The workspace
+
+![ReformANY — image conversion workspace](docs/screenshots/reformany-main-workspace.png)
+
+A single desktop environment for working with images, media, documents, PDFs, archives, and other supported file types. ReformANY favors direct controls, readable detail, and an interface that stays out of the way.
+
+### Orbit — work from the file itself
+
+<p align="center">
+  <img src="docs/screenshots/reformany-orbit.png" alt="ReformANY Orbit circular file menu with Convert, Tools and Actions controls" width="460">
+</p>
+
+Orbit brings contextual file actions to a circular desktop menu. The original wheel remains intact; a distinct bottom control bar provides **Convert**, **Tools**, and **Actions**. Keyboard mappings and desktop integration are part of the active Windows development work.
+
+### Tools that feel native
+
+<p align="center">
+  <img src="docs/screenshots/reformany-orbit-tool-window.png" alt="ReformANY standalone frameless Rename tool window" width="620">
+</p>
+
+Dedicated tool windows keep focused tasks separate from the main workspace. The dark-green palette, restrained linework, and deliberate spacing carry through from the app to Orbit.
+
+## Built for the desktop
+
+| Principle | Approach |
+| :-- | :-- |
+| **Local by design** | Core file processing runs on the user's computer; no login or cloud workspace is required. |
+| **Originals respected** | Conversion and PDF tools are intended to write new outputs rather than silently replace source files. |
+| **Fast access** | Main workspace for longer jobs; Orbit for contextual actions in Windows Explorer. |
+| **Clear scope** | Format support depends on the operation and the available local conversion engines. |
+| **Considered design** | A consistent green identity, strong hierarchy, and limited visual effects. |
+
+See the [media workspace](docs/PRODUCT_GALLERY.md#media-workspace) and the [format support matrix](docs/FORMAT_SUPPORT.md).
+
+## Development status
+
+**In active development. Not a public release.**
+
+The screenshots here are **real Windows UI captures** from the current ReformANY recovery work ([draft PR #19](https://github.com/p4yy/ReformANY/pull/19), commit `be3f2195`), not renders or concepts. They document the latest visual direction; this design branch is not a claim that every pictured change has already been merged into it.
+
+Windows CI exercises the application, Orbit, HoveR preview, and setup flows. Physical Windows desktop acceptance—including Shake, panel movement, tray behavior, audio control, and remaining regression checks—still requires direct testing and approval. **Do not publish a GitHub Release without explicit owner sign-off.**
+
+## Build locally
+
+Requires **Node.js 22+**, a stable Rust toolchain, and the [Tauri 2 Windows prerequisites](https://v2.tauri.app/start/prerequisites/).
+
+```bash
+npm install
+npm run tauri dev
+```
+
+To package a Windows build:
+
+```bash
+npm run tauri build
+```
+
+For architecture, privacy, and dependency details, see [Architecture](docs/ARCHITECTURE.md), [Privacy](docs/PRIVACY.md), and [Provenance](docs/PROVENANCE.md).
+
+---
+
+<sub>Designed and developed by **Acev Dev Co.** · © 2026 Acev Dev Co. All rights reserved. Source-available, not open source. [License](LICENSE) · [Reuse terms](docs/REUSE_AND_ATTRIBUTION.md)</sub>
