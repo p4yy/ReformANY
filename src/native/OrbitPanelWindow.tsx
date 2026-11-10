@@ -6,7 +6,7 @@ import { emit } from '@tauri-apps/api/event';
 import { OrbitDialogRouter, type OrbitDialogKind } from '../orbit/OrbitDialogs';
 import type { OrbitFile, ToastMessage } from '../types';
 import { ext, uid } from '../lib/files';
-import { loadNativeFile, nativeRename, setSourcePath } from './bridge';
+import { loadNativeFile, nativeRename, runNative, setSourcePath } from './bridge';
 
 const supported: OrbitDialogKind[] = ['sign','watermark','split-pdf','arrange','password-zip','split-binary','rename','shred','more-tools'];
 function fileKind(name: string): OrbitFile['kind'] {
@@ -50,9 +50,14 @@ export default function OrbitPanelWindow() {
     <OrbitDialogRouter kind={kind} file={file} onClose={close} notify={notify}
       onRename={async name => {
         const result = await nativeRename(file.path, name);
-        await emit('reformany:orbit-source-renamed', { path: result.path, name: result.name });
+        await runNative('orbit_set_context', { path: result.path });
+        await emit('reformany:orbit-context-updated');
       }}
-      onShred={() => { void emit('reformany:orbit-source-deleted'); }} />
+      onShred={() => {
+        void runNative('orbit_set_context', { path: null })
+          .then(() => emit('reformany:orbit-source-deleted'))
+          .catch(reason => notify('Could not clear Orbit context', String(reason), 'danger'));
+      }} />
     {notices.length > 0 && <div className="toast-stack" role="status">
       {notices.map(notice => <div className={`toast ${notice.tone || 'default'}`} key={notice.id}>
         <strong>{notice.title}</strong>{notice.message && <p>{notice.message}</p>}

@@ -119,8 +119,15 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     };
     void sync();
     let unsubscribe: (() => void) | null = null;
+    let deletedListener: (() => void) | null = null;
     void listen('reformany:orbit-context-updated', () => void sync()).then(fn => { if (valid) unsubscribe = fn; else fn(); });
-    return () => { valid = false; unsubscribe?.(); };
+    void listen('reformany:orbit-source-deleted', () => {
+      if (!valid) return;
+      playOrbitCue(preferences, 'close');
+      setClosing(true);
+      setTimeout(onClose, 180);
+    }).then(fn => { if (valid) deletedListener = fn; else fn(); });
+    return () => { valid = false; unsubscribe?.(); deletedListener?.(); };
   }, [native, notify, preferences.orbitStart]);
   // Orbit remains a stable, compact circular native window. Tools open in separate windows.
   const close = () => { if (dialog) { setDialog(null); return; } playOrbitCue(preferences, 'close'); setClosing(true); setTimeout(onClose, 180); };

@@ -33,7 +33,7 @@ mod text_convert;
 mod ui_bridge;
 
 use conversion::{cancel_batch, convert_batch, inspect_files, BatchRegistry};
-use orbit::{image_thumbnail, orbit_context, orbit_open_workspace, orbit_launch_file, orbit_initial_tab, orbit_was_shaken, orbit_preview, reveal_output, OrbitLaunch};
+use orbit::{image_thumbnail, orbit_context, orbit_set_context, orbit_open_workspace, orbit_launch_file, orbit_initial_tab, orbit_was_shaken, orbit_preview, reveal_output, OrbitLaunch};
 use scan::expand_inputs;
 use external::engine_status;
 use media::{media_convert,media_details};
@@ -122,6 +122,7 @@ pub fn run() {
             convert_batch,
             cancel_batch,
             orbit_context,
+            orbit_set_context,
             orbit_preview,
             image_thumbnail,
             orbit_open_workspace,

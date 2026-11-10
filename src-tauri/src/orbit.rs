@@ -5,6 +5,7 @@ use image::{ImageFormat, ImageReader};
 use std::ffi::OsString;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tokio::sync::Semaphore;
 
@@ -14,13 +15,13 @@ static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 
 #[derive(Default)]
 pub struct OrbitLaunch {
-    path: Option<PathBuf>,
+    path: Mutex<Option<PathBuf>>,
     initial_tab: Option<String>,
     from_shake: bool,
 }
 impl OrbitLaunch {
     pub fn new_with_tab(path: Option<PathBuf>, initial_tab: Option<String>, from_shake: bool) -> Self {
-        Self { path, initial_tab, from_shake }
+        Self { path: Mutex::new(path), initial_tab, from_shake }
     }
 }
 
@@ -136,8 +137,33 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
 
 #[tauri::command]
 pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
-    state.path.as_ref().and_then(|path| orbit_file_info(path))
+    state.path.lock().ok()?.as_ref().and_then(|path| orbit_file_info(path))
 }
+
+/** Keep source identity coherent across the wheel and independently opened
+ * Orbit tools after a successful rename or destructive delete. */
+#[tauri::command]
+pub fn orbit_set_context(state: State<'_, OrbitLaunch>, path: Option<String>) -> Result<Option<OrbitInfo>, String> {
+    let new_path = match path {
+        Some(value) => {
+            let selected = PathBuf::from(&value);
+            if !selected.is_absolute() {
+                return Err("Orbit source must be a local absolute path".into());
+            }
+            let info = orbit_file_info(&selected)
+                .ok_or("Cannot inspect this Orbit source".to_owned())?;
+            if let Some(problem) = info.error {
+                return Err(problem);
+            }
+            Some(selected)
+        },
+        None => None,
+    };
+    let info = new_path.as_ref().and_then(|selected| orbit_file_info(selected));
+    *state.path.lock().map_err(|_| "Orbit context is busy".to_owned())? = new_path;
+    Ok(info)
+}
+
 #[tauri::command]
 pub fn orbit_initial_tab(state: State<'_, OrbitLaunch>) -> Option<String> {
     state.initial_tab.clone()
@@ -149,7 +175,8 @@ pub fn orbit_was_shaken(state: State<'_, OrbitLaunch>) -> bool {
 
 #[tauri::command]
 pub async fn orbit_preview(state: State<'_, OrbitLaunch>) -> Result<Option<String>, String> {
-    let path = match state.path.clone() {
+    let selected = state.path.lock().map_err(|_| "Orbit context is busy".to_owned())?.clone();
+    let path = match selected {
         Some(path) => path,
         None => return Ok(None),
     };
