@@ -54,6 +54,38 @@ export default function App() {
       .catch(error => { if (live) notify('Shake preferences unavailable', String(error), 'danger'); });
     return () => { live = false; };
   }, [notify, updatePreferences]);
+  // The Orbit wheel runs in its own native process. Refresh shared settings
+  // while it is open so hotkey tooltips and actual shortcuts update live.
+  useEffect(() => {
+    if (!isNativeOrbitRoute) return;
+    let previous = localStorage.getItem('reformany.preferences');
+    const refresh = () => {
+      const next = localStorage.getItem('reformany.preferences');
+      if (next && next !== previous) {
+        previous = next;
+        setPreferences(loadPreferences());
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'reformany.preferences') refresh();
+    };
+    window.addEventListener('storage', onStorage);
+    const timer = window.setInterval(refresh, 250);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  // Portable EXE self-registers its per-user Explorer file/folder verbs
+  // without a separate NSIS installer. Users may disable this in Appearance.
+  useEffect(() => {
+    if (!isTauri || isNativeOrbitRoute || isNativePanelRoute || isNativeFloatRoute) return;
+    void runNative('set_portable_orbit_context', {
+      enabled: preferences.portableOrbitContext,
+    }).catch(error => notify('Explorer integration could not be updated', String(error), 'danger'));
+  }, [preferences.portableOrbitContext, notify]);
+
   // Keep the main-window close behavior in sync with the native Windows tray.
   useEffect(() => {
     if (!isTauri || isNativeOrbitRoute || isNativePanelRoute || isNativeFloatRoute) return;
