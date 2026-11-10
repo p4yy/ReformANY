@@ -144,24 +144,41 @@ try {
     const right=main?.getBoundingClientRect();
     return {shell:!!shell,sidebar:!!sidebar,width:left?.width||0,
       pages:pages.length,main:!!main,nonoverlap:!!left&&!!right&&left.right<=right.left+2,
-      brand:!!document.querySelector(".brand-symbol img")};
+      brand:!!document.querySelector(".brand-symbol img"),
+      rail:!!shell?.classList.contains("rail"),viewport:innerWidth};
   })()`);
+  const isCompactLayout = layout.rail && Math.abs(layout.width - 64) <= 5;
+  const isWideLayout = !layout.rail && layout.width >= 180;
   if (!layout.shell || !layout.sidebar || !layout.main || !layout.brand ||
-      layout.width<180 || layout.pages<12 || !layout.nonoverlap) {
+      !(isCompactLayout || isWideLayout) || layout.pages < 12 || !layout.nonoverlap) {
     throw Error("Redesigned desktop navigation is missing or overlaps content: "+JSON.stringify(layout));
   }
   await screenshot(mainSocket,"01-images-workspace.png").catch(error=>console.warn("Images screenshot unavailable",String(error)));
-  await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Collapse sidebar\\\"]").click();true');
-  await sleep(280);
-  const collapsed = await evaluate(mainSocket, `(() => ({
-    rail:document.querySelector(".app-shell")?.classList.contains("rail"),
-    width:document.querySelector(".sidebar")?.getBoundingClientRect().width||0,
-    iconCount:document.querySelectorAll(".sidebar-nav button[data-module] svg").length
-  }))()`);
-  if (!collapsed.rail || Math.abs(collapsed.width-64)>5 || collapsed.iconCount<12)
-    throw Error("Redesigned compact navigation failed: "+JSON.stringify(collapsed));
-  await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Expand sidebar\\\"]").click();true');
-  await sleep(280);
+  // Auto-compact at narrow available screen widths is intentional and should
+  // not be rejected as a bug. On a wide viewport, assert manual collapse and
+  // re-expansion too; the narrow layout must remain non-overlapping.
+  if (isWideLayout) {
+    await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Collapse sidebar\\\"]").click();true');
+    await sleep(280);
+    const collapsed = await evaluate(mainSocket, `(() => ({
+      rail:document.querySelector(".app-shell")?.classList.contains("rail"),
+      width:document.querySelector(".sidebar")?.getBoundingClientRect().width||0,
+      iconCount:document.querySelectorAll(".sidebar-nav button[data-module] svg").length
+    }))()`);
+    if (!collapsed.rail || Math.abs(collapsed.width-64)>5 || collapsed.iconCount<12)
+      throw Error("Redesigned compact navigation failed: "+JSON.stringify(collapsed));
+    await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Expand sidebar\\\"]").click();true');
+    await sleep(280);
+  } else {
+    const narrow = await evaluate(mainSocket, `(() => ({
+      rail:document.querySelector(".app-shell")?.classList.contains("rail"),
+      iconCount:document.querySelectorAll(".sidebar-nav button[data-module] svg").length,
+      available:document.querySelector(".app-main")?.getBoundingClientRect().width||0
+    }))()`);
+    if (!narrow.rail || narrow.iconCount<12 || narrow.available<250)
+      throw Error("Auto-compact navigation failed usability check: "+JSON.stringify(narrow));
+  }
+  console.log("PASS: responsive sidebar in "+(isCompactLayout?"compact":"expanded")+" desktop mode.");
   await evaluate(mainSocket,'document.querySelector("button[data-module=\\\"guide\\\"]").click();true');
   await sleep(250);
   const guide = await evaluate(mainSocket,`(() => ({
