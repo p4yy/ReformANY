@@ -18,7 +18,7 @@ import { NAV, type PageId } from "../shell/nav";
 import { toast } from "./Toasts";
 
 /* ───────────── Brand marks ───────────── */
-export function LogoMark({ size = 20, tile = true, ...rest }: { size?: number; tile?: boolean } & SVGProps<SVGSVGElement>) {
+export function LogoMark({ size = 20, tile = false, ...rest }: { size?: number; tile?: boolean } & SVGProps<SVGSVGElement>) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" {...rest}>
       {tile && <rect width="32" height="32" rx="9" fill="#4E8F72" />}
