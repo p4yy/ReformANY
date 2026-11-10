@@ -2,14 +2,13 @@
 //! Not a simulated WebView slider and not a media-player-only gain setting.
 #[cfg(windows)]
 fn endpoint_volume(target: Option<u8>) -> Result<u8, String> {
-    use windows::Win32::Devices::FunctionDiscovery::MMDeviceEnumerator;
-    use windows::Win32::Media::Audio::{eMultimedia, eRender, IMMDeviceEnumerator};
+    use windows::Win32::Media::Audio::{eMultimedia, eRender, IMMDeviceEnumerator, MMDeviceEnumerator};
     use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
     };
     unsafe {
-        CoInitializeEx(None, COINIT_MULTITHREADED)
+        CoInitializeEx(None, COINIT_MULTITHREADED).ok()
             .map_err(|error| format!("Cannot initialize Windows audio: {error}"))?;
         let result = (|| -> windows::core::Result<u8> {
             let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
