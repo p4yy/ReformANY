@@ -5,8 +5,7 @@ use image::{ImageFormat, ImageReader};
 use std::ffi::OsString;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tokio::sync::Semaphore;
 
 // A decoded 40MP image can require substantial memory. Generate only one
@@ -15,12 +14,13 @@ static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 
 #[derive(Default)]
 pub struct OrbitLaunch {
-    path: Mutex<Option<PathBuf>>,
+    path: Option<PathBuf>,
+    initial_tab: Option<String>,
+    from_shake: bool,
 }
-
 impl OrbitLaunch {
-    pub fn new(path: Option<PathBuf>) -> Self {
-        Self { path: Mutex::new(path) }
+    pub fn new_with_tab(path: Option<PathBuf>, initial_tab: Option<String>, from_shake: bool) -> Self {
+        Self { path, initial_tab, from_shake }
     }
 }
 
@@ -28,7 +28,11 @@ impl OrbitLaunch {
 /// turn on Orbit and cannot accidentally interpret a filename as a switch.
 pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<PathBuf> {
     let args: Vec<_> = args.into_iter().collect();
-    if args.len() != 2 || args[0] != "orbit" {
+    if !(args.len()==2 || args.len()==3) || args[0] != "orbit" {
+        return None;
+    }
+    if args.len()==3 && !matches!(args[2].to_str(),
+        Some("--tab=convert"|"--tab=tools"|"--tab=actions"|"--from-shake")) {
         return None;
     }
     let path = PathBuf::from(&args[1]);
@@ -36,6 +40,20 @@ pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<Path
         return None;
     }
     Some(path)
+}
+
+pub fn parse_orbit_tab(args: impl IntoIterator<Item = OsString>) -> Option<String> {
+    let args: Vec<_> = args.into_iter().collect();
+    parse_orbit_args(args.iter().cloned())?;
+    args.get(2).and_then(|argument|argument.to_str())
+        .and_then(|argument|argument.strip_prefix("--tab="))
+        .map(str::to_owned)
+}
+
+pub fn parse_orbit_from_shake(args: impl IntoIterator<Item = OsString>) -> bool {
+    let args: Vec<_> = args.into_iter().collect();
+    parse_orbit_args(args.iter().cloned()).is_some()
+        && args.get(2).and_then(|argument|argument.to_str())==Some("--from-shake")
 }
 
 #[derive(Serialize)]
@@ -52,10 +70,17 @@ fn classify_file(path: &Path) -> &'static str {
     let extension = path.extension().and_then(|x| x.to_str())
         .unwrap_or("").to_ascii_lowercase();
     match extension.as_str() {
-        "png"|"jpg"|"jpeg"|"webp"|"bmp"|"gif"|"tif"|"tiff" => "Image",
-        "mp4"|"webm"|"mkv"|"mov"|"avi"|"wmv"|"m4v"|"mpeg"|"mpg"|"mts"|"m2ts" => "Video",
-        "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aac"|"aiff"|"wma"|"ac3" => "Audio",
+        "png"|"jpg"|"jpeg"|"webp"|"bmp"|"gif"|"tif"|"tiff"|"ico"|"tga"|"qoi"|"svg" => "Image",
+        "mp4"|"mov"|"mkv"|"webm"|"avi"|"wmv"|"m4v"|"flv"|"mpeg"|"mpg"| "3gp"|"ts"|"mts"|"m2ts"|"vob"|"ogv"|"mxf"|"f4v"|"asf" => "Video",
+        "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aiff"|"aif"|"wma"|"aac"|"ac3"|"mka"|"caf"|"m4b"|"amr"|"au"|"dts" => "Audio",
         "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
+        "pdf" => "PDF",
+        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp"|"txt"|"html"|"htm" => "Office",
+        "csv"|"tsv"|"json"|"xls"|"xlsx"|"ods" => "Spreadsheet",
+        "srt"|"vtt" => "Subtitle",
+        "epub"|"mobi"|"fb2"|"fbz"|"azw"|"azw3"|"cbz"|"cbr"|"cb7"|"htmlz" => "Ebook",
+        "lnk"|"url" => "Shortcut",
+        "exe"|"msi"|"msix"|"bat"|"cmd" => "Application",
         _ => "File",
     }
 }
@@ -74,7 +99,21 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
             detected: Some("Folder".into()), error: None,
         },
         Ok(metadata) if metadata.is_file() => {
-            if kind == "Image" {
+            if kind == "Image" && crate::svg_image::is_svg(path) {
+                // SVG is a first-class input, but image::guess_format cannot
+                // recognize it. Apply the same local-only SVG validation used
+                // by conversion before advertising a quick-convert action.
+                match crate::svg_image::inspect_svg(path) {
+                    Ok(bytes) => OrbitInfo {
+                        path: raw, name, bytes,
+                        detected: Some("SVG".into()), error: None,
+                    },
+                    Err(error) => OrbitInfo {
+                        path: raw, name, bytes: metadata.len(),
+                        detected: Some("SVG".into()), error: Some(error),
+                    },
+                }
+            } else if kind == "Image" {
                 match describe(path) {
                     Ok((bytes, format)) => OrbitInfo {
                         path: raw, name, bytes,
@@ -97,13 +136,20 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
 
 #[tauri::command]
 pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
-    state.path.lock().ok().and_then(|guard| guard.as_ref().and_then(|path| orbit_file_info(path)))
+    state.path.as_ref().and_then(|path| orbit_file_info(path))
+}
+#[tauri::command]
+pub fn orbit_initial_tab(state: State<'_, OrbitLaunch>) -> Option<String> {
+    state.initial_tab.clone()
+}
+#[tauri::command]
+pub fn orbit_was_shaken(state: State<'_, OrbitLaunch>) -> bool {
+    state.from_shake
 }
 
 #[tauri::command]
 pub async fn orbit_preview(state: State<'_, OrbitLaunch>) -> Result<Option<String>, String> {
-    let current = state.path.lock().map_err(|_| "Orbit context is locked".to_owned())?.clone();
-    let path = match current {
+    let path = match state.path.clone() {
         Some(path) => path,
         None => return Ok(None),
     };
@@ -150,35 +196,25 @@ fn make_preview(path: &Path) -> Result<Option<String>, String> {
     )))
 }
 
-
+/// Explicit onboarding action: the native file picker supplies an exact
+/// source path. Unlike the mouse shake listener, there is no ambiguity about
+/// the chosen file. Reuse the same process command as Explorer's Orbit verb.
 #[tauri::command]
-pub fn orbit_launch_ui(app: AppHandle, state: State<'_, OrbitLaunch>, path: String) -> Result<(), String> {
-    let selected = PathBuf::from(path);
-    let info = orbit_file_info(&selected).ok_or("Cannot open selected file")?;
-    if let Some(error) = info.error { return Err(error); }
-    {
-        let mut slot = state.path.lock().map_err(|_| "Orbit context lock failed".to_owned())?;
-        *slot = Some(selected);
+pub fn orbit_launch_file(path: String) -> Result<(), String> {
+    let source = PathBuf::from(&path);
+    if !source.is_absolute() {
+        return Err("Choose a file using the system file picker".into());
     }
-    if let Some(window) = app.get_webview_window("orbit") {
-        window.show().map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())?;
-        let _ = app.emit_to("orbit", "reformany:orbit-context-updated", ());
-        return Ok(());
+    let metadata = std::fs::symlink_metadata(&source)
+        .map_err(|error| format!("The selected file is unavailable: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Orbit preview requires an existing regular file".into());
     }
-    let window = WebviewWindowBuilder::new(
-        &app, "orbit", WebviewUrl::App("index.html".into()),
-    )
-        .title("ReformANY Orbit")
-        .inner_size(660.0, 760.0)
-        .resizable(true)
-        .decorations(false)
-        .transparent(true)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .focused(true)
-        .build().map_err(|e| e.to_string())?;
-    position_near_cursor(&window);
+    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+    let mut process = std::process::Command::new(exe);
+    process.arg("orbit").arg(&source);
+    crate::external::hide_subprocess_window(&mut process);
+    process.spawn().map_err(|error| format!("Cannot open Orbit for selected file: {error}"))?;
     Ok(())
 }
 
@@ -197,6 +233,7 @@ pub async fn orbit_open_workspace(app: AppHandle) -> Result<(), String> {
         .inner_size(1280.0, 820.0)
         .min_inner_size(960.0, 640.0)
         .decorations(false)
+        .shadow(false)
         .center()
         .build()
         .map_err(|e| e.to_string())?;
@@ -264,8 +301,13 @@ pub fn position_near_cursor(window: &WebviewWindow) {
         let top = info.rcWork.top;
         let max_x = info.rcWork.right.saturating_sub(size.width as i32);
         let max_y = info.rcWork.bottom.saturating_sub(size.height as i32);
-        let x = (cursor.x + 14).clamp(left, max_x.max(left));
-        let y = (cursor.y - (size.height as i32 / 2)).clamp(top, max_y.max(top));
+        // The selection is under the context-menu invocation point in normal
+        // Explorer/desktop right clicks. Anchor the wheel *around* that point,
+        // rather than opening the whole window to the far right of the file.
+        let x = cursor.x.saturating_sub(size.width as i32 / 2)
+            .clamp(left, max_x.max(left));
+        let y = cursor.y.saturating_sub(size.height as i32 / 2)
+            .clamp(top, max_y.max(top));
         let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
     }
 }
@@ -277,6 +319,18 @@ pub fn position_near_cursor(window: &WebviewWindow) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn orbit_accepts_only_known_tabs(){
+        use super::*;
+        let valid=["orbit","test.pdf","--tab=tools"].map(OsString::from);
+        assert_eq!(parse_orbit_args(valid.clone()),Some(PathBuf::from("test.pdf")));
+        assert_eq!(parse_orbit_tab(valid),Some("tools".to_owned()));
+        assert!(parse_orbit_args(["orbit","test.pdf","--tab=shred"].map(OsString::from)).is_none());
+        let shake=["orbit","test.pdf","--from-shake"].map(OsString::from);
+        assert!(parse_orbit_from_shake(shake.clone()));
+        assert_eq!(parse_orbit_tab(shake),None);
+        assert!(parse_orbit_args(["orbit","test.pdf","--tab=actions","extra"].map(OsString::from)).is_none());
+    }
     use super::*;
 
     #[test]
@@ -319,12 +373,44 @@ mod tests {
     }
 
     #[test]
+    fn orbit_accepts_safe_svg_and_rejects_remote_svg() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sample.svg");
+        std::fs::write(&path,
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#1166dd"/></svg>"##,
+        ).unwrap();
+        let safe = orbit_file_info(&path).unwrap();
+        assert_eq!(safe.detected.as_deref(), Some("SVG"));
+        assert!(safe.error.is_none());
+
+        std::fs::write(&path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/unsafe.png"/></svg>"#,
+        ).unwrap();
+        let blocked = orbit_file_info(&path).unwrap();
+        assert!(blocked.error.is_some());
+    }
+
+    #[test]
     fn orbit_classifies_media_archive_and_images() {
         assert_eq!(classify_file(Path::new("video.MP4")), "Video");
         assert_eq!(classify_file(Path::new("voice.FLAC")), "Audio");
         assert_eq!(classify_file(Path::new("backup.RAR")), "Archive");
         assert_eq!(classify_file(Path::new("photo.webp")), "Image");
-        assert_eq!(classify_file(Path::new("notes.txt")), "File");
+        for extension in ["ICO", "TGA", "QOI", "SVG"] {
+            assert_eq!(classify_file(Path::new(&format!("artwork.{extension}"))), "Image");
+        }
+        assert_eq!(classify_file(Path::new("report.PDF")), "PDF");
+        assert_eq!(classify_file(Path::new("presentation.PPTX")), "Office");
+        assert_eq!(classify_file(Path::new("sheet.XLSX")), "Spreadsheet");
+        assert_eq!(classify_file(Path::new("data.CSV")), "Spreadsheet");
+        assert_eq!(classify_file(Path::new("subtitle.VTT")), "Subtitle");
+        assert_eq!(classify_file(Path::new("book.EPUB")), "Ebook");
+        assert_eq!(classify_file(Path::new("tool.LNK")), "Shortcut");
+        assert_eq!(classify_file(Path::new("website.url")), "Shortcut");
+        assert_eq!(classify_file(Path::new("installer.MSI")), "Application");
+        assert_eq!(classify_file(Path::new("notes.txt")), "Office");
+        assert_eq!(classify_file(Path::new("notes.html")), "Office");
+        assert_eq!(classify_file(Path::new("unknown.xyz")), "File");
     }
 
 }
