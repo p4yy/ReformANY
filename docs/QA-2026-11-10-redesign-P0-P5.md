@@ -90,7 +90,7 @@ Line numbers are approximate to the amended PR #19 branch; exact lines may shift
 
 | File | Change and root cause |
 |---|---|
-| `src/zip-ui.css` | Last unlayered scoped contract overrides legacy unlayered `.field`, `.brand`, `.orbit-hub` and `.orbit-disc` leaking into redesigned ZIP UI; select alignment, high-contrast active/disabled controls, wordmark spacing, intrinsic PDF form layout, tall panel scroll and SVG hub centering |
+| `src/zip-ui.css` | Last unlayered scoped contract overrides legacy unlayered `.field`, `.brand`, `.orbit-hub` and `.orbit-disc` leaking into redesigned ZIP UI; select alignment, high-contrast active/disabled controls, wordmark spacing, intrinsic PDF form layout, tall panel scroll and SVG hub centering. Additional native Orbit titlebar styling removes the last circular CSS frame around the shared mark. |
 | `src/zip/lib/pdf.ts` | New bounded PDF.js page rasterizer; ≤60 pages, ≤16 million pixels per rendered page and ≤20MB encoded image, clears canvas resources and destroys document |
 | `src/zip/lib/bridge.ts` | PDF conversion dispatch no longer aliases JPG/PNG page rendering to text conversion, or sends invalid boolean to layout-DOCX; calls dedicated Rust publishers with validated base64 page images |
 | `src/zip/orbit/OrbitStage.tsx` | More tools now opens one native panel or navigates in browser preview; never both, errors surfaced |
@@ -115,6 +115,8 @@ Line numbers are approximate to the amended PR #19 branch; exact lines may shift
 | `src/zip/orbit/data.ts` | `Extract Pages` | `Extract pages` | Consistent sentence case |
 | `src/zip/orbit/data.ts` | `Extract Images` | `Extract images` | Consistent sentence case |
 | `src/zip/orbit/data.ts` | `Arrange Pages` | `Arrange pages` | Consistent sentence case |
+| `src/zip/orbit/OrbitHUD.tsx` | `Pdf` (extension title case) | `PDF` | Correct acronym in redesigned Orbit status |
+| `src/orbit/OrbitHUD.tsx` | `Pdf` (detected file kind) | `PDF` | Correct acronym in native Orbit status |
 
 No claim is made that all strings across translations have been audited to completion.
 
