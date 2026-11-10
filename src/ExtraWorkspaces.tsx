@@ -266,6 +266,7 @@ export function ArchivePanel() {
     : supported;
 
   function changeMode(next: "create" | "extract" | "split" | "join") {
+    if (busy) return; // Do not remap a running archive operation to another mode.
     setMode(next); setSources([]); setResult(null); setError(null); setExtra([]);
   }
 
@@ -345,10 +346,10 @@ export function ArchivePanel() {
     <h1>Archives</h1>
     <p>Create archives or split and rejoin large files. Everything runs locally.</p>
     <div className="engine-switch engine-switch-three">
-      <button className={mode === "create" ? "selected" : ""} onClick={() => changeMode("create")}>Create</button>
-      <button className={mode === "extract" ? "selected" : ""} onClick={() => changeMode("extract")}>Extract</button>
-      <button className={mode === "split" ? "selected" : ""} onClick={() => changeMode("split")}>Split file</button>
-      <button className={mode === "join" ? "selected" : ""} onClick={() => changeMode("join")}>Join parts</button>
+      <button type="button" className={mode === "create" ? "selected" : ""} disabled={busy} onClick={() => changeMode("create")}>Create</button>
+      <button type="button" className={mode === "extract" ? "selected" : ""} disabled={busy} onClick={() => changeMode("extract")}>Extract</button>
+      <button type="button" className={mode === "split" ? "selected" : ""} disabled={busy} onClick={() => changeMode("split")}>Split file</button>
+      <button type="button" className={mode === "join" ? "selected" : ""} disabled={busy} onClick={() => changeMode("join")}>Join parts</button>
     </div>
 
     <div className="engine-card">
