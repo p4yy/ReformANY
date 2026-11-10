@@ -947,3 +947,47 @@ html.reformany-panel-window #root {
   -webkit-app-region: no-drag;
   pointer-events: auto;
 }
+
+/* Phase 2: keep the original 520px circular wedges and hub pixels untouched.
+   The separate transparent host is taller only to accommodate this action bar. */
+.orbit-os.native .orbit-composition {
+  top: 50% !important;
+  width: 520px !important;
+  height: 590px !important;
+}
+.orbit-os.native .orbit-section-tabs {
+  display: flex !important;
+  top: 537px;
+  left: 50%;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  animation: orbitActionsIn .18s ease-out both;
+}
+.orbit-os.native .orbit-section-tabs button {
+  min-width: 112px;
+  height: 43px;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #8B9D7755;
+  border-radius: 23px;
+  color: #D3DBC9;
+  background: #1A1E15F5;
+  transform: translateY(0);
+  transition: transform .16s ease-out, opacity .16s ease-out, background .16s ease-out;
+  will-change: transform;
+}
+.orbit-os.native .orbit-section-tabs button:hover { transform: translateY(-2px); background: #283221; }
+.orbit-os.native .orbit-section-tabs button.active { background: #B4C99F; color: #1A1E15; }
+.orbit-os.native .orbit-section-tabs button kbd { font: 10px system-ui; opacity: .8; }
+@keyframes orbitActionsIn { from { opacity: 0; translate: -50% 8px; } to { opacity: 1; translate: -50% 0; } }
+.orbit-os.native.closing .orbit-section-tabs { animation: orbitActionsOut .16s ease-in both; }
+@keyframes orbitActionsOut { to { opacity: 0; translate: -50% 8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .orbit-os.native .orbit-section-tabs, .orbit-os.native.closing .orbit-section-tabs { animation: none !important; }
+}
