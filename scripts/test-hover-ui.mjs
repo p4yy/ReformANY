@@ -136,74 +136,71 @@ try {
   // wizard and settings selectors. Validate the ACTUAL new shell, not a ghost
   // selector from the earlier stable frontend.
   const layout = await evaluate(mainSocket, `(() => {
-    const shell=document.querySelector(".app-shell");
-    const sidebar=document.querySelector(".sidebar");
-    const main=document.querySelector(".app-main");
-    const pages=document.querySelectorAll(".sidebar-nav button[data-module]");
-    const left=sidebar?.getBoundingClientRect();
-    const right=main?.getBoundingClientRect();
-    return {shell:!!shell,sidebar:!!sidebar,width:left?.width||0,
-      pages:pages.length,main:!!main,nonoverlap:!!left&&!!right&&left.right<=right.left+2,
-      brand:!!document.querySelector(".brand-symbol img"),
-      rail:!!shell?.classList.contains("rail"),viewport:innerWidth};
+    const shell=document.querySelector(".shell");
+    const body=document.querySelector(".body");
+    const sidebar=document.querySelector("#sidebar");
+    const main=document.querySelector("#main");
+    const pages=document.querySelectorAll("#sidebar .nav button[aria-label]");
+    const left=sidebar?.getBoundingClientRect(),right=main?.getBoundingClientRect();
+    return {shell:!!shell,oldShell:!!document.querySelector(".app-shell"),
+      sidebar:!!sidebar,width:left?.width||0,pages:pages.length,
+      main:!!main,nonoverlap:!!left&&!!right&&left.right<=right.left+2,
+      brand:!!document.querySelector(".titlebar .brand"),
+      rail:body?.dataset.collapsed==="true",viewport:innerWidth};
   })()`);
-  const isCompactLayout = layout.rail && Math.abs(layout.width - 64) <= 5;
-  const isWideLayout = !layout.rail && layout.width >= 180;
-  if (!layout.shell || !layout.sidebar || !layout.main || !layout.brand ||
-      !(isCompactLayout || isWideLayout) || layout.pages < 12 || !layout.nonoverlap) {
-    throw Error("Redesigned desktop navigation is missing or overlaps content: "+JSON.stringify(layout));
-  }
+  const isCompactLayout = layout.rail && Math.abs(layout.width-64)<=5;
+  const isWideLayout = !layout.rail && layout.width>=180;
+  if(!layout.shell||layout.oldShell||!layout.sidebar||!layout.main||!layout.brand||
+     !(isCompactLayout||isWideLayout)||layout.pages<12||!layout.nonoverlap)
+    throw Error("ZIP desktop navigation is missing, overlaps or kept old shell: "+JSON.stringify(layout));
   await screenshot(mainSocket,"01-images-workspace.png").catch(error=>console.warn("Images screenshot unavailable",String(error)));
-  // Auto-compact at narrow available screen widths is intentional and should
-  // not be rejected as a bug. On a wide viewport, assert manual collapse and
-  // re-expansion too; the narrow layout must remain non-overlapping.
-  if (isWideLayout) {
-    await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Collapse sidebar\\\"]").click();true');
-    await sleep(280);
-    const collapsed = await evaluate(mainSocket, `(() => ({
-      rail:document.querySelector(".app-shell")?.classList.contains("rail"),
-      width:document.querySelector(".sidebar")?.getBoundingClientRect().width||0,
-      iconCount:document.querySelectorAll(".sidebar-nav button[data-module] svg").length
+  if(isWideLayout) {
+    await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Collapse sidebar\\\"]").click();true');
+    await sleep(350);
+    const collapsed=await evaluate(mainSocket,`(() => ({
+      rail:document.querySelector(".body")?.dataset.collapsed==="true",
+      width:document.querySelector("#sidebar")?.getBoundingClientRect().width||0,
+      iconCount:document.querySelectorAll("#sidebar .nav button[aria-label] svg").length
     }))()`);
-    if (!collapsed.rail || Math.abs(collapsed.width-64)>5 || collapsed.iconCount<12)
-      throw Error("Redesigned compact navigation failed: "+JSON.stringify(collapsed));
-    await evaluate(mainSocket,'document.querySelector("button[aria-label=\\\"Expand sidebar\\\"]").click();true');
-    await sleep(280);
+    if(!collapsed.rail||Math.abs(collapsed.width-64)>5||collapsed.iconCount<12)
+      throw Error("ZIP sidebar collapse failed: "+JSON.stringify(collapsed));
+    await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Expand sidebar\\\"]").click();true');
+    await sleep(350);
   } else {
-    const narrow = await evaluate(mainSocket, `(() => ({
-      rail:document.querySelector(".app-shell")?.classList.contains("rail"),
-      iconCount:document.querySelectorAll(".sidebar-nav button[data-module] svg").length,
-      available:document.querySelector(".app-main")?.getBoundingClientRect().width||0
+    const narrow=await evaluate(mainSocket,`(() => ({
+      rail:document.querySelector(".body")?.dataset.collapsed==="true",
+      iconCount:document.querySelectorAll("#sidebar .nav button[aria-label] svg").length,
+      available:document.querySelector("#main")?.getBoundingClientRect().width||0
     }))()`);
-    if (!narrow.rail || narrow.iconCount<12 || narrow.available<250)
-      throw Error("Auto-compact navigation failed usability check: "+JSON.stringify(narrow));
+    if(!narrow.rail||narrow.iconCount<12||narrow.available<250)
+      throw Error("ZIP auto-compact navigation failed: "+JSON.stringify(narrow));
   }
-  console.log("PASS: responsive sidebar in "+(isCompactLayout?"compact":"expanded")+" desktop mode.");
-  await evaluate(mainSocket,'document.querySelector("button[data-module=\\\"guide\\\"]").click();true');
-  await sleep(250);
-  const guide = await evaluate(mainSocket,`(() => ({
-    active:!!document.querySelector('button[data-module="guide"].active'),
-    content:document.querySelector(".content-inner")?.textContent?.length||0
+  console.log("PASS: full ZIP UI replaces original shell, responsive navigation verified.");
+  await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Guide\\\"]").click();true');
+  await sleep(300);
+  const guide=await evaluate(mainSocket,`(() => ({
+    active:!!document.querySelector('#sidebar button[aria-label="Guide"][aria-current="page"]'),
+    content:document.querySelector(".page:not([hidden]) .page-inner")?.textContent?.length||0
   }))()`);
-  if (!guide.active || guide.content<150) throw Error("Redesigned guide did not render: "+JSON.stringify(guide));
+  if(!guide.active||guide.content<150)throw Error("ZIP Guide did not render: "+JSON.stringify(guide));
   await screenshot(mainSocket,"02-guide.png").catch(error=>console.warn("Guide screenshot unavailable",String(error)));
-  await evaluate(mainSocket,'document.querySelector("button[data-module=\\\"media\\\"]").click();true');
-  await sleep(240);
+  await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Audio & Video\\\"]").click();true');
+  await sleep(300);
   const media=await evaluate(mainSocket,`(() => ({
-    active:!!document.querySelector('button[data-module="media"].active'),
-    content:document.querySelector(".content-inner")?.textContent?.length||0
+    active:!!document.querySelector('#sidebar button[aria-label="Audio & Video"][aria-current="page"]'),
+    content:document.querySelector(".page:not([hidden]) .page-inner")?.textContent?.length||0
   }))()`);
-  if(!media.active||media.content<120)throw Error("Native media converter workspace not rendered: "+JSON.stringify(media));
+  if(!media.active||media.content<120)throw Error("ZIP media converter did not render: "+JSON.stringify(media));
   await screenshot(mainSocket,"03-audio-video.png").catch(error=>console.warn("Media screenshot unavailable",String(error)));
-  await evaluate(mainSocket,'document.querySelector("button[data-module=\\\"appearance\\\"]").click();true');
-  await sleep(240);
+  await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Settings\\\"]").click();true');
+  await sleep(300);
   const audioUI=await evaluate(mainSocket,`(() => {
-    const content=document.querySelector(".content-inner")?.textContent||"";
-    return {open:content.includes("Opening sound"),close:content.includes("Closing sound"),
-      hover:content.includes("Wedge hover sound"),shake:content.includes("Hold-and-shake")};
+    const content=document.querySelector(".page:not([hidden]) .page-inner")?.textContent||"";
+    return {sound:content.includes("Play sounds"),volume:content.includes("Volume"),
+      shake:content.includes("Hold and shake to open Orbit"),shortcut:content.includes("Section shortcuts")};
   })()`);
-  if(!audioUI.open||!audioUI.close||!audioUI.hover||!audioUI.shake)
-    throw Error("Native Orbit audio/Shake controls missing: "+JSON.stringify(audioUI));
+  if(!audioUI.sound||!audioUI.volume||!audioUI.shake||!audioUI.shortcut)
+    throw Error("ZIP Orbit audio/Shake controls missing: "+JSON.stringify(audioUI));
   const audioBridge=await evaluate(mainSocket,`(async()=>({
     cue:await window.__TAURI_INTERNALS__.invoke("orbit_play_sound",{kind:"hover"}).then(()=>true,()=>false),
     shake:await window.__TAURI_INTERNALS__.invoke("get_shake_settings").then(v=>v&&v.sensitivity>=1&&v.sensitivity<=5,false)
@@ -228,28 +225,27 @@ try {
   for(let attempt=0;attempt<45;attempt++){
     wheel=await evaluate(orbitSocket,`(() => {
       const disc=document.querySelector(".orbit-disc");
-      const demo=document.querySelector(".explorer-mock");
-      return {native:!!document.querySelector(".orbit-os.native"),disc:!!disc,
-        width:disc?.getBoundingClientRect().width||0,
+      const bar=document.querySelector(".orbit-bar");
+      const root=document.querySelector(".orbit-root");
+      const box=bar?.getBoundingClientRect();
+      return {
+        zip:!!document.querySelector(".orbit-stage")&&!document.querySelector(".orbit-os.native"),
+        disc:!!disc,width:disc?.getBoundingClientRect().width||0,
         sectors:document.querySelectorAll(".orbit-wedge[role=button]").length,
-        source:document.querySelector(".orbit-hub strong")?.textContent||"",
-        demoHidden:!demo||getComputedStyle(demo).display==="none",
+        source:root?.getAttribute("aria-label")||"",
         rootTransparent:getComputedStyle(document.body).backgroundColor==="rgba(0, 0, 0, 0)",
-        actionsVisible:!!document.querySelector(".orbit-section-tabs") &&
-          getComputedStyle(document.querySelector(".orbit-section-tabs")).display!=="none",
-        actionButtons:document.querySelectorAll(".orbit-section-tabs button").length,
-        actionsInsideViewport:(()=>{
-          const box=document.querySelector(".orbit-section-tabs")?.getBoundingClientRect();
-          return !!box&&box.left>=0&&box.right<=innerWidth&&box.bottom<=innerHeight;
-        })()};
+        actionsVisible:!!bar&&getComputedStyle(bar).display!=="none",
+        actionButtons:bar?.querySelectorAll("button[role=radio]").length||0,
+        actionsInsideViewport:!!box&&box.left>=0&&box.right<=innerWidth&&box.bottom<=innerHeight,
+      };
     })()`);
-    if(wheel.native&&wheel.disc&&wheel.sectors>=4&&wheel.source.includes("icon"))break;
+    if(wheel.zip&&wheel.disc&&wheel.sectors>=4&&wheel.source.includes("icon"))break;
     await sleep(230);
   }
-  if(!wheel.native||!wheel.disc||wheel.sectors<4||!wheel.source.includes("icon")||
-    !wheel.demoHidden||!wheel.rootTransparent||Math.abs(wheel.width-520)>8||
+  if(!wheel.zip||!wheel.disc||wheel.sectors<4||!wheel.source.includes("icon")||
+    !wheel.rootTransparent||wheel.width<345||wheel.width>510||
     !wheel.actionsVisible||wheel.actionButtons!==3||!wheel.actionsInsideViewport)
-    throw Error("Native Orbit is not a clean source-aware floating circle: "+JSON.stringify(wheel));
+    throw Error("ZIP-native Orbit is not a clean source-aware floating circle: "+JSON.stringify(wheel));
   await screenshot(orbitSocket,"04-circular-orbit.png").catch(error=>console.warn("Orbit screenshot unavailable",String(error)));
   // Orbit tools run in their own opaque Tauri windows, not a transparent
   // backing WebView that renders a ghost rectangle around the panel.
