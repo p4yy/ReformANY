@@ -916,12 +916,12 @@ export default function Orbit() {
   // A PDF tool is never placed in Convert, and a format is never a PDF Tool.
   // Unsupported operations are visibly disabled rather than run as placeholders.
   const pdfTools: OrbitAction[] = kind === "pdf" && canConvert ? [
-    { label: "Split Pages", run: () => setSplitting(true) },
-    { label: "Extract Pages", run: () => void openPdfTool("extract") },
-    { label: "Rotate 90°", run: () => void openPdfTool("rotate") },
-    { label: "Extract Images", run: () => void extractPdfImages() },
+    { label: "Split PDF", run: () => setSplitting(true) },
+    { label: "Extract pages", run: () => void openPdfTool("extract") },
+    { label: "Rotate pages", run: () => void openPdfTool("rotate") },
+    { label: "Extract images", run: () => void extractPdfImages() },
     { label: "Password", run: () => {setPdfError(null);setPdfPasswording(true);} },
-    { label: "Arrange Pages", run: () => void openArrange() },
+    { label: "Arrange pages", run: () => void openArrange() },
     { label: "Watermark", run: () => {setPdfError(null);setPdfMarkMode("watermark");} },
     { label: "Sign", run: () => {setPdfError(null);setPdfMarkMode("signature");} },
   ] : [];
@@ -1056,7 +1056,7 @@ export default function Orbit() {
         </nav>
         <div className="orbit-message" role="status" aria-live="polite"
           title={message || file?.name || ""}>
-          {message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
+          {message || (file ? (isFolder ? "Folder" : kind === "pdf" ? "PDF" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
         </div>
       {(error || note) && <OrbitNotice key={error || note}
         message={error || note || ""} error={Boolean(error)}
