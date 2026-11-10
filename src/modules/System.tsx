@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { native, runNative, nativeEngineStatus } from '../native/bridge';
 import { Activity, ArrowRight, BookOpenCheck, Check, ChevronRight, Clock3, Download, ExternalLink, FileArchive, FileCog, FileInput, FileText, FolderClock, FolderInput, Gauge, HardDrive, Image, Info, Keyboard, MousePointer2, Music2, Orbit, Palette, Plus, RefreshCw, RotateCcw, Settings2, ShieldCheck, Trash2, Volume2, X } from 'lucide-react';
-import type { ActivityItem, ModuleId, Preferences, WatchRule } from '../types';
+import type { ActivityItem, ModuleId, Preferences } from '../types';
 import type { ConverterProps } from './Converters';
 import { ModuleHeader } from './Converters';
 import { CopyButton, EmptyState, Field, IconButton, InlineNote, KineticButton, Segmented, Select, SettingRow, SpringSlider, Toggle } from '../components/UI';
