@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { AlertTriangle, ArrowRight, Check, ChevronLeft, ChevronsLeft, ChevronsRight, ChevronRight, Download, ExternalLink, File, FileText, GripVertical, LoaderCircle, LocateFixed, LockKeyhole, Minus, MoreHorizontal, Move, Pencil, Pin, PinOff, QrCode, RotateCcw, RotateCw, Save, Scissors, ShieldAlert, Signature, Stamp, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, ChevronLeft, ChevronsLeft, ChevronsRight, ChevronRight, Download, ExternalLink, File, FileText, GripVertical, LoaderCircle, LocateFixed, LockKeyhole, Minus, Maximize2, Minimize2, MoreHorizontal, Move, Pencil, Pin, PinOff, QrCode, RotateCcw, RotateCw, Save, Scissors, ShieldAlert, Signature, Stamp, Trash2, Undo2, X } from 'lucide-react';
 import { getDocument } from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { OrbitFile, ToastMessage } from '../types';
@@ -21,14 +21,32 @@ interface DialogProps {
 
 export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer, wide = false, brand = 'ReformANY Orbit', onClose, className = '', toolbar }: { title: string; subtitle?: string; icon: ReactNode; file?: OrbitFile; children: ReactNode; footer?: ReactNode; wide?: boolean; brand?: string; onClose: () => void; className?: string; toolbar?: ReactNode }) {
   const [minimized, setMinimized] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const panel = desktop && getCurrentWindow().label.startsWith('orbit-panel-');
+  const toggleFullscreen = async () => {
+    try {
+      if (panel) {
+        const next = !await getCurrentWindow().isFullscreen();
+        await getCurrentWindow().setFullscreen(next);
+        setFullscreen(next);
+      } else if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        setFullscreen(false);
+      } else {
+        await document.documentElement.requestFullscreen();
+        setFullscreen(true);
+      }
+    } catch (error) {
+      console.error('Orbit fullscreen could not be changed', error);
+    }
+  };
   const startDrag = (event: ReactPointerEvent<HTMLElement>) => {
     if (!panel || event.button !== 0 || (event.target as HTMLElement).closest('button,input,select,textarea,a,[role="slider"]')) return;
     void getCurrentWindow().startDragging().catch(() => {});
   };
   if (minimized) return <button className="minimized-orbit-dialog" onClick={() => setMinimized(false)}><OrbitMark /><span>{brand} · {title}</span><MaximizeLabel /></button>;
   return <div className="orbit-dialog-backdrop"><section className={`orbit-dialog ${wide ? 'wide' : ''} ${className}`} role="dialog" aria-modal="true" aria-label={title}>
-    <header className="orbit-dialog-titlebar" onPointerDown={startDrag}><div><OrbitMark /><span>{brand}</span></div><div>{toolbar}<IconButton label="Minimize" onClick={() => { if (panel) void getCurrentWindow().minimize(); else setMinimized(true); }}><Minus size={15} /></IconButton><IconButton label="Close" onClick={onClose}><X size={16} /></IconButton></div></header>
+    <header className="orbit-dialog-titlebar" onPointerDown={startDrag}><div><OrbitMark /><span>{brand}</span></div><div>{toolbar}<IconButton label={fullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</IconButton><IconButton label="Minimize" onClick={() => { if (panel) void getCurrentWindow().minimize(); else setMinimized(true); }}><Minus size={15} /></IconButton><IconButton label="Close" onClick={onClose}><X size={16} /></IconButton></div></header>
     <div className="orbit-dialog-heading"><div className="muted-icon-chip">{icon}</div><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>
     {file && <FileContextRow name={file.name} meta={file.pages ? `${file.pages} pages · ${formatBytes(file.size)}` : `${file.typeLabel || file.kind.toUpperCase()} · ${formatBytes(file.size)}`} />}
     <div className="orbit-dialog-body">{children}</div>{footer && <footer className="orbit-dialog-footer">{footer}</footer>}
