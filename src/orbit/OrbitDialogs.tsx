@@ -227,7 +227,7 @@ export function ExtractPagesDialog({ file, onClose, notify }: DialogProps) {
   const selected = (() => {
     const pages: number[] = [], seen = new Set<number>();
     for (const part of range.trim().split(',')) {
-      const match = /^(\\d+)(?:\\s*-\\s*(\\d+))?$/.exec(part.trim());
+      const match = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part.trim());
       if (!match) return null;
       const start = Number(match[1]), end = match[2] ? Number(match[2]) : start;
       if (start < 1 || end < start || end > count) return null;
@@ -256,7 +256,7 @@ export function ExtractPagesDialog({ file, onClose, notify }: DialogProps) {
         notify('Extracted PDF saved', output, 'success');
       } else {
         const pages = selected.map(source => ({ id: String(source), source, rotation: 0 }));
-        await downloadBlob(await arrangePdf(file.file, pages), file.name.replace(/\\.pdf$/i, '') + '-extracted.pdf');
+        await downloadBlob(await arrangePdf(file.file, pages), file.name.replace(/\.pdf$/i, '') + '-extracted.pdf');
         notify('Extracted PDF saved', selected.length + ' page(s); original unchanged.', 'success');
       }
       onClose();
