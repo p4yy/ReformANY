@@ -24,6 +24,22 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
   const [minimized, setMinimized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const panel = desktop && getCurrentWindow().label.startsWith('orbit-panel-');
+  // Keep the maximize/fullscreen icon synchronized with native window state
+  // even when the user changes size through Windows itself.
+  useEffect(() => {
+    if (!panel) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    const windowHandle = getCurrentWindow();
+    const sync = () => void windowHandle.isFullscreen()
+      .then(value => { if (active) setFullscreen(value); })
+      .catch(() => {});
+    sync();
+    void windowHandle.onResized(sync)
+      .then(dispose => { if (active) unlisten = dispose; else dispose(); })
+      .catch(() => {});
+    return () => { active = false; unlisten?.(); };
+  }, [panel]);
   useEffect(() => {
     if (!panel) return;
     const handleEscape = (event: KeyboardEvent) => {
