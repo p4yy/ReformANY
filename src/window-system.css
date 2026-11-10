@@ -690,3 +690,43 @@ html[data-mode="orbit"][data-orbit-editor="true"][data-orbit-editor-kind="mark"]
     overflow:visible;
   }
 }
+
+
+/* P2: The hub and center outline share the disc's positioning context. */
+html[data-mode="orbit"]:not([data-orbit-editor="true"]) .orbit-disc {
+  position:absolute;
+  inset:0 auto auto 0;
+}
+html[data-mode="orbit"]:not([data-orbit-editor="true"]) .orbit-hub,
+html[data-mode="orbit"]:not([data-orbit-editor="true"]) .orbit-hub-outline {
+  position:absolute;
+  top:50%;
+  left:50%;
+  right:auto;
+  bottom:auto;
+  margin:0;
+  transform:translate(-50%,-50%);
+}
+html[data-mode="orbit"]:not([data-orbit-editor="true"]) .orbit-hub {
+  z-index:4;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+html[data-mode="orbit"]:not([data-orbit-editor="true"]) .orbit-hub-outline {
+  z-index:3;
+}
+html[data-mode="main"] .settings-head {
+  justify-content:space-between;
+}
+html[data-mode="main"] .sidebar-toggle {
+  justify-content:center;
+}
+/* Logo chrome is transparent: the actual artwork must be a clean asset. */
+.reformany-window-chrome .window-chrome-grip img,
+html[data-mode="orbit"] .orbit-logo {
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
