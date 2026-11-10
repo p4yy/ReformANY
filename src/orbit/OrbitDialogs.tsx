@@ -39,7 +39,17 @@ function MaximizeLabel() { return <ExternalLink size={14} />; }
 
 export function ShredDialog({ file, onClose, notify, onShred }: DialogProps) {
   const [confirmation, setConfirmation] = useState(''); const [inspection, setInspection] = useState('Inspecting…'); const [working, setWorking] = useState(false);
-  useEffect(() => { const timer = setTimeout(() => setInspection(`1 item · ${formatBytes(file.size)} · ${file.kind === 'folder' ? 'folder tree' : 'local file'} inspected`), 720); return () => clearTimeout(timer); }, [file]);
+  useEffect(() => {
+    let live = true;
+    if (desktop && pathOf(file.file)) {
+      void runNative<{ fileCount: number; totalBytes: number; directories: number }>('shred_preview', { path: file.path })
+        .then(value => { if (live) setInspection(value.fileCount + ' file(s) · ' + value.directories + ' folder(s) · ' + formatBytes(value.totalBytes) + ' inspected'); })
+        .catch(error => { if (live) setInspection('Inspection failed: ' + String(error)); });
+    } else {
+      setInspection('Desktop selection required for an actual shred inspection.');
+    }
+    return () => { live = false; };
+  }, [file.path, file.file]);
   const shred = async () => {
     setWorking(true);
     try {
@@ -173,6 +183,18 @@ export function ArrangeDialog({ file, onClose, notify }: DialogProps) {
   const { pdf } = usePdf(file.file); const [pages, setPages] = useState<PageItem[]>(() => Array.from({ length: file.pages || 14 }, (_, index) => ({ id: `${index + 1}-${Date.now()}`, source: index + 1, rotation: 0 })));
   const [selected, setSelected] = useState<string[]>([]); const [anchor, setAnchor] = useState<string | null>(null); const [undo, setUndo] = useState<PageItem[][]>([]); const [saving, setSaving] = useState(false); const dragged = useRef<string | null>(null);
   useEffect(() => { if (pdf && pages.length !== pdf.numPages) setPages(Array.from({ length: pdf.numPages }, (_, index) => ({ id: `${index + 1}-${Date.now()}`, source: index + 1, rotation: 0 }))); }, [pdf, pages.length]);
+  useEffect(() => {
+    if (!desktop || !pathOf(file.file)) return;
+    let live = true;
+    void runNative<number>('pdf_page_count', { path: file.path })
+      .then(count => {
+        if (live && count > 0 && count <= 200) {
+          setPages(Array.from({ length: count }, (_, index) =>
+            ({ id: String(index + 1) + '-native', source: index + 1, rotation: 0 })));
+        }
+      }).catch(error => { if (live) notify('PDF page count unavailable', String(error), 'danger'); });
+    return () => { live = false; };
+  }, [file.path]);
   const snapshot = () => setUndo(current => [...current.slice(-29), pages.map(item => ({ ...item }))]);
   const select = (event: React.MouseEvent, item: PageItem) => {
     if (event.shiftKey && anchor) { const a = pages.findIndex(page => page.id === anchor), b = pages.findIndex(page => page.id === item.id); setSelected(pages.slice(Math.min(a, b), Math.max(a, b) + 1).map(page => page.id)); }
@@ -191,7 +213,29 @@ export function ArrangeDialog({ file, onClose, notify }: DialogProps) {
   const rotate = (amount: number) => { if (!selected.length) return; snapshot(); setPages(current => current.map(item => selected.includes(item.id) ? { ...item, rotation: (item.rotation + amount + 360) % 360 } : item)); };
   const remove = () => { if (!selected.length || pages.length === selected.length) { if (pages.length === selected.length) notify('Keep at least one page', 'A new PDF cannot contain zero pages.', 'danger'); return; } snapshot(); setPages(current => current.filter(item => !selected.includes(item.id))); setSelected([]); };
   const drop = (target: string) => { if (!dragged.current || dragged.current === target) return; snapshot(); setPages(current => { const next = [...current]; const from = next.findIndex(item => item.id === dragged.current); const to = next.findIndex(item => item.id === target); const [item] = next.splice(from, 1); next.splice(to, 0, item); return next; }); };
-  const save = async () => { if (!file.file) { notify('Open a local PDF first', 'The arrange editor needs a readable PDF source.', 'danger'); return; } setSaving(true); try { const blob = await arrangePdf(file.file, pages); await downloadBlob(blob, `${file.name.replace(/\.pdf$/i, '')}-arranged.pdf`); notify('Arranged PDF saved', `${pages.length} pages · original unchanged`, 'success'); onClose(); } catch (error) { notify('Could not save PDF', error instanceof Error ? error.message : 'PDF export failed.', 'danger'); } setSaving(false); };
+  const save = async () => {
+    if (!file.file) {
+      notify('Open a local PDF first', 'The arrange editor needs a readable PDF source.', 'danger');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (desktop && pathOf(file.file)) {
+        const saved = await runNative<string>('pdf_arrange_pages', {
+          path: file.path, destination: null,
+          items: pages.map(item => ({ sourcePage: item.source, rotation: item.rotation })),
+        });
+        notify('Arranged PDF saved', saved, 'success');
+      } else {
+        const blob = await arrangePdf(file.file, pages);
+        await downloadBlob(blob, file.name.replace(/\.pdf$/i, '') + '-arranged.pdf');
+        notify('Arranged PDF saved', pages.length + ' pages · source unchanged', 'success');
+      }
+      onClose();
+    } catch (error) {
+      notify('Could not save PDF', error instanceof Error ? error.message : 'PDF export failed.', 'danger');
+    } finally { setSaving(false); }
+  };
   const tools = [
     { label: 'Start', icon: ChevronsLeft, action: () => move('start') }, { label: 'Earlier', icon: ChevronLeft, action: () => move('earlier') },
     { label: 'Later', icon: ChevronRight, action: () => move('later') }, { label: 'End', icon: ChevronsRight, action: () => move('end') },

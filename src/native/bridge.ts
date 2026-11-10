@@ -100,7 +100,7 @@ export async function runNative<T>(command: string, args: Record<string, unknown
 
 export async function nativeReveal(path: string) { return runNative<void>('reveal_output', { path }); }
 export async function nativeRename(path: string, newName: string) { return runNative<{ path: string; name: string }>('rename_file', { path, newName }); }
-export async function nativeShred(path: string) { return runNative<void>('ui_shred', { path, confirmation: 'SHRED' }); }
+export async function nativeShred(path: string) { return runNative<{ fileCount: number; totalBytes: number; directories: number }>('shred_confirm', { path, confirmation: 'SHRED' }); }
 export async function nativeCopyFile(path: string) {
   const directory = await open({ directory: true, multiple: false });
   if (typeof directory !== 'string') return null;
