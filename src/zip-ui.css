@@ -2403,3 +2403,25 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
   min-height:0;
   overflow-y:auto;
 }
+
+
+/* P4: the Orbit titlebar symbol is the artwork itself, not a framed tile. */
+.orbit-panel-window .orbit-dialog-titlebar .orbit-mark,
+.orbit-dialog-titlebar .orbit-mark {
+  display:inline-flex;
+  box-sizing:border-box;
+  align-items:center;
+  justify-content:center;
+  width:16px;
+  height:16px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  overflow:visible;
+}
+.orbit-dialog-titlebar .orbit-mark svg {
+  display:block;
+  flex:0 0 auto;
+  overflow:visible;
+}
