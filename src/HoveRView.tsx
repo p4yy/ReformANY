@@ -18,6 +18,7 @@ function size(value: number): string {
 export default function HoveRView() {
   const [file, setFile] = useState<HoveRInfo | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [mode, setMode] = useState<"preview" | "qr">("preview");
@@ -34,6 +35,7 @@ export default function HoveRView() {
     const refresh = () => {
       const currentRequest = ++requestId;
       setPreview(null);
+      setVideoFailed(false);
       setError(null);
       setNote(null);
       setMode("preview");
@@ -43,11 +45,15 @@ export default function HoveRView() {
         setFile(value);
         setQrContent(value?.path || "");
         if (!value) return;
-        void invoke<string | null>("image_thumbnail", { path: value.path })
+        const videoSuffix = (value.name.split(".").pop() || "").toLowerCase();
+        const video = ["mp4","mov","m4v","webm","mkv","avi","wmv","flv","mpeg","mpg","mts","m2ts","ogv"].includes(videoSuffix);
+        void invoke<string | null>(video ? "media_thumbnail" : "image_thumbnail", { path: value.path })
           .then(src => {
             if (alive && currentRequest === requestId) setPreview(src);
           })
-          .catch(() => { /* Non-images display their native media control. */ });
+          .catch(reason => {
+            if (alive && currentRequest === requestId && video) setNote("Video thumbnail unavailable: " + String(reason));
+          });
       }).catch(reason => {
         if (alive && currentRequest === requestId) setError(String(reason));
       });
@@ -130,8 +136,9 @@ export default function HoveRView() {
   const qrImage = qrSvg ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(qrSvg) : null;
   const extension = (file?.name.split(".").pop() || "").toLowerCase();
   const assetUrl = file ? convertFileSrc(file.path) : null;
-  const isImage = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif", "svg", "ico"].includes(extension);
-  const isVideo = ["mp4", "m4v", "webm", "mov", "ogv"].includes(extension);
+  const isImage = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif", "svg", "ico", "tif", "tiff", "qoi", "tga"].includes(extension);
+  const isVideo = ["mp4", "m4v", "webm", "mov", "ogv", "mkv", "avi", "wmv", "flv", "mpeg", "mpg", "mts", "m2ts"].includes(extension);
+  const directVideo = ["mp4", "m4v", "webm", "mov", "ogv"].includes(extension);
   const isAudio = ["mp3", "m4a", "aac", "wav", "ogg", "flac", "opus"].includes(extension);
   const isPdf = extension === "pdf";
   const playable = isImage || isVideo || isAudio || isPdf;
@@ -160,8 +167,13 @@ export default function HoveRView() {
                 event.currentTarget.src = preview;
               } else mediaError();
             }}/>
-          : isVideo && assetUrl
-            ? <video src={assetUrl} controls playsInline preload="metadata" onError={mediaError}/>
+          : isVideo && preview && (videoFailed || !directVideo)
+            ? <img src={preview} alt="Decoded video frame preview" />
+          : isVideo && assetUrl && directVideo && !videoFailed
+            ? <video src={assetUrl} poster={preview || undefined} controls playsInline preload="metadata"
+                onError={() => { setVideoFailed(true); if (!preview) setNote("Video playback unavailable. Looking for a decoded frame."); }}/>
+          : isVideo && !preview
+            ? <div className="hover-unavailable"><FileImage size={42} strokeWidth={1.3} aria-hidden /><span>Decoding video preview locally…</span></div>
             : isAudio && assetUrl
               ? <div className="hover-audio"><FileImage size={37} strokeWidth={1.3} aria-hidden/><audio src={assetUrl} controls preload="metadata" onError={mediaError}/></div>
               : isPdf && assetUrl

@@ -175,3 +175,64 @@ pub fn ui_destination(choice: String) -> Result<Option<String>, String> {
     if !output.is_dir() { return Err("Selected destination does not exist".into()); }
     Ok(Some(output.to_string_lossy().into_owned()))
 }
+
+const MAX_PREVIEW_BYTES: u64 = 2 * 1024 * 1024;
+const VIDEO_PREVIEW_EXTENSIONS: &[&str] = &[
+    "mp4","m4v","mov","webm","mkv","avi","wmv","flv","mpeg","mpg","mts","m2ts","ogv",
+];
+
+fn thumbnail_from_video(path: &Path) -> Result<Option<String>, String> {
+    let metadata = fs::symlink_metadata(path).map_err(|_| "Video file is unavailable".to_owned())?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("Only regular local videos can be previewed".into());
+    }
+    let extension = path.extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !VIDEO_PREVIEW_EXTENSIONS.contains(&extension.as_str()) {
+        return Ok(None);
+    }
+    // Preview is non-mutating. Fixed argv, file-only protocols, 8-second kill,
+    // a small output image and no network or filename-interpreted switches.
+    let ffmpeg = crate::external::find_binary("ffmpeg")
+        .ok_or("FFmpeg is required for a thumbnail of this video format")?;
+    let stage = tempfile::tempdir().map_err(|_| "Could not create thumbnail workspace".to_owned())?;
+    let out = stage.path().join("preview.png");
+    for seek in ["0.25", "0"] {
+        let mut cmd = std::process::Command::new(&ffmpeg);
+        crate::external::hide_subprocess_window(&mut cmd);
+        cmd.args(["-hide_banner","-loglevel","error","-nostdin","-y",
+            "-ss",seek,"-protocol_whitelist","file,pipe,data,crypto","-i"])
+            .arg(path)
+            .args(["-frames:v","1","-vf","scale=640:360:force_original_aspect_ratio=decrease",
+                "-f","image2","-vcodec","png"])
+            .arg(&out);
+        cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let mut child = cmd.spawn().map_err(|_| "Cannot start the FFmpeg preview engine".to_owned())?;
+        let started = std::time::Instant::now();
+        let success = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status.success(),
+                Err(_) => { let _ = child.kill(); let _ = child.wait(); break false; }
+                Ok(None) if started.elapsed() > std::time::Duration::from_secs(8) => {
+                    let _ = child.kill(); let _ = child.wait();
+                    return Err("Video thumbnail decoding exceeded 8 seconds".into());
+                }
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(35)),
+            }
+        };
+        if success {
+            let meta = fs::metadata(&out).map_err(|_| "Thumbnail was not written".to_owned())?;
+            if meta.len() > 0 && meta.len() <= MAX_PREVIEW_BYTES {
+                let bytes = fs::read(&out).map_err(|_| "Could not read the decoded thumbnail".to_owned())?;
+                return Ok(Some(format!("data:image/png;base64,{}", STANDARD.encode(bytes))));
+            }
+        }
+    }
+    Err("FFmpeg could not decode a video frame from the selected file".into())
+}
+
+#[tauri::command]
+pub async fn media_thumbnail(path: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || thumbnail_from_video(Path::new(&path)))
+        .await.map_err(|_| "The video thumbnail worker stopped unexpectedly".to_owned())?
+}
