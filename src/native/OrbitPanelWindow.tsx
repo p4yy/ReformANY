@@ -23,7 +23,9 @@ export default function OrbitPanelWindow() {
   const [notices, setNotices] = useState<ToastMessage[]>([]);
   const suffix = getCurrentWindow().label.slice('orbit-panel-'.length);
   const kind = suffix.slice(0, suffix.lastIndexOf('-')) as OrbitDialogKind;
-  const close = () => { void getCurrentWindow().close(); };
+  const close = () => {
+    void getCurrentWindow().close().catch(reason => setError('Could not close Orbit panel: ' + String(reason)));
+  };
   const notify = (title: string, message?: string, tone: ToastMessage['tone'] = 'default') => {
     setNotices(current => [{ id: uid(), title, message, tone }, ...current].slice(0, 2));
   };
