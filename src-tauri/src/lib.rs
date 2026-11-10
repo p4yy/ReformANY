@@ -70,7 +70,7 @@ use tauri::{WebviewUrl, WebviewWindowBuilder};
 /** Separate transparent native tool window. The file remains in OrbitLaunch's
  * process-local context; no untrusted path is put in the WebView URL. */
 #[tauri::command]
-fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), String> {
+async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), String> {
     if !matches!(kind.as_str(), "sign" | "watermark" | "split-pdf" |
         "arrange" | "password-zip" | "split-binary" | "rename" |
         "shred" | "more-tools" | "pdf-password") {
@@ -79,19 +79,22 @@ fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), String> {
     let wide = matches!(kind.as_str(), "sign" | "watermark" | "arrange");
     let label = format!("orbit-panel-{}-{}", kind, uuid::Uuid::new_v4().simple());
     let (width, height) = if wide { (1080.0, 760.0) } else { (720.0, 710.0) };
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
-        .title("ReformANY Orbit tool")
-        .inner_size(width, height)
-        .min_inner_size(500.0, 480.0)
-        .resizable(true)
-        .decorations(false)
-        .shadow(false)
-        .transparent(true)
-        .always_on_top(true)
-        .center()
-        .focused(true)
-        .build()
-        .map_err(|error| format!("Could not create Orbit tool window: {error}"))?;
+    // Avoid blocking the WebView IPC executor while creating a native window.
+    tauri::async_runtime::spawn_blocking(move || {
+        WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
+            .title("ReformANY Orbit tool")
+            .inner_size(width, height)
+            .min_inner_size(500.0, 480.0)
+            .resizable(true)
+            .decorations(false)
+            .shadow(false)
+            .transparent(true)
+            .always_on_top(true)
+            .center()
+            .focused(true)
+            .build()
+            .map_err(|error| format!("Could not create Orbit tool window: {error}"))\n        .map(|_| ())
+    }).await.map_err(|error| format!("Orbit panel task failed: {error}"))??;
     Ok(())
 }
 
