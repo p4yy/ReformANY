@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowRight, Check, ChevronLeft, ChevronsLeft, ChevronsRight, ChevronRight, Download, ExternalLink, File, FileText, GripVertical, LoaderCircle, LocateFixed, LockKeyhole, Minus, MoreHorizontal, Move, Pencil, Pin, PinOff, QrCode, RotateCcw, RotateCw, Save, Scissors, ShieldAlert, Stamp, Trash2, Undo2, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { AlertTriangle, ArrowRight, Check, ChevronLeft, ChevronsLeft, ChevronsRight, ChevronRight, Download, ExternalLink, File, FileText, GripVertical, LoaderCircle, LocateFixed, LockKeyhole, Minus, MoreHorizontal, Move, Pencil, Pin, PinOff, QrCode, RotateCcw, RotateCw, Save, Scissors, ShieldAlert, Signature, Stamp, Trash2, Undo2, X } from 'lucide-react';
 import { getDocument } from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { OrbitFile, ToastMessage } from '../types';
@@ -9,7 +10,7 @@ import { CopyButton, Field, FileContextRow, IconButton, InlineNote, KineticButto
 
 const BrowserFile = globalThis.File;
 
-export type OrbitDialogKind = 'shred' | 'rename' | 'watermark' | 'split-pdf' | 'hover' | 'arrange' | 'password-zip' | 'split-binary' | 'more-tools';
+export type OrbitDialogKind = 'shred' | 'rename' | 'sign' | 'watermark' | 'split-pdf' | 'hover' | 'arrange' | 'password-zip' | 'split-binary' | 'more-tools';
 interface DialogProps {
   file: OrbitFile;
   onClose: () => void;
@@ -20,9 +21,14 @@ interface DialogProps {
 
 export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer, wide = false, brand = 'ReformANY Orbit', onClose, className = '', toolbar }: { title: string; subtitle?: string; icon: ReactNode; file?: OrbitFile; children: ReactNode; footer?: ReactNode; wide?: boolean; brand?: string; onClose: () => void; className?: string; toolbar?: ReactNode }) {
   const [minimized, setMinimized] = useState(false);
+  const panel = desktop && getCurrentWindow().label.startsWith('orbit-panel-');
+  const startDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!panel || event.button !== 0 || (event.target as HTMLElement).closest('button,input,select,textarea,a,[role="slider"]')) return;
+    void getCurrentWindow().startDragging().catch(() => {});
+  };
   if (minimized) return <button className="minimized-orbit-dialog" onClick={() => setMinimized(false)}><OrbitMark /><span>{brand} · {title}</span><MaximizeLabel /></button>;
   return <div className="orbit-dialog-backdrop"><section className={`orbit-dialog ${wide ? 'wide' : ''} ${className}`} role="dialog" aria-modal="true" aria-label={title}>
-    <header className="orbit-dialog-titlebar"><div><OrbitMark /><span>{brand}</span></div><div>{toolbar}<IconButton label="Minimize" onClick={() => setMinimized(true)}><Minus size={15} /></IconButton><IconButton label="Close" onClick={onClose}><X size={16} /></IconButton></div></header>
+    <header className="orbit-dialog-titlebar" onPointerDown={startDrag}><div><OrbitMark /><span>{brand}</span></div><div>{toolbar}<IconButton label="Minimize" onClick={() => { if (panel) void getCurrentWindow().minimize(); else setMinimized(true); }}><Minus size={15} /></IconButton><IconButton label="Close" onClick={onClose}><X size={16} /></IconButton></div></header>
     <div className="orbit-dialog-heading"><div className="muted-icon-chip">{icon}</div><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>
     {file && <FileContextRow name={file.name} meta={file.pages ? `${file.pages} pages · ${formatBytes(file.size)}` : `${file.typeLabel || file.kind.toUpperCase()} · ${formatBytes(file.size)}`} />}
     <div className="orbit-dialog-body">{children}</div>{footer && <footer className="orbit-dialog-footer">{footer}</footer>}
@@ -92,7 +98,23 @@ export function WatermarkDialog({ file, onClose, notify }: DialogProps) {
   const save = async () => {
     if (!file.file) { notify('Open a local PDF first', 'Use the Orbit harness to choose a PDF, then watermark it.', 'danger'); return; }
     setSaving(true);
-    try { const blob = await watermarkPdf(file.file, { text, color, size, rotation, opacity, x, y, applyTo, currentPage: page }); await downloadBlob(blob, `${file.name.replace(/\.pdf$/i, '')}-watermarked.pdf`); notify('Watermarked PDF saved', `${pages} source pages remained unchanged; the new PDF was downloaded.`, 'success'); onClose(); }
+    try {
+      if (desktop && pathOf(file.file)) {
+        const scope = applyTo === 'All PDF pages' ? null : applyTo === 'Current page' ? String(page) :
+          Array.from({ length: pages }, (_, index) => index + 1)
+            .filter(n => applyTo === 'Odd pages' ? n % 2 === 1 : n % 2 === 0).join(',');
+        if (scope === '') throw new Error('No PDF pages match the selected scope.');
+        const saved = await runNative<string>('pdf_add_mark', { path: file.path, destination: null, visualSignature: false,
+          mark: { text, color, size: Math.min(108, size), rotation, opacity: opacity / 100,
+            x: Math.max(.1, Math.min(.9, x / 100)), y: Math.max(.1, Math.min(.9, y / 100)), pages: scope } });
+        notify('Watermarked PDF saved', saved, 'success');
+      } else {
+        const blob = await watermarkPdf(file.file, { text, color, size, rotation, opacity, x, y, applyTo, currentPage: page });
+        await downloadBlob(blob, file.name.replace(/\.pdf$/i, '') + '-watermarked.pdf');
+        notify('Watermarked PDF saved', 'A new local PDF was created.', 'success');
+      }
+      onClose();
+    }
     catch (error) { notify('Watermark failed', error instanceof Error ? error.message : 'The PDF could not be processed.', 'danger'); }
     setSaving(false);
   };
@@ -107,7 +129,23 @@ export function SplitPdfDialog({ file, onClose, notify }: DialogProps) {
   const run = async () => {
     if (!file.file) { notify('Open a local PDF first', 'The preview harness can load any PDF from this device.', 'danger'); return; }
     setBusy(true); setProgress(20);
-    try { const outputs = await splitPdf(file.file, mode, target); setProgress(75); if (outputs.length === 1) await downloadBlob(outputs[0].blob, outputs[0].name); else await downloadBlob(await createZip(outputs.map(output => new BrowserFile([output.blob], output.name)), 0), `${file.name.replace(/\.pdf$/i, '')}-split.zip`); setProgress(100); notify('Independent PDFs created', `${outputs.length} output${outputs.length === 1 ? '' : 's'} downloaded. Original unchanged.`, 'success'); onClose(); }
+    try {
+      if (desktop && pathOf(file.file)) {
+        const result = await runNative<{ outputPaths: string[]; oversizedPages: number[] }>('pdf_split',
+          { path: file.path, destination: null, mode: mode === 'count' ? 'parts' : mode, value: target });
+        if (!result.outputPaths.length) throw new Error('The native splitter returned no PDF files.');
+        setProgress(100);
+        notify('Independent PDFs created', result.outputPaths.length + ' PDF(s) · ' + result.outputPaths[0], 'success');
+      } else {
+        const outputs = await splitPdf(file.file, mode, target);
+        setProgress(75);
+        if (outputs.length === 1) await downloadBlob(outputs[0].blob, outputs[0].name);
+        else await downloadBlob(await createZip(outputs.map(output => new BrowserFile([output.blob], output.name)), 0), file.name.replace(/\.pdf$/i, '') + '-split.zip');
+        setProgress(100);
+        notify('Independent PDFs created', outputs.length + ' output(s) downloaded.', 'success');
+      }
+      onClose();
+    }
     catch (error) { notify('Split failed', error instanceof Error ? error.message : 'PDF split failed.', 'danger'); }
     setBusy(false);
   };
@@ -241,10 +279,59 @@ export function MoreToolsDialog({ file, onClose, notify }: DialogProps) {
   return <OrbitDialogFrame title="More tools" subtitle="Native operations keep the original file unchanged." icon={<MoreHorizontal size={22} />} file={file} onClose={onClose} footer={<KineticButton tone="ghost" onClick={onClose}>Close</KineticButton>}><div className="more-tools-list">{tools.map((tool, index) => <button key={tool} disabled={working !== null} onClick={() => void execute(tool)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{tool}</strong>{working === tool ? <LoaderCircle size={16} /> : <ArrowRight size={16} />}</button>)}</div></OrbitDialogFrame>;
 }
 
+
+/** Native visual signature (PDF text overlay), not a cryptographic certificate. */
+export function SignDialog({ file, onClose, notify }: DialogProps) {
+  const [text, setText] = useState('');
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(30);
+  const [x, setX] = useState(65);
+  const [y, setY] = useState(78);
+  const [saving, setSaving] = useState(false);
+  const { pdf, error } = usePdf(file.file);
+  const save = async () => {
+    if (!desktop || !pathOf(file.file)) { notify('Desktop signing required', 'Choose a local PDF in the installed desktop application.', 'danger'); return; }
+    if (!text.trim() || text.length > 96 || !/^[ -~]+$/.test(text)) { notify('Signature text is invalid', 'Use up to 96 visible ASCII characters.', 'danger'); return; }
+    setSaving(true);
+    try {
+      const output = await runNative<string>('pdf_add_mark', {
+        path: file.path, destination: null, visualSignature: true,
+        mark: { text, color: '#213C2D', size, opacity: 1, rotation: 0,
+          x: x / 100, y: y / 100, pages: String(page) },
+      });
+      notify('Visual signature saved', output, 'success');
+      onClose();
+    } catch (reason) { notify('PDF signing failed', String(reason), 'danger'); }
+    finally { setSaving(false); }
+  };
+  return <OrbitDialogFrame wide title="Sign PDF" subtitle="Add a visible signature to a new local PDF. This is not a certificate-based digital signature." icon={<Signature size={22} />} file={file} onClose={onClose}
+    footer={<><KineticButton tone="ghost" onClick={onClose}>Cancel</KineticButton><KineticButton tone="primary" disabled={saving || !text.trim()} onClick={() => void save()}>{saving ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}Save signed copy</KineticButton></>}>
+    <div className="watermark-columns">
+      <section className="watermark-preview"><div className="watermark-preview-toolbar">
+        <IconButton label="Previous page" disabled={page <= 1} onClick={() => setPage(n => Math.max(1, n - 1))}><ChevronLeft size={16}/></IconButton>
+        <span>{page} / {pdf?.numPages || '?'}</span>
+        <IconButton label="Next page" disabled={pdf ? page >= pdf.numPages : true} onClick={() => setPage(n => n + 1)}><ChevronRight size={16}/></IconButton>
+      </div><div className="watermark-scroll"><div className="watermark-page-wrap">
+        {pdf ? <PdfPageCanvas pdf={pdf} page={page} zoom={90} /> :
+        <div className="watermark-page-skeleton">{error || 'Preparing source preview…'}</div>}
+        {pdf && <div className="watermark-overlay" style={{ left: x + '%', top: y + '%', color: '#213C2D', fontSize: size + 'px', opacity: 1, transform: 'translate(-50%, -50%)' }}>{text || 'Your signature'}</div>}
+      </div></div></section>
+      <section className="watermark-settings">
+        <Field label="Visual signature"><input className="text-input" value={text} maxLength={96} onChange={event => setText(event.target.value)} placeholder="Type signature text" /></Field>
+        <Field label="Text size"><SpringSlider label="Signature size" value={size} onChange={setSize} min={8} max={108} unit=" pt"/></Field>
+        <Field label="Horizontal position"><SpringSlider label="Horizontal signature position" value={x} onChange={setX} min={10} max={90} unit="%"/></Field>
+        <Field label="Vertical position"><SpringSlider label="Vertical signature position" value={y} onChange={setY} min={10} max={90} unit="%"/></Field>
+        <InlineNote>Signing saves a new PDF; the original remains unchanged. For legally verifiable signatures, use a certificate-based signing application.</InlineNote>
+      </section>
+    </div>
+  </OrbitDialogFrame>;
+}
+
 export function OrbitDialogRouter({ kind, ...props }: DialogProps & { kind: OrbitDialogKind }) {
   if (kind === 'shred') return <ShredDialog {...props} />;
   if (kind === 'rename') return <RenameDialog {...props} />;
   if (kind === 'watermark') return <WatermarkDialog {...props} />;
+  if (kind === 'sign') return <SignDialog {...props} />;
   if (kind === 'split-pdf') return <SplitPdfDialog {...props} />;
   if (kind === 'hover') return <HoverDialog {...props} />;
   if (kind === 'arrange') return <ArrangeDialog {...props} />;
