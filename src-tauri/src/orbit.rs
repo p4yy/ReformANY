@@ -285,12 +285,13 @@ pub fn reveal_output(app: AppHandle, path: String) -> Result<(), String> {
         } else {
             explorer.arg(file);
         }
+        explorer.spawn().map_err(|_| "Could not open File Explorer".to_owned())?;
         if let Some(orbit) = app.get_webview_window("orbit") {
-            // Explorer should never open behind a topmost Orbit window.
+            // Only dismiss Orbit after Explorer accepts the launch.
+            // A failed launch keeps error feedback available in Orbit.
             let _ = orbit.set_always_on_top(false);
             let _ = orbit.hide();
         }
-        explorer.spawn().map_err(|_| "Could not open File Explorer".to_owned())?;
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]

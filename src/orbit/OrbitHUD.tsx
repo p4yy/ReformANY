@@ -243,6 +243,12 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
       } else if (file.kind === 'pdf' && ['txt', 'md', 'html'].includes(target)) {
         output = await runNative<string>('pdf_to_text_format', { path: source, target, destination: null });
       } else if (file.kind === 'pdf' && ['png', 'jpg'].includes(target)) { output = await pdfImages(target as 'png' | 'jpg') || 'PDF pages exported'; }
+      else if (file.kind === 'text' && ext(file.name) === 'txt' && ['pdf', 'md', 'html'].includes(target)) {
+        // TXT export is fully offline and does not depend on optional Calibre.
+        const results = await runNative<string[]>('text_convert', { path: source, target, destination: null });
+        if (!results.length) throw new Error('TXT conversion produced no output.');
+        output = results[0];
+      }
       else if (file.kind === 'text' && target === 'pdf') {
         output = await runNative<string>('ebook_convert_file', { job: { path: source, target: 'pdf', destination: null } });
       }
