@@ -9,6 +9,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { listen } from '@tauri-apps/api/event';
 import { OrbitDialogRouter, type OrbitDialogKind } from './OrbitDialogs';
+import { playOrbitCue } from './sounds';
 
 type Wedge = { id: string; label: string; icon: LucideIcon; danger?: boolean };
 const imageConvert: Wedge[] = [
@@ -20,6 +21,7 @@ const mediaOuter: Wedge[] = [
   ['wmv', 'WMV', Video], ['gif', 'GIF', FileImage], ['ac3', 'AC3', Music2], ['mp3', 'MP3', Music2], ['wma', 'WMA', Music2], ['aiff', 'AIFF', Music2],
   ['m4a', 'M4A', Music2], ['opus', 'Opus', Music2], ['wav', 'WAV', Music2], ['ogg', 'OGG', Music2], ['flac', 'FLAC', Music2],
 ].map(([id, label, icon]) => ({ id: `to-${id}`, label: label as string, icon: icon as LucideIcon }));
+const audioOnlyFormats = mediaOuter.filter(wedge => !['to-wmv', 'to-gif'].includes(wedge.id));
 const pdfConvert: Wedge[] = [['docx-edit', 'DOCX·Editable', FileText], ['txt', 'TXT', FileText], ['md', 'MD', FileCode2], ['html', 'HTML', FileCode2], ['docx-layout', 'DOCX·Layout', Sheet], ['png', 'PNG', ImageIcon], ['jpg', 'JPG', ImageIcon]].map(([id, label, icon]) => ({ id: `to-${id}`, label: label as string, icon: icon as LucideIcon }));
 const folderConvert: Wedge[] = [['zip', 'ZIP', Archive], ['7z', '7Z', FileArchive], ['tar', 'TAR', FileArchive], ['rar', 'RAR', FileArchive]].map(([id, label, icon]) => ({ id: `to-${id}`, label: label as string, icon: icon as LucideIcon }));
 const textConvert: Wedge[] = [['txt', 'TXT', FileText], ['md', 'MD', FileCode2], ['pdf', 'PDF', FileText], ['html', 'HTML', FileCode2]].map(([id, label, icon]) => ({ id: `to-${id}`, label: label as string, icon: icon as LucideIcon }));
@@ -53,15 +55,7 @@ function wedgePath(inner: number, outer: number, start: number, end: number) {
   const large = end - start > 180 ? 1 : 0;
   return `M ${a.x} ${a.y} A ${outer} ${outer} 0 ${large} 1 ${b.x} ${b.y} L ${c.x} ${c.y} A ${inner} ${inner} 0 ${large} 0 ${d.x} ${d.y} Z`;
 }
-function tickSound(preferences: Preferences) {
-  if (!preferences.orbitSounds || !preferences.orbitVolume) return;
-  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass(), oscillator = context.createOscillator(), gain = context.createGain();
-  oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(590, context.currentTime); oscillator.frequency.exponentialRampToValueAtTime(410, context.currentTime + .045);
-  gain.gain.setValueAtTime(preferences.orbitVolume / 100 * .08, context.currentTime); gain.gain.exponentialRampToValueAtTime(.0001, context.currentTime + .06);
-  oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + .065); oscillator.onended = () => void context.close();
-}
+
 function kindFromName(name: string): OrbitFileKind {
   const extension = ext(name);
   if (extension === 'pdf') return 'pdf';
@@ -80,7 +74,7 @@ interface OrbitProps {
 }
 
 export function OrbitHUD({ preferences, onClose, notify, log, native = false }: OrbitProps) {
-  const [samples, setSamples] = useState(initialSamples); const [file, setFile] = useState(initialSamples[0]);
+  const [samples, setSamples] = useState<OrbitFile[]>(native ? [] : initialSamples); const [file, setFile] = useState<OrbitFile>(native ? { id: 'loading', name: 'Opening selected file…', kind: 'text', size: 0, path: '', typeLabel: 'Loading' } : initialSamples[0]);
   const [section, setSection] = useState<OrbitSection>(preferences.orbitStart); const [closing, setClosing] = useState(false); const [switching, setSwitching] = useState(false);
   const [hovered, setHovered] = useState(''); const [dialog, setDialog] = useState<OrbitDialogKind | null>(null); const [busy, setBusy] = useState(false);
   const [pointer, setPointer] = useState({ x: 0, y: 0 }); const [pulse, setPulse] = useState<{ x: number; y: number; id: string } | null>(null);
@@ -98,6 +92,8 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     setSamples(current => current.map(item => item.id === 'sample-text' ? { ...item, file: notes, size: notes.size } : item));
     return () => { active = false; };
   }, []);
+
+  useEffect(() => { playOrbitCue(preferences, 'open'); }, []);
 
   // Use the actual file supplied by the Explorer context command or desktop launcher.
   useEffect(() => {
@@ -126,12 +122,13 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
   useEffect(() => {
     if (!native || !desktop) return;
     const wide = ['watermark', 'arrange', 'hover'].includes(dialog || '');
-    const size = dialog ? (wide ? [1160, 900] : [700, 790]) : [660, 760];
+    const desired = dialog ? (wide ? [1160, 900] : [700, 790]) : [660, 760];
+    const size = [Math.min(desired[0], Math.max(420, window.screen.availWidth - 24)), Math.min(desired[1], Math.max(480, window.screen.availHeight - 30))];
     void getCurrentWindow().setSize(new LogicalSize(size[0], size[1])).then(() => getCurrentWindow().center());
   }, [dialog, native]);
-  const close = () => { if (dialog) { setDialog(null); return; } setClosing(true); setTimeout(onClose, 180); };
+  const close = () => { if (dialog) { setDialog(null); return; } playOrbitCue(preferences, 'close'); setClosing(true); setTimeout(onClose, 180); };
   const switchSection = (next: OrbitSection) => {
-    if (next === section || switching) return; tickSound(preferences); setSwitching(true);
+    if (next === section || switching) return; playOrbitCue(preferences, 'switch'); setSwitching(true);
     setTimeout(() => setSection(next), 85); setTimeout(() => setSwitching(false), 205);
   };
   useEffect(() => {
@@ -144,7 +141,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   });
-  const selectFile = (next: OrbitFile) => { if (next.id === file.id) return; setSwitching(true); setTimeout(() => { setFile(next); setSection(preferences.orbitStart); }, 85); setTimeout(() => setSwitching(false), 205); tickSound(preferences); };
+  const selectFile = (next: OrbitFile) => { if (next.id === file.id) return; setSwitching(true); setTimeout(() => { setFile(next); setSection(preferences.orbitStart); }, 85); setTimeout(() => setSwitching(false), 205); playOrbitCue(preferences, 'switch'); };
   const loadLocal = (files: File[]) => {
     const local = files[0]; if (!local) return; const kind = kindFromName(local.name);
     const item: OrbitFile = { id: uid(), name: local.name, kind, size: local.size, path: pathOf(local) || `Browser sandbox / ${local.name}`, typeLabel: ext(local.name).toUpperCase() || kind, file: local, url: kind === 'image' ? URL.createObjectURL(local) : undefined, pages: kind === 'pdf' ? undefined : undefined };
@@ -159,15 +156,16 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
   };
   const openDialog = (kind: OrbitDialogKind) => { setDialog(kind); };
   const pdfImages = async (format: 'png' | 'jpg') => {
-    if (!file.file) throw new Error('Choose a local PDF in the preview harness first.');
+    if (!file.file || (native && !(file.file as File & { nativeBytesLoaded?: boolean }).nativeBytesLoaded)) throw new Error('This PDF cannot be read in the local editor (48 MB limit).');
     const pdf = await getDocument({ data: new Uint8Array(await file.file.arrayBuffer()) }).promise; const outputs: File[] = [];
+    if (pdf.numPages > 200) throw new Error('PDF has more than 200 pages; page rendering is bounded for reliability.');
     for (let number = 1; number <= pdf.numPages; number++) {
       const page = await pdf.getPage(number), viewport = page.getViewport({ scale: 1.5 }), canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height;
       await page.render({ canvasContext: canvas.getContext('2d')!, viewport, canvas }).promise;
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Page encoding failed.')), format === 'jpg' ? 'image/jpeg' : 'image/png', .9));
       outputs.push(new File([blob], `${file.name.replace(/\.pdf$/i, '')}-page-${number}.${format}`));
     }
-    if (outputs.length === 1) await downloadBlob(outputs[0], outputs[0].name); else await downloadBlob(await createZip(outputs, 0), `${file.name.replace(/\.pdf$/i, '')}-${format}-pages.zip`);
+    return outputs.length === 1 ? await downloadBlob(outputs[0], outputs[0].name) : await downloadBlob(await createZip(outputs, 0), `${file.name.replace(/\.pdf$/i, '')}-${format}-pages.zip`);
   };
   const convert = async (target: string) => {
     if (native && desktop) {
@@ -185,14 +183,19 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
       } else if (file.kind === 'folder') {
         const result = await runNative<{ outputPaths: string[] }>('archive_create', { job: { paths: [source], destination: null, name: file.name, format: target, password: null, splitMegabytes: null, level: 5 } });
         output = result.outputPaths[0] || '';
+      } else if (file.kind === 'pdf' && ['docx-edit', 'docx-layout'].includes(target)) {
+        output = await runNative<string>('ebook_convert_file', { job: { path: source, target: 'docx', destination: null } });
       } else if (file.kind === 'pdf' && ['txt', 'md', 'html'].includes(target)) {
         output = await runNative<string>('pdf_to_text_format', { path: source, target, destination: null });
-      } else if (file.kind === 'pdf' && ['png', 'jpg'].includes(target)) { await pdfImages(target as 'png' | 'jpg'); output = 'PDF pages exported'; }
+      } else if (file.kind === 'pdf' && ['png', 'jpg'].includes(target)) { output = await pdfImages(target as 'png' | 'jpg') || 'PDF pages exported'; }
+      else if (file.kind === 'text' && target === 'pdf') {
+        output = await runNative<string>('ebook_convert_file', { job: { path: source, target: 'pdf', destination: null } });
+      }
       else if (file.kind === 'text' && ['txt', 'md', 'html'].includes(target)) {
         if (!file.file || file.file.size > 48 * 1024 * 1024) throw new Error('Text source exceeds the local editor limit.');
         const value = await file.file.text();
         const content = target === 'html' ? `<!doctype html><meta charset="utf-8"><pre>${value.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>` : value;
-        await downloadBlob(new Blob([content], { type: 'text/plain' }), `${file.name.replace(/\.[^.]+$/, '')}.${target}`); output = 'Text exported';
+        output = await downloadBlob(new Blob([content], { type: 'text/plain' }), `${file.name.replace(/\.[^.]+$/, '')}.${target}`) || 'Text exported';
       } else throw new Error(`${target.toUpperCase()} is not supported for this input by the installed local engines.`);
       if (!output) throw new Error('No output was created.');
       log('Orbit conversion complete', `${file.name} → ${output}`, 'Orbit');
@@ -219,6 +222,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     log('Orbit conversion complete', `${file.name} → ${target.toUpperCase()}`, 'Orbit'); notify('Orbit conversion complete', `${target.toUpperCase()} output downloaded locally.`, 'success');
   };
   const runWedge = async (wedge: Wedge, event: React.MouseEvent) => {
+    if (native && !pathOf(file.file)) { notify('File not ready', 'Orbit has not loaded an Explorer selection yet.', 'default'); return; }
     setPointer({ x: event.clientX, y: event.clientY });
     const rect = disc.current?.getBoundingClientRect(); if (rect) { setPulse({ x: event.clientX - rect.left, y: event.clientY - rect.top, id: uid() }); setTimeout(() => setPulse(null), 420); }
     if (['shred', 'rename', 'watermark', 'split-pdf', 'hover', 'arrange', 'password-zip', 'split-binary', 'more-tools'].includes(wedge.id)) { openDialog(wedge.id as OrbitDialogKind); return; }
@@ -228,10 +232,11 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     if (wedge.id === 'show-file' || wedge.id === 'open-folder') { if (native && desktop) { try { await nativeReveal(file.path); } catch(error) { notify('Explorer could not open', String(error), 'danger'); } return; } notify('Explorer handoff ready', 'The Tauri backend reveals and selects this item in Explorer. Browser sandboxing prevents that OS action here.', 'default'); return; }
     if (wedge.id === 'terminal') { if (native && desktop) { try { await runNative('open_terminal', { path: file.path }); notify('Terminal opened', file.path, 'success'); } catch(error) { notify('Terminal failed', String(error), 'danger'); } return; } notify('Terminal handoff', `Desktop action: start terminal at ${file.path}`, 'default'); return; }
     if (wedge.id === 'bluetooth') { if (native && desktop) { try { const message = await runNative<string>('send_bluetooth', { path: file.path }); notify('Bluetooth', message, 'success'); } catch(error) { notify('Bluetooth failed', String(error), 'danger'); } return; } notify('Windows Bluetooth handoff', 'The desktop build opens the Windows nearby-sharing flow for this file. No browser request was made.', 'default'); return; }
-    notify('Desktop PDF tool required', `${wedge.label} is available through the signed desktop PDF engine. Use Watermark, Split, Arrange, TXT, MD, HTML, PNG or JPG for local browser operations.`, 'default');
+    notify('Operation not available', `${wedge.label} has no verified native handler yet. The source was not modified.`, 'danger');
   };
   const rings = section === 'convert'
-    ? file.kind === 'video' || file.kind === 'audio' ? [{ items: mediaInner, inner: 80, outer: 155, labelRadius: 118 }, { items: mediaOuter, inner: 155, outer: 240, labelRadius: 200 }]
+    ? file.kind === 'video' ? [{ items: mediaInner, inner: 80, outer: 155, labelRadius: 118 }, { items: mediaOuter, inner: 155, outer: 240, labelRadius: 200 }]
+      : file.kind === 'audio' ? [{ items: audioOnlyFormats, inner: 80, outer: 240, labelRadius: 166 }]
       : [{ items: file.kind === 'image' ? imageConvert : file.kind === 'pdf' ? pdfConvert : file.kind === 'folder' ? folderConvert : textConvert, inner: 80, outer: 240, labelRadius: 166 }]
     : section === 'tools' ? [{ items: file.kind === 'pdf' ? pdfTools : file.kind === 'folder' ? folderTools : standardTools, inner: 80, outer: 240, labelRadius: 166 }]
       : [{ items: file.kind === 'folder' ? folderActions : fileActions, inner: 80, outer: 240, labelRadius: 166 }];
@@ -248,7 +253,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
           <circle cx="260" cy="260" r="248" className="orbit-disc-base" /><circle cx="260" cy="260" r="247.5" className="orbit-rim" />
           {rings.map((ring, ringIndex) => <g key={`${section}-${file.kind}-${ringIndex}`}>{ring.items.map((wedge, index) => {
             const angle = 360 / ring.items.length, start = index * angle, end = (index + 1) * angle; const currentIndex = wedgeIndex++;
-            return <g key={`${wedge.id}-${index}`} className={`orbit-wedge ${wedge.danger ? 'danger' : ''} ${hovered === `${ringIndex}-${index}` ? 'hovered' : ''}`} style={{ '--i': currentIndex } as CSSProperties} role="button" tabIndex={0} aria-label={wedge.label} onMouseEnter={() => setHovered(`${ringIndex}-${index}`)} onMouseLeave={() => setHovered('')} onClick={event => void runWedge(wedge, event)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void runWedge(wedge, event as unknown as React.MouseEvent); } }}>
+            return <g key={`${wedge.id}-${index}`} className={`orbit-wedge ${wedge.danger ? 'danger' : ''} ${hovered === `${ringIndex}-${index}` ? 'hovered' : ''}`} style={{ '--i': currentIndex } as CSSProperties} role="button" tabIndex={0} aria-label={wedge.label} onMouseEnter={() => { setHovered(`${ringIndex}-${index}`); playOrbitCue(preferences, 'hover'); }} onMouseLeave={() => setHovered('')} onClick={event => void runWedge(wedge, event)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void runWedge(wedge, event as unknown as React.MouseEvent); } }}>
               <path d={wedgePath(ring.inner, ring.outer, start, end)} className="wedge-shape" />
             </g>;
           })}</g>)}
@@ -267,7 +272,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     <div className="orbit-help"><Keyboard size={14} /><span>Scroll to switch</span><i />Shift Convert · Ctrl Tools · Alt Actions</div>
     {busy && preferences.pointerRing && <div className="pointer-loading-ring" style={{ left: pointer.x, top: pointer.y }}><LoaderCircle size={24} /></div>}
     {busy && <div className="orbit-working"><LoaderCircle size={15} />Processing local bytes…</div>}
-    {dialog && <OrbitDialogRouter kind={dialog} file={file} onClose={() => setDialog(null)} notify={notify} onRename={async name => { if (native && desktop) { const value = await nativeRename(file.path, name); setFile(current => ({ ...current, path: value.path, name: value.name })); setSamples(current => current.map(item => item.id === file.id ? { ...item, path: value.path, name: value.name } : item)); } else { setFile(current => ({ ...current, name })); setSamples(current => current.map(item => item.id === file.id ? { ...item, name } : item)); } }} onShred={() => setSamples(current => current.filter(item => item.id !== file.id))} />}
+    {dialog && <OrbitDialogRouter kind={dialog} file={file} onClose={() => setDialog(null)} notify={notify} onRename={async name => { if (native && desktop) { const value = await nativeRename(file.path, name); const fresh = await loadNativeFile(value.path); setSourcePath(fresh); setFile(current => ({ ...current, path: value.path, name: value.name, file: fresh })); setSamples(current => current.map(item => item.id === file.id ? { ...item, path: value.path, name: value.name, file: fresh } : item)); } else { setFile(current => ({ ...current, name })); setSamples(current => current.map(item => item.id === file.id ? { ...item, name } : item)); } }} onShred={() => { setSamples(current => current.filter(item => item.id !== file.id)); if (native) { playOrbitCue(preferences, 'close'); setClosing(true); setTimeout(onClose, 180); } }} />}
   </div>;
 }
 function MinusWindow() { return <span className="explorer-window-controls"><i /><i /><i /></span>; }

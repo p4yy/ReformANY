@@ -210,8 +210,35 @@ export function SplitBinaryDialog({ file, onClose, notify }: DialogProps) {
 }
 
 export function MoreToolsDialog({ file, onClose, notify }: DialogProps) {
-  const tools = file.kind === 'pdf' ? ['Extract text with layout', 'Flatten annotations', 'Optimize embedded images', 'Inspect document metadata'] : ['Remove metadata', 'Normalize loudness', 'Contact-sheet export', 'Inspect container streams'];
-  return <OrbitDialogFrame title="More tools" subtitle="Advanced desktop operations for this source." icon={<MoreHorizontal size={22} />} file={file} onClose={onClose} footer={<KineticButton tone="ghost" onClick={onClose}>Close</KineticButton>}><div className="more-tools-list">{tools.map((tool, index) => <button key={tool} onClick={() => notify('Desktop tool configured', `${tool} requires the corresponding external engine. No operation ran in this preview.`, 'default')}><span>{String(index + 1).padStart(2, '0')}</span><strong>{tool}</strong><ArrowRight size={16} /></button>)}</div></OrbitDialogFrame>;
+  const [working, setWorking] = useState<string | null>(null);
+  const tools = file.kind === 'pdf' ? ['Extract text as HTML', 'Flatten annotations', 'Optimize embedded images', 'Inspect document metadata'] : ['Remove metadata', 'Normalize loudness', 'Contact-sheet export', 'Inspect container streams'];
+  const execute = async (tool: string) => {
+    if (working) return;
+    setWorking(tool);
+    try {
+      if (tool === 'Inspect document metadata') {
+        if (!file.file || (desktop && !pathOf(file.file))) throw new Error('Choose a readable local PDF.');
+        const { PDFDocument } = await import('pdf-lib');
+        const doc = await PDFDocument.load(await file.file.arrayBuffer());
+        const details = [`${doc.getPageCount()} pages`, doc.getTitle() ? `Title: ${doc.getTitle()}` : '', doc.getAuthor() ? `Author: ${doc.getAuthor()}` : ''].filter(Boolean).join(' · ');
+        notify('Document metadata', details, 'success'); return;
+      }
+      if (desktop && pathOf(file.file)) {
+        if (tool === 'Extract text as HTML') {
+          const output = await runNative<string>('pdf_to_text_format', { path: file.path, target: 'html', destination: null });
+          notify('Extracted text saved', output, 'success'); return;
+        }
+        if (tool === 'Remove metadata' || tool === 'Normalize loudness') {
+          if (file.kind !== 'audio' && file.kind !== 'video') throw new Error('An audio or video file is required.');
+          const output = await runNative<string>('media_edit', { job: { paths: [file.path], action: tool === 'Remove metadata' ? 'strip-metadata' : 'normalize-audio', destination: null } });
+          notify('Media tool complete', output, 'success'); return;
+        }
+      }
+      throw new Error(`${tool} is not implemented by the installed local engines. Your source was not modified.`);
+    } catch (error) { notify('Action not completed', String(error), 'danger'); }
+    finally { setWorking(null); }
+  };
+  return <OrbitDialogFrame title="More tools" subtitle="Native operations keep the original file unchanged." icon={<MoreHorizontal size={22} />} file={file} onClose={onClose} footer={<KineticButton tone="ghost" onClick={onClose}>Close</KineticButton>}><div className="more-tools-list">{tools.map((tool, index) => <button key={tool} disabled={working !== null} onClick={() => void execute(tool)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{tool}</strong>{working === tool ? <LoaderCircle size={16} /> : <ArrowRight size={16} />}</button>)}</div></OrbitDialogFrame>;
 }
 
 export function OrbitDialogRouter({ kind, ...props }: DialogProps & { kind: OrbitDialogKind }) {
