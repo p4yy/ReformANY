@@ -235,7 +235,8 @@ try {
         source:document.querySelector(".orbit-hub strong")?.textContent||"",
         demoHidden:!demo||getComputedStyle(demo).display==="none",
         rootTransparent:getComputedStyle(document.body).backgroundColor==="rgba(0, 0, 0, 0)",
-        actionsVisible:getComputedStyle(document.querySelector(".orbit-section-tabs")).display!=="none",
+        actionsVisible:!!document.querySelector(".orbit-section-tabs") &&
+          getComputedStyle(document.querySelector(".orbit-section-tabs")).display!=="none",
         actionButtons:document.querySelectorAll(".orbit-section-tabs button").length,
         actionsInsideViewport:(()=>{
           const box=document.querySelector(".orbit-section-tabs")?.getBoundingClientRect();
