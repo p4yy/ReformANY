@@ -2223,3 +2223,20 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
     flex: 0 1 auto;
   }
 }
+
+/* The legacy stylesheet is retained for independent HoveR and native PDF
+   windows. Its unlayered .sidebar selector sets width:260px; unlike the new
+   @layer components rules this wins the cascade even after the grid switches
+   to 64px. Explicitly reset the legacy fixed width in the ZIP shell. */
+@media (min-width: 720px) {
+  .shell .body > .sidebar {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex: none;
+  }
+  .shell .body[data-collapsed="true"] > .sidebar {
+    width: 4rem;
+    max-width: 4rem;
+  }
+}
