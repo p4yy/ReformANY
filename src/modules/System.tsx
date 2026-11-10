@@ -5,7 +5,7 @@ import { Activity, ArrowRight, BookOpenCheck, Check, ChevronRight, Clock3, Downl
 import type { ActivityItem, ModuleId, Preferences, WatchRule } from '../types';
 import type { ConverterProps } from './Converters';
 import { ModuleHeader } from './Converters';
-import { CopyButton, EmptyState, Field, IconButton, InlineNote, KineticButton, Segmented, Select, SettingRow, SpringSlider, Toggle } from '../components/UI';
+import { CopyButton, EmptyState, Field, FilePicker, IconButton, InlineNote, KineticButton, Segmented, Select, SettingRow, SpringSlider, Toggle } from '../components/UI';
 import { uid } from '../lib/files';
 
 export function ActivityModule({ items, onClear, navigate }: { items: ActivityItem[]; onClear: () => void; navigate: (module: ModuleId) => void }) {
