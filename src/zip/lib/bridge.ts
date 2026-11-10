@@ -21,10 +21,6 @@ async function raw<T>(cmd: string, args: Record<string, unknown> = {}): Promise<
   return rust<T>(cmd, args);
 }
 const fmt = (path: string) => path.split(/[\\/]/).pop()?.split('.').pop()?.toLowerCase() ?? '';
-const onePath = (paths: string[]) => {
-  if (paths.length !== 1) throw new Error('This tool expects one original source file.');
-  return paths[0];
-};
 function destination(options: Record<string, unknown>): { mode: string; path?: string } {
   const d = options.destination;
   return d && typeof d === 'object' ? d as { mode: string; path?: string } : { mode: 'source' };
