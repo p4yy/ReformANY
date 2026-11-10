@@ -2240,3 +2240,166 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
     max-width: 4rem;
   }
 }
+
+
+/* Nov 10 P0/P2: compatibility boundary between the legacy unlayered styles
+   and the redesigned ZIP UI.  The older src/index.css uses generic .field,
+   .brand and .orbit-hub rules; they must not reshape ZIP primitives. */
+.shell :is(input.field, select.field, textarea.field),
+.orbit-stage :is(input.field, select.field, textarea.field),
+.panel-layer :is(input.field, select.field, textarea.field) {
+  box-sizing:border-box;
+  display:block;
+  flex-direction:initial;
+  min-width:0;
+  width:100%;
+  margin:0;
+  gap:0;
+  line-height:1.2;
+}
+.shell select.field,
+.orbit-stage select.field,
+.panel-layer select.field {
+  display:inline-flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:2.25rem;
+  height:2.25rem;
+  padding:0 2rem 0 .75rem;
+  vertical-align:middle;
+  line-height:1;
+  background-position:right .625rem center;
+}
+.shell :is(input.field,select.field),
+.orbit-stage :is(input.field,select.field),
+.panel-layer :is(input.field,select.field) {
+  height:2.25rem;
+  min-height:2.25rem;
+}
+.shell textarea.field,
+.orbit-stage textarea.field,
+.panel-layer textarea.field {
+  height:auto;
+  min-height:5rem;
+  padding:.625rem .75rem;
+  line-height:1.5;
+}
+.shell .titlebar .brand {
+  display:inline-flex;
+  align-items:baseline;
+  flex:0 0 auto;
+  min-width:0;
+  gap:2px;
+  margin:0;
+  font-size:.8125rem;
+  font-weight:650;
+  letter-spacing:-.01em;
+  line-height:1.2;
+  white-space:nowrap;
+}
+.shell .titlebar .brand b {
+  display:inline-block;
+  margin:0 0 0 2px;
+  font-size:.71875rem;
+  font-weight:600;
+  letter-spacing:.04em;
+}
+/* Active sage surfaces use the real on-accent token; keep disabled CTAs
+   readable without allowing them to look actionable. */
+.shell :is(.btn-primary,.chip[aria-checked="true"],.chip[aria-pressed="true"],.seg-item[aria-checked="true"]),
+.orbit-stage :is(.btn-primary,.chip[aria-checked="true"],.chip[aria-pressed="true"],.seg-item[aria-checked="true"]) {
+  color:var(--on-accent);
+}
+.shell .btn:disabled,
+.orbit-stage .btn:disabled,
+.orbit-panel-window .btn:disabled {
+  opacity:1;
+  color:var(--text-secondary);
+  background:var(--bg-elevated);
+  border-color:var(--border);
+  cursor:not-allowed;
+}
+/* Legacy native Orbit styles position an HTML div named .orbit-hub.
+   The new Orbit uses an SVG <g> with that name.  Never apply HTML positioning
+   or translate() to the SVG group: it detaches the central mark. */
+.orbit-stage .orbit-disc svg.orbit-svg .orbit-hub {
+  position:static;
+  display:inline;
+  top:auto;
+  left:auto;
+  right:auto;
+  bottom:auto;
+  width:auto;
+  height:auto;
+  margin:0;
+  transform:none;
+  flex-direction:initial;
+  pointer-events:auto;
+}
+/* The native 520px disc selector must not force a square backplate or
+   override the responsive SVG wheel geometry. */
+.orbit-stage .orbit-disc {
+  width:min(31rem,92vw,calc(100dvh - 15.5rem));
+  height:auto;
+  min-width:16rem;
+  aspect-ratio:1;
+  background:transparent;
+  backdrop-filter:none;
+  overflow:visible;
+  animation:none;
+}
+.orbit-stage .orbit-disc svg.orbit-svg {
+  position:relative;
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+/* Editable native PDF panels must keep their control wrappers intrinsic and
+   provide scrollable content all the way down, including Extract Pages. */
+.orbit-panel-window .orbit-dialog {
+  min-width:0;
+  min-height:0;
+  max-height:100dvh;
+}
+.orbit-panel-window .extract-controls {
+  min-width:0;
+  height:auto;
+  overflow:visible;
+}
+.orbit-panel-window .extract-controls .field {
+  box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:8px;
+  min-width:0;
+  width:100%;
+  height:auto;
+  min-height:0;
+  margin:0;
+  overflow:visible;
+}
+.orbit-panel-window .extract-controls .text-input {
+  box-sizing:border-box;
+  display:block;
+  width:100%;
+  min-width:0;
+  min-height:38px;
+  height:38px;
+  margin:0;
+  line-height:1.2;
+}
+.orbit-panel-window .orbit-dialog-body,
+.orbit-panel-window .orbit-dialog.wide .orbit-dialog-body {
+  min-height:0;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.orbit-panel-window .watermark-settings,
+.orbit-panel-window .extract-grid,
+.orbit-panel-window .arrange-grid {
+  min-height:0;
+  overflow-y:auto;
+}
