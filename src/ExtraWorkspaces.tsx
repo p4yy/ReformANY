@@ -444,6 +444,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
   }, []);
 
   function changeMode(next: DocumentTask) {
+    if (busy) return; // Keep the running job attached to its original operation.
     setMode(next);
     setTextOutputs([]);
     setSources([]);
@@ -520,11 +521,11 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     <h1>Documents</h1>
     <p>Actual PDF operations, with original files left in place. Office rendering uses LibreOffice if installed.</p>
     <div className="engine-switch engine-switch-three">
-      <button className={mode === "images" ? "selected" : ""} onClick={() => changeMode("images")}>Images → PDF</button>
-      <button className={mode === "text" ? "selected" : ""} onClick={() => changeMode("text")}>PDF → Text</button>
-      <button className={mode === "txt" ? "selected" : ""} onClick={() => changeMode("txt")}>TXT → Formats</button>
-      <button className={mode === "office" ? "selected" : ""} onClick={() => changeMode("office")}>Office → PDF</button>
-      <button className={mode === "split" ? "selected" : ""} onClick={() => changeMode("split")}>Split PDF</button>
+      <button type="button" className={mode === "images" ? "selected" : ""} disabled={busy} onClick={() => changeMode("images")}>Images → PDF</button>
+      <button type="button" className={mode === "text" ? "selected" : ""} disabled={busy} onClick={() => changeMode("text")}>PDF → Text</button>
+      <button type="button" className={mode === "txt" ? "selected" : ""} disabled={busy} onClick={() => changeMode("txt")}>TXT → Formats</button>
+      <button type="button" className={mode === "office" ? "selected" : ""} disabled={busy} onClick={() => changeMode("office")}>Office → PDF</button>
+      <button type="button" className={mode === "split" ? "selected" : ""} disabled={busy} onClick={() => changeMode("split")}>Split PDF</button>
     </div>
     <div className="engine-card">
       <div className="engine-card-title"><FileText size={18}/><h2>Selected source</h2></div>
@@ -575,7 +576,7 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
       <button className="button primary" disabled={!sources.length || busy || (mode === "office" && !office)}
         onClick={() => void process()}>
         {busy ? <><LoaderCircle size={17} className="engine-spin"/> Processing…</>
-          : <>{mode === "split" ? "Split PDF" : "Convert"} <ArrowRight size={16}/></>}
+          : <>{mode === "images" ? "Create PDF" : mode === "text" ? "Extract text" : mode === "txt" ? "Convert TXT" : mode === "office" ? "Convert to PDF" : "Split PDF"} <ArrowRight size={16}/></>}
       </button>
     </div>
     {outputSelector(result, error)}
