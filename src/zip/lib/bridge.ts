@@ -85,7 +85,8 @@ async function runRealJob(req: JobRequest, onProgress: (p: number, note?: string
       return each('media_convert', path => ({ job: {
         path, target: options.format === 'h265' ? 'mp4_h265' : options.format,
         destination: dest,
-        profile: options.quality === 'high' ? 'high' : options.quality === 'small' ? 'small' : 'standard',
+        profile: options.quality === 'high' || options.quality === 'source' ? 'high' :
+          options.quality === 'compact' || options.quality === 'small' ? 'small' : 'standard',
         startSeconds: Number(options.start ?? 0) || null,
         durationSeconds: options.duration == null ? null : Number(options.duration),
       } }));
@@ -284,8 +285,9 @@ export async function engineStatus(): Promise<EngineState[]> {
   if (isTauri) {
     const result = await raw<Record<string, unknown>>('engine_status');
     return keys.map(id => {
-      const value = result[id] ?? result[id === 'sevenzip' ? '7zip' : id];
-      const good = value === true || Boolean(value && typeof value === 'object' && (value as { available?: boolean }).available);
+      const value = id === 'sevenzip' ? (result.sevenZip ?? result.seven_zip ?? result['7zip']) : result[id];
+      const available = value === true || Boolean(value && typeof value === 'object' && (value as { available?: boolean }).available);
+      const good = id === 'ffmpeg' ? available && result.ffprobe === true : available;
       return { id, state: id === 'builtin' || good ? 'ready' : 'missing' };
     });
   }

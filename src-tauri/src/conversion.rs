@@ -235,16 +235,30 @@ fn output_format(target: &str) -> Result<(ImageFormat, &'static str), String> {
     }
 }
 
-fn flatten(image: &DynamicImage, dark: bool) -> RgbImage {
+/// Accept legacy matte names and exact #RRGGBB colours selected in the ZIP UI.
+fn parse_matte(input: &str) -> Result<[u8; 3], String> {
+    match input {
+        "white" => return Ok([255, 255, 255]),
+        "black" => return Ok([0, 0, 0]),
+        _ => {}
+    }
+    let hex = input.strip_prefix('#')
+        .filter(|hex| hex.len() == 6 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or_else(|| "Unsupported transparency background".to_owned())?;
+    let component = |start| u8::from_str_radix(&hex[start..start + 2], 16)
+        .map_err(|_| "Unsupported transparency background".to_owned());
+    Ok([component(0)?, component(2)?, component(4)?])
+}
+
+fn flatten(image: &DynamicImage, matte: [u8; 3]) -> RgbImage {
     let source = image.to_rgba8();
-    let background = if dark { 0u32 } else { 255u32 };
     RgbImage::from_fn(source.width(), source.height(), |x, y| {
         let p = source.get_pixel(x, y).0;
         let alpha = p[3] as u32;
-        let mix = |channel: u8| {
-            ((channel as u32 * alpha + background * (255 - alpha) + 127) / 255) as u8
+        let mix = |channel: u8, background: u8| {
+            ((channel as u32 * alpha + background as u32 * (255 - alpha) + 127) / 255) as u8
         };
-        Rgb([mix(p[0]), mix(p[1]), mix(p[2])])
+        Rgb([mix(p[0], matte[0]), mix(p[1], matte[1]), mix(p[2], matte[2])])
     })
 }
 
@@ -323,7 +337,7 @@ fn convert_one(item: &ConversionItem, destination: Option<&str>, cancelled: &Ato
     let mut temp = tempfile::Builder::new().prefix(".reformany-")
         .tempfile_in(&directory).map_err(|e| format!("Cannot create output: {e}"))?;
     if matches!(target_format, ImageFormat::Jpeg | ImageFormat::Bmp) {
-        let flattened = DynamicImage::ImageRgb8(flatten(&image, item.matte == "black"));
+        let flattened = DynamicImage::ImageRgb8(flatten(&image, parse_matte(&item.matte)?));
         if target_format == ImageFormat::Jpeg {
             flattened.write_with_encoder(JpegEncoder::new_with_quality(
                 temp.as_file_mut(), item.quality.clamp(1, 100)
@@ -407,9 +421,7 @@ pub async fn convert_batch(
         if file.id.is_empty() { return Err("A conversion item is missing its ID".into()); }
         output_format(&file.target)?;
         file.options.validate()?;
-        if file.matte != "white" && file.matte != "black" {
-            return Err("Unsupported transparency background".into());
-        }
+        parse_matte(&file.matte)?;
     }
 
     let batch_id = Uuid::new_v4().to_string();
@@ -531,6 +543,21 @@ mod tests {
                 assert_eq!(reader.into_dimensions().unwrap(), (8, 6));
                 assert!(source.exists(), "Original file must remain untouched");
             }
+        }
+    }
+
+    #[test]
+    fn zip_interface_mattes_support_opaque_sage_and_reject_invalid_colours() {
+        let source = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            1, 1, image::Rgba([255, 0, 0, 0])
+        ));
+        let sage = parse_matte("#8b9d77").unwrap();
+        assert_eq!(sage, [139, 157, 119]);
+        assert_eq!(flatten(&source, sage).get_pixel(0, 0).0, sage);
+        assert_eq!(parse_matte("#FFFFFF").unwrap(), [255, 255, 255]);
+        assert_eq!(parse_matte("black").unwrap(), [0, 0, 0]);
+        for invalid in ["", "#fff", "rgb(0,0,0)", "#000000ff", "#xxff00"] {
+            assert!(parse_matte(invalid).is_err(), "Accepted invalid colour: {invalid}");
         }
     }
 
