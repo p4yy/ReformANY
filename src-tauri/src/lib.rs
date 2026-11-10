@@ -74,6 +74,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// A main-window UI preference. Never intercept Orbit or tool window closes.
 struct CloseToTray(AtomicBool);
 
+// Keep the Orbit IPC response alive while opening an independent native tool.
+// A Focused(false) event can fire before the new tool window is registered.
+static ORBIT_PANEL_TRANSITION: AtomicBool = AtomicBool::new(false);
+
 #[tauri::command]
 fn set_close_to_tray(enabled: bool, state: tauri::State<'_, CloseToTray>) {
     state.0.store(enabled, Ordering::Release);
@@ -99,10 +103,12 @@ async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), Str
         return Err("Unsupported Orbit tool".into());
     }
     let wide = matches!(kind.as_str(), "sign" | "watermark" | "arrange" | "extract-pages");
+    ORBIT_PANEL_TRANSITION.store(true, Ordering::Release);
     let label = format!("orbit-panel-{}-{}", kind, uuid::Uuid::new_v4().simple());
     let (width, height) = if wide { (1080.0, 760.0) } else { (720.0, 710.0) };
     // Avoid blocking the WebView IPC executor while creating a native window.
-    tauri::async_runtime::spawn_blocking(move || {
+    let handle = app.clone();
+    let created = tauri::async_runtime::spawn_blocking(move || {
         // Serialize native panel launches, so rapid double clicks cannot create
         // duplicated windows. A live panel of this kind is focused, not rebuilt.
         static PANEL_OPEN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -133,7 +139,16 @@ async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), Str
             .build()
             .map_err(|error| format!("Could not create Orbit tool window: {error}"))
             .map(|_| ())
-    }).await.map_err(|error| format!("Orbit panel task failed: {error}"))??;
+    }).await.map_err(|error| format!("Orbit panel task failed: {error}"));
+    // Drop the transition guard even when window creation fails.
+    ORBIT_PANEL_TRANSITION.store(false, Ordering::Release);
+    created??;
+    // The main Orbit wheel must not cover an opaque tool. It stays alive and
+    // can be shown again once that tool closes (without duplicate windows).
+    if let Some(orbit) = handle.get_webview_window("orbit") {
+        let _ = orbit.set_always_on_top(false);
+        let _ = orbit.hide();
+    }
     Ok(())
 }
 
@@ -344,10 +359,30 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() == "orbit" {
-                // Dismiss the native wheel when Explorer or another window takes focus.
-                // A separate tool transfers focus, so no stacked/doubled Orbit remains.
                 if let tauri::WindowEvent::Focused(false) = event {
-                    let _ = window.close();
+                    let has_open_panel = window.app_handle().webview_windows().values()
+                        .any(|child| child.label().starts_with("orbit-panel-"));
+                    // A child window launch temporarily moves focus. Do not
+                    // destroy the wheel's WebView or its in-flight IPC promise.
+                    if !ORBIT_PANEL_TRANSITION.load(Ordering::Acquire) && !has_open_panel {
+                        let _ = window.close();
+                    }
+                }
+                return;
+            }
+            if window.label().starts_with("orbit-panel-") {
+                if let tauri::WindowEvent::Destroyed = event {
+                    let app = window.app_handle();
+                    let has_other_panel = app.webview_windows().values()
+                        .any(|child| child.label().starts_with("orbit-panel-")
+                             && child.label() != window.label());
+                    if !has_other_panel && !ORBIT_PANEL_TRANSITION.load(Ordering::Acquire) {
+                        if let Some(orbit) = app.get_webview_window("orbit") {
+                            let _ = orbit.show();
+                            let _ = orbit.set_always_on_top(true);
+                            let _ = orbit.set_focus();
+                        }
+                    }
                 }
                 return;
             }
