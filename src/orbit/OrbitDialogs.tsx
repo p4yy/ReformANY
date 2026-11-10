@@ -276,13 +276,13 @@ export function ExtractPagesDialog({ file, onClose, notify }: DialogProps) {
   };
   return <OrbitDialogFrame wide title="Extract Pages" subtitle="Select PDF pages or enter a page range. This creates a new document without touching the original." icon={<FileText size={22} />} file={{ ...file, pages: count }} onClose={onClose} className="extract-dialog" footer={<><KineticButton tone="ghost" onClick={onClose}>Cancel</KineticButton><KineticButton tone="primary" disabled={saving || !selected?.length || !file.file} onClick={() => void save()}>{saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}Extract {selected?.length || 0} pages</KineticButton></>}>
     <div className="extract-controls"><Field label="Range Pages"><input className="text-input" aria-label="Pages to extract" placeholder="1,3-5,9" value={range} onChange={event => setRange(event.target.value)} /></Field><div className="extract-summary"><span>{count ? `${count} pages available` : error || 'Reading pages…'}</span><span>{selected ? `${selected.length} selected` : 'Invalid range'}</span></div><div className="extract-actions"><KineticButton tone="ghost" disabled={!count} onClick={() => setRange(`1-${count}`)}>Select all</KineticButton><KineticButton tone="ghost" onClick={() => setRange('')}>Clear</KineticButton></div></div>
-    <div className="extract-grid" role="group" aria-label="Scrollable page references">{Array.from({ length: Math.min(count, 500) }, (_, index) => index + 1).map(page => <button type="button" key={page} className={`extract-page ${selected?.includes(page) ? 'selected' : ''}`} aria-pressed={!!selected?.includes(page)} onClick={() => toggle(page)}><LazyPageReference pdf={pdf} page={page} /><span className="extract-page-number">Page {page}</span></button>)}</div>
+    <div className="extract-grid" role="group" aria-label="Scrollable page references">{Array.from({ length: count }, (_, index) => index + 1).map(page => <button type="button" key={page} className={`extract-page ${selected?.includes(page) ? 'selected' : ''}`} aria-pressed={!!selected?.includes(page)} onClick={() => toggle(page)}><LazyPageReference pdf={pdf} page={page} /><span className="extract-page-number">Page {page}</span></button>)}</div>
     <div className="arrange-helper">Scroll to view every page. Page numbers are crisp labels, independent of thumbnail resolution.</div>
   </OrbitDialogFrame>;
 }
 
 function PdfThumbnail({ pdf, item, selected, onSelect, onDragStart, onDrop }: { pdf: PDFDocumentProxy | null; item: PageItem; selected: boolean; onSelect: (event: React.MouseEvent) => void; onDragStart: () => void; onDrop: () => void }) {
-  return <button draggable onDragStart={onDragStart} onDragOver={event => event.preventDefault()} onDrop={onDrop} onClick={onSelect} className={`arrange-page ${selected ? 'selected' : ''}`}><div className="arrange-page-paper" style={{ transform: `rotate(${item.rotation}deg)` }}>{pdf ? <PdfPageCanvas pdf={pdf} page={item.source} zoom={22} /> : <FileText size={28} />}</div><GripVertical size={14} /><span>Page {item.id.split('-')[0]} · source {item.source}</span></button>;
+  return <button draggable onDragStart={onDragStart} onDragOver={event => event.preventDefault()} onDrop={onDrop} onClick={onSelect} className={`arrange-page ${selected ? 'selected' : ''}`}><div className="arrange-page-paper" style={{ transform: `rotate(${item.rotation}deg)` }}>{pdf ? <LazyPageReference pdf={pdf} page={item.source} /> : <FileText size={28} />}</div><GripVertical size={14} /><span>Page {item.id.split('-')[0]} · source {item.source}</span></button>;
 }
 
 export function ArrangeDialog({ file, onClose, notify }: DialogProps) {
@@ -294,7 +294,7 @@ export function ArrangeDialog({ file, onClose, notify }: DialogProps) {
     let live = true;
     void runNative<number>('pdf_page_count', { path: file.path })
       .then(count => {
-        if (live && count > 0 && count <= 200) {
+        if (live && count > 0) {
           setPages(Array.from({ length: count }, (_, index) =>
             ({ id: String(index + 1) + '-native', source: index + 1, rotation: 0 })));
         }
