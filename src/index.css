@@ -985,9 +985,9 @@ html.reformany-panel-window #root {
 .orbit-os.native .orbit-section-tabs button:hover { transform: translateY(-2px); background: #283221; }
 .orbit-os.native .orbit-section-tabs button.active { background: #B4C99F; color: #1A1E15; }
 .orbit-os.native .orbit-section-tabs button kbd { font: 10px system-ui; opacity: .8; }
-@keyframes orbitActionsIn { from { opacity: 0; translate: -50% 8px; } to { opacity: 1; translate: -50% 0; } }
+@keyframes orbitActionsIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .orbit-os.native.closing .orbit-section-tabs { animation: orbitActionsOut .16s ease-in both; }
-@keyframes orbitActionsOut { to { opacity: 0; translate: -50% 8px; } }
+@keyframes orbitActionsOut { to { opacity: 0; transform: translate(-50%, 8px); } }
 @media (prefers-reduced-motion: reduce) {
   .orbit-os.native .orbit-section-tabs, .orbit-os.native.closing .orbit-section-tabs { animation: none !important; }
 }
