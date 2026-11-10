@@ -173,6 +173,15 @@ jobs:
           } finally {
             Remove-ItemProperty -Path $policy -Name $exeName -ErrorAction SilentlyContinue
           }
+      # The user explicitly requested the original five-step premium installer
+      # instead of the portable app. This is a PRIVATE PR test artifact, not a
+      # GitHub Release. Publish only after its offline React UI smoke test.
+      - name: Upload premium five-step setup wizard for desktop testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Premium-Setup-EXE-test', github.event.number) || 'ReformANY-Premium-Setup-EXE-test' }}
+          path: installer/setup-shell/src-tauri/target/release/reformany-setup.exe
+          if-no-files-found: error
       - name: Verify real NSIS opt-out flags
         shell: pwsh
         run: |
