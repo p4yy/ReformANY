@@ -23,6 +23,17 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
   const [minimized, setMinimized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const panel = desktop && getCurrentWindow().label.startsWith('orbit-panel-');
+  useEffect(() => {
+    if (!panel) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', handleEscape, true);
+    return () => window.removeEventListener('keydown', handleEscape, true);
+  }, [panel, onClose]);
   const toggleFullscreen = async () => {
     try {
       if (panel) {

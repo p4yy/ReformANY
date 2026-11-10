@@ -103,6 +103,20 @@ async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), Str
     let (width, height) = if wide { (1080.0, 760.0) } else { (720.0, 710.0) };
     // Avoid blocking the WebView IPC executor while creating a native window.
     tauri::async_runtime::spawn_blocking(move || {
+        // Serialize native panel launches, so rapid double clicks cannot create
+        // duplicated windows. A live panel of this kind is focused, not rebuilt.
+        static PANEL_OPEN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _launch_guard = PANEL_OPEN_LOCK.lock()
+            .map_err(|_| "Orbit panel launch lock is unavailable".to_owned())?;
+        let prefix = format!("orbit-panel-{kind}-");
+        let windows = app.webview_windows();
+        if let Some(existing) = windows.values().find(|window| window.label().starts_with(&prefix)) {
+            existing.unminimize().map_err(|error| error.to_string())?;
+            existing.show().map_err(|error| error.to_string())?;
+            existing.set_focus().map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+        drop(windows);
         WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
             .title("ReformANY Orbit tool")
             .inner_size(width, height)

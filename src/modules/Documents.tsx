@@ -14,10 +14,10 @@ function SingleSource({ file, setFile, accept, label }: { file: File | null; set
   return file ? <div className="selected-source"><FileContextRow name={file.name} meta={`${ext(file.name).toUpperCase()} · ${formatBytes(file.size)}`} /><KineticButton tone="ghost" onClick={() => setFile(null)}>Change source</KineticButton></div> : <FilePicker multiple={false} accept={accept} onFiles={files => setFile(files[0] || null)}><Plus size={16} />{label}</FilePicker>;
 }
 
-type DocumentTab = 'images-pdf' | 'pdf-text' | 'txt' | 'office' | 'split';
+type DocumentTab = 'images-pdf' | 'pdf-text' | 'txt' | 'office' | 'split' | 'extract';
 const documentTabs: { id: DocumentTab; label: string }[] = [
   { id: 'images-pdf', label: 'Images → PDF' }, { id: 'pdf-text', label: 'PDF → Text' },
-  { id: 'txt', label: 'TXT → Formats' }, { id: 'office', label: 'Office → PDF' }, { id: 'split', label: 'Split PDF' },
+  { id: 'txt', label: 'TXT → Formats' }, { id: 'office', label: 'Office → PDF' }, { id: 'split', label: 'Split PDF' }, { id: 'extract', label: 'Extract Pages' },
 ];
 
 export function DocumentsModule(props: ConverterProps) {
@@ -25,11 +25,29 @@ export function DocumentsModule(props: ConverterProps) {
   const [files, setFiles] = useState<File[]>([]); const [file, setFile] = useState<File | null>(null);
   const [output, setOutput] = useState('md'); const [busy, setBusy] = useState(false); const [progress, setProgress] = useState(0);
   const [splitMode, setSplitMode] = useState<'size' | 'count' | 'pages'>('size'); const [target, setTarget] = useState(5);
-  const switchTab = (value: DocumentTab) => { setTab(value); setFile(null); setFiles([]); setProgress(0); };
+  const [extractRange, setExtractRange] = useState('1'); const [extractCount, setExtractCount] = useState(0);
+  const switchTab = (value: DocumentTab) => {
+    setTab(value); setFile(null); setFiles([]); setProgress(0);
+    setOutput(value === 'txt' && native ? 'pdf' : 'md'); setExtractRange('1'); setExtractCount(0);
+  };
+  useEffect(() => {
+    if (tab !== 'extract' || !file) { setExtractCount(0); return; }
+    let live = true;
+    if (native) {
+      void runNative<number>('pdf_page_count', { path: requireNativePath(file) })
+        .then(count => { if (live) setExtractCount(count); })
+        .catch(error => { if (live) props.notify('Could not inspect PDF pages', String(error), 'danger'); });
+    } else {
+      void file.arrayBuffer().then(bytes => getDocument({ data: new Uint8Array(bytes) }).promise)
+        .then(pdf => { if (live) setExtractCount(pdf.numPages); void pdf.destroy(); })
+        .catch(error => { if (live) props.notify('Could not inspect PDF pages', String(error), 'danger'); });
+    }
+    return () => { live = false; };
+  }, [file, tab]);
   const run = async () => {
     setBusy(true); setProgress(10);
     try {
-      if (native && ['images-pdf', 'pdf-text', 'txt', 'office', 'split'].includes(tab)) {
+      if (native && ['images-pdf', 'pdf-text', 'txt', 'office', 'split', 'extract'].includes(tab)) {
         let outputPath = '';
         const destination = await resolveNativeDestination(props.preferences.destination);
         if (tab === 'images-pdf') {
@@ -44,6 +62,23 @@ export function DocumentsModule(props: ConverterProps) {
           if (!saved.length) throw new Error('Native text conversion did not produce an output.');
           outputPath = saved[0];
           props.log('Text converted', `${file.name} → ${saved.join(' · ')}`, 'Documents');
+        } else if (tab === 'extract') {
+          if (!file) throw new Error('Choose a PDF to extract pages from.');
+          if (extractCount < 1) throw new Error('This PDF is not ready for page extraction.');
+          // Validate before dispatch. The Rust engine validates again and always
+          // creates a new PDF, never editing the source document in place.
+          const terms = extractRange.trim().split(',');
+          const selected = new Set<number>();
+          for (const raw of terms) {
+            const match = /^(\\d+)(?:\\s*-\\s*(\\d+))?$/.exec(raw.trim());
+            if (!match) throw new Error('Enter page numbers such as 1,3-5,9.');
+            const start = Number(match[1]), end = match[2] ? Number(match[2]) : start;
+            if (start < 1 || end > extractCount || end < start) throw new Error('A page is outside the valid PDF range.');
+            for (let n = start; n <= end; n++) { if (selected.has(n)) throw new Error('Page numbers must not repeat.'); selected.add(n); }
+          }
+          const pages = [...selected].sort((a, b) => a - b).join(',');
+          if (!pages) throw new Error('Choose at least one page.');
+          outputPath = await runNative<string>('pdf_extract_pages', { path: requireNativePath(file), pages, destination });
         } else if (tab === 'split') {
           if (!file) throw new Error('Choose a PDF to split.');
           const result = await runNative<{ outputPaths: string[]; oversizedPages: number[] }>('pdf_split', {
@@ -85,6 +120,25 @@ export function DocumentsModule(props: ConverterProps) {
       } else if (tab === 'office') {
         if (!file) throw new Error('Choose an Office document first.');
         throw new Error('Office → PDF requires LibreOffice in the Tauri desktop build. No output was generated.');
+      } else if (tab === 'extract') {
+        if (!file) throw new Error('Choose a PDF to extract pages from.');
+        const matches = extractRange.trim().split(',').map(raw => /^(\\d+)(?:\\s*-\\s*(\\d+))?$/.exec(raw.trim()));
+        if (!matches.length || matches.some(match => !match)) throw new Error('Choose valid page numbers such as 1,3-5,9.');
+        const order = new Set<number>();
+        for (const match of matches) {
+          if (!match) continue;
+          const start = Number(match[1]), end = match[2] ? Number(match[2]) : start;
+          if (start < 1 || end > extractCount || end < start) throw new Error('PDF page selection is outside the page range.');
+          for (let n = start; n <= end; n++) order.add(n);
+        }
+        if (!order.size) throw new Error('Select at least one page.');
+        const sorted = [...order].sort((a, b) => a - b);
+        const original = await import('pdf-lib').then(mod => mod.PDFDocument.load(file.arrayBuffer()));
+        const extracted = await import('pdf-lib').then(mod => mod.PDFDocument.create());
+        const copied = await extracted.copyPages(original, sorted.map(page => page - 1));
+        copied.forEach(page => extracted.addPage(page));
+        await downloadBlob(new Blob([await extracted.save() as BlobPart], { type: 'application/pdf' }), file.name.replace(/\\.pdf$/i, '') + '-extracted.pdf');
+        props.log('PDF pages extracted', sorted.length + ' original pages preserved', 'Documents');
       } else {
         if (!file) throw new Error('Choose a PDF to split.');
         if (!hasOriginalBytes(file)) throw new Error('PDF exceeds the safe 48 MB in-memory editor limit.');
@@ -104,8 +158,9 @@ export function DocumentsModule(props: ConverterProps) {
       {tab === 'pdf-text' && <><SingleSource file={file} setFile={setFile} accept=".pdf" label="Choose PDF" /><InlineNote>Text is extracted page by page with PDF.js. Scanned pages without a text layer need OCR, which is not included.</InlineNote></>}
       {tab === 'txt' && <><SingleSource file={file} setFile={setFile} accept={native ? '.txt' : '.txt,.md,.markdown'} label="Choose text document" /><Field label="Output format"><FormatChips options={native ? ['pdf', 'docx', 'rtf', 'odt', 'html', 'md', 'epub', 'png', 'jpg'] : ['md', 'html', 'json', 'txt']} value={output} onChange={setOutput} /></Field></>}
       {tab === 'office' && <><SingleSource file={file} setFile={setFile} accept=".doc,.docx,.odt,.rtf,.xls,.xlsx,.ppt,.pptx" label="Choose Office document" /><EngineLine name="LibreOffice" detail="Not available to this browser window" /></>}
+      {tab === 'extract' && <><SingleSource file={file} setFile={setFile} accept=".pdf" label="Choose PDF" /><Field label="Range Pages"><input className="text-input" aria-label="Pages to extract" value={extractRange} placeholder="1,3-5,9" onChange={event => setExtractRange(event.target.value)} /></Field><div className="extract-summary"><span>{extractCount ? extractCount + ' PDF pages available' : 'Choose a PDF to inspect all pages'}</span><button type="button" disabled={!extractCount} onClick={() => setExtractRange('1-' + extractCount)}>Select all</button></div><div className="document-page-reference-scroll" aria-label="Scrollable PDF page numbers">{Array.from({ length: Math.min(extractCount, 500) }, (_, index) => index + 1).map(page => <button type="button" key={page} onClick={() => setExtractRange(current => current.trim() ? current + ',' + page : String(page))}>Page {page}</button>)}</div><InlineNote>PDF extraction saves a new file. Pages are kept in their original order; choose Arrange Pages in Orbit for reordering.</InlineNote></>}
       {tab === 'split' && <><SingleSource file={file} setFile={setFile} accept=".pdf" label="Choose PDF" /><div className="field-grid"><Field label="Split PDF by"><Select value={splitMode} onChange={value => setSplitMode(value as typeof splitMode)} options={[{ value: 'size', label: 'Approximate size MB' }, { value: 'count', label: 'Number of output PDFs' }, { value: 'pages', label: 'Pages per PDF' }]} /></Field><Field label={splitMode === 'size' ? 'Target size' : splitMode === 'count' ? 'Output PDFs' : 'Pages per file'}><NumberStepper label="Split target" value={target} onChange={setTarget} min={1} max={1000} unit={splitMode === 'size' ? 'MB' : ''} /></Field></div>{splitMode === 'size' && <div className="quick-chips">{[1, 5, 10, 25, 100].map(value => <button className={target === value ? 'active' : ''} key={value} onClick={() => setTarget(value)}>{value} MB</button>)}</div>}<InlineNote>On Windows, native size splitting measures generated PDF parts; large individual pages may exceed a target. The browser preview uses an approximate estimate.</InlineNote></>}
-      {busy && <ProgressBar value={progress} label="Document processing" />}<div className="panel-footer"><span>{tab === 'office' ? 'External engine required' : 'Read-only source handling'}</span><KineticButton tone="primary" disabled={busy} onClick={run}>{busy ? <LoaderCircle className="spin" size={16} /> : tab === 'split' ? <Split size={16} /> : <Download size={16} />}{tab === 'images-pdf' ? 'Create PDF' : tab === 'pdf-text' ? 'Extract text' : tab === 'txt' ? 'Convert text' : tab === 'office' ? 'Convert to PDF' : 'Create PDFs'}</KineticButton></div>
+      {busy && <ProgressBar value={progress} label="Document processing" />}<div className="panel-footer"><span>{tab === 'office' ? 'External engine required' : 'Read-only source handling'}</span><KineticButton tone="primary" disabled={busy} onClick={run}>{busy ? <LoaderCircle className="spin" size={16} /> : tab === 'split' ? <Split size={16} /> : <Download size={16} />}{tab === 'images-pdf' ? 'Create PDF' : tab === 'pdf-text' ? 'Extract text' : tab === 'txt' ? 'Convert text' : tab === 'office' ? 'Convert to PDF' : tab === 'extract' ? 'Extract pages' : 'Create PDFs'}</KineticButton></div>
     </section><InlineNote><Info size={14} />Office conversion uses LibreOffice headless mode in the desktop app. It must be installed separately; ReformANY never downloads it silently.</InlineNote>
   </div>;
 }
