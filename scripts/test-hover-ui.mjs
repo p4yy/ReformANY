@@ -131,7 +131,52 @@ try {
     if (ready) break;
     await sleep(650);
   }
-  if (!ready) throw new Error("Main app did not load its bundled UI");
+  if (!ready) {
+    // Get a useful browser error rather than hiding the true crash behind
+    // "UI did not load". A second reload captures exceptions that occurred
+    // before CDP attached to the first WebView.
+    const exceptions=[];
+    const monitor=event=>{
+      try {
+        const msg=JSON.parse(String(event.data));
+        if(msg.method==="Runtime.exceptionThrown") exceptions.push(
+          JSON.stringify(msg.params?.exceptionDetails).slice(0,1500));
+        if(msg.method==="Log.entryAdded" && msg.params?.entry?.level==="error")
+          exceptions.push(JSON.stringify(msg.params.entry).slice(0,1500));
+      } catch { /* ignore devtools transport event */ }
+    };
+    mainSocket.addEventListener("message",monitor);
+    const command=async(method,params={})=>{
+      const id=++cdpId;
+      return new Promise((resolve,reject)=>{
+        const timeout=setTimeout(()=>{mainSocket.removeEventListener("message",handler);reject(new Error(method+" timed out"))},7000);
+        const handler=event=>{let msg;try{msg=JSON.parse(String(event.data))}catch{return}
+          if(msg.id!==id)return;clearTimeout(timeout);mainSocket.removeEventListener("message",handler);
+          msg.error?reject(new Error(JSON.stringify(msg.error))):resolve(msg.result);
+        };
+        mainSocket.addEventListener("message",handler);
+        mainSocket.send(JSON.stringify({id,method,params}));
+      });
+    };
+    try {
+      await command("Runtime.enable");
+      await command("Log.enable");
+      await command("Page.enable");
+      await command("Page.reload",{ignoreCache:true});
+      await sleep(3000);
+    } catch(e) { exceptions.push("Diagnostic reload: "+String(e)); }
+    let debug=null;
+    try {debug=await evaluate(mainSocket,`(() => ({
+      href:location.href,state:document.readyState,hasTauri:!!window.__TAURI_INTERNALS__,
+      root:document.getElementById("root")?.outerHTML?.slice(0,2800),
+      bodyText:document.body?.innerText?.slice(0,700),
+      scripts:[...document.scripts].map(x=>x.src),
+      shell:!!document.querySelector(".shell"),
+      exceptions:[...window.__reformanyStartupErrors||[]]
+    }))()`)}catch(e){exceptions.push("DOM query: "+String(e))}
+    throw new Error("ZIP app failed to start. Browser errors: "+JSON.stringify(exceptions)+
+      " DOM: "+JSON.stringify(debug));
+  }
   // The supplied redesign replaces the original sidebar classes, welcome
   // wizard and settings selectors. Validate the ACTUAL new shell, not a ghost
   // selector from the earlier stable frontend.
