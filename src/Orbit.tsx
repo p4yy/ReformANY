@@ -442,7 +442,10 @@ export default function Orbit() {
       await invoke("orbit_play_sound",{kind:"close"}).catch(() => {});
     } finally {
       try { await getCurrentWindow().close(); }
-      catch { closingRef.current = false; }
+      catch (cause) {
+        closingRef.current = false;
+        setError("Could not close the Orbit window: " + String(cause));
+      }
     }
   }
 
@@ -974,7 +977,11 @@ export default function Orbit() {
     <div className="orbit-frame" onPointerDown={event => {
       // Transparent corners are part of the native rectangular window.
       // Dismiss them explicitly without swallowing clicks on the three section tabs.
-      if ((event.target as Element).closest(".orbit-section-tabs, .orbit-action-dialog")) return;
+      // Native editor controls are outside the radial disc. Never dismiss Orbit
+      // on their pointer-down event before Close or Maximize receives its click.
+      if (toolEditorOpenRef.current || (event.target as Element).closest(
+        ".reformany-window-chrome, .orbit-section-tabs, .orbit-action-dialog, .orbit-reference-toast"
+      )) return;
       const disc = event.currentTarget.querySelector(".orbit-disc");
       if (!disc) return;
       const rect = disc.getBoundingClientRect();
