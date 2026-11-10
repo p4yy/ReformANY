@@ -201,12 +201,19 @@ try {
   await screenshot(mainSocket,"01-images-workspace.png").catch(error=>console.warn("Images screenshot unavailable",String(error)));
   if(isWideLayout) {
     await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Collapse sidebar\\\"]").click();true');
-    await sleep(350);
-    const collapsed=await evaluate(mainSocket,`(() => ({
-      rail:document.querySelector(".body")?.dataset.collapsed==="true",
-      width:document.querySelector("#sidebar")?.getBoundingClientRect().width||0,
-      iconCount:document.querySelectorAll("#sidebar .nav button[aria-label] svg").length
-    }))()`);
+    let collapsed=null;
+    // Layout transitions and GPU rasterisation can take longer on a CI VM.
+    // Await the actual final 64px geometry; never substitute state-only checks.
+    for(let attempt=0;attempt<14;attempt++){
+      await sleep(100);
+      collapsed=await evaluate(mainSocket,`(() => ({
+        rail:document.querySelector(".body")?.dataset.collapsed==="true",
+        width:document.querySelector("#sidebar")?.getBoundingClientRect().width||0,
+        computedTrack:getComputedStyle(document.querySelector(".body")).gridTemplateColumns,
+        iconCount:document.querySelectorAll("#sidebar .nav button[aria-label] svg").length
+      }))()`);
+      if(collapsed.rail&&Math.abs(collapsed.width-64)<=5)break;
+    }
     if(!collapsed.rail||Math.abs(collapsed.width-64)>5||collapsed.iconCount<12)
       throw Error("ZIP sidebar collapse failed: "+JSON.stringify(collapsed));
     await evaluate(mainSocket,'document.querySelector("#sidebar button[aria-label=\\\"Expand sidebar\\\"]").click();true');
