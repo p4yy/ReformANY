@@ -129,7 +129,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
         const local = await loadNativeFile(context.path);
         const kind: OrbitFileKind = (local as File & { nativeDirectory?: boolean }).nativeDirectory ? 'folder' : kindFromName(local.name);
         const fresh: OrbitFile = { id: uid(), name: context.name, size: context.bytes, kind,
-          typeLabel: context.detected || ext(context.name).toUpperCase(), path: context.path, file: local,
+          typeLabel: kind === 'pdf' ? 'PDF' : context.detected || ext(context.name).toUpperCase(), path: context.path, file: local,
           url: kind === 'image' && local.size < 12 * 1024 * 1024 ? URL.createObjectURL(local) : undefined };
         if (!valid) return;
         setFile(fresh); setSamples([fresh]); setSection(preferences.orbitStart); setSourcePath(local);
