@@ -5,7 +5,8 @@
   "windows": [
     "main",
     "orbit",
-    "hover"
+    "hover",
+    "orbit-panel-*"
   ],
   "permissions": [
     "core:default",

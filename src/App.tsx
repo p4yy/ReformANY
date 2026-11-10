@@ -9,11 +9,12 @@ import { ActivityModule, AppearanceModule, EnginesModule, FilesJobsModule, Guide
 import { OverviewModule } from './modules/Overview';
 import { OrbitHUD } from './orbit/OrbitHUD';
 import HoveRView from './HoveRView';
+import OrbitPanelWindow from './native/OrbitPanelWindow';
 import { defaultPreferences, type ActivityItem, type ModuleId, type Preferences, type QueueItem, type ToastMessage } from './types';
 import { uid } from './lib/files';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { setDestinationPreference } from './native/bridge';
-import { closeCurrentNativeWindow, isNativeFloatRoute, isNativeOrbitRoute, isTauri, openNativeOrbit } from './lib/desktop';
+import { closeCurrentNativeWindow, isNativeFloatRoute, isNativeOrbitRoute, isNativePanelRoute, isTauri, openNativeOrbit } from './lib/desktop';
 
 function loadPreferences(): Preferences {
   try { const stored = JSON.parse(localStorage.getItem('reformany.preferences') || '{}') as Partial<Preferences>; return { ...defaultPreferences, ...stored, orbitModifiers: { ...defaultPreferences.orbitModifiers, ...stored.orbitModifiers }, recentFormats: { ...defaultPreferences.recentFormats, ...stored.recentFormats }, watchRules: stored.watchRules || [] }; } catch { return defaultPreferences; }
@@ -40,6 +41,7 @@ export default function App() {
     if (isTauri && !isNativeOrbitRoute) void openNativeOrbit().catch(error => notify('Orbit window could not open', error instanceof Error ? error.message : 'The native window was rejected.', 'danger'));
     else setOrbitOpen(true);
   }, [notify]);
+  useEffect(() => { if (isNativeOrbitRoute) document.documentElement.classList.add('reformany-orbit-window'); if (isNativePanelRoute) document.documentElement.classList.add('reformany-panel-window'); }, []);
   useEffect(() => { localStorage.setItem('reformany.preferences', JSON.stringify(preferences)); const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const theme = preferences.theme === 'system' ? systemDark ? 'dark' : 'light' : preferences.theme; document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; setDestinationPreference(preferences.destination); }, [preferences]);
   useEffect(() => { localStorage.setItem('reformany.activity', JSON.stringify(activity)); }, [activity]);
   useEffect(() => {
@@ -62,6 +64,7 @@ export default function App() {
   useEffect(() => { const handler = (event: Event) => notify('File operation', (event as CustomEvent<string>).detail, 'danger'); window.addEventListener('reformany:notice', handler); return () => window.removeEventListener('reformany:notice', handler); }, [notify]);
   const common = { preferences, updatePreferences, notify, log };
   if (isNativeFloatRoute) return <HoveRView />;
+  if (isNativePanelRoute) return <OrbitPanelWindow />;
   if (isNativeOrbitRoute) return <>
     <OrbitHUD native preferences={preferences} onClose={() => void closeCurrentNativeWindow()} notify={notify} log={log} />
     <div className="toast-stack" aria-live="polite">{toasts.map(toast => <div className={`toast ${toast.tone || 'default'}`} key={toast.id}><div className="toast-icon">{toast.tone === 'danger' ? <X size={16} /> : <Check size={16} />}</div><div><strong>{toast.title}</strong>{toast.message && <p>{toast.message}</p>}</div><IconButton label="Dismiss notification" onClick={() => setToasts(current => current.filter(item => item.id !== toast.id))}><X size={14} /></IconButton></div>)}</div>

@@ -154,7 +154,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     if (Math.abs(dx) > threshold && direction && direction !== state.direction) { state.direction = direction; state.count++; state.x = event.clientX; }
     if (state.count >= 4 && performance.now() - state.started < 1600) { const target = samples.find(item => item.id === state.id); if (target) { selectFile(target); notify('Hold-and-shake recognized', `${target.name} anchored to Orbit.`, 'success'); } state.count = 0; }
   };
-  const openDialog = (kind: OrbitDialogKind) => { setDialog(kind); };
+  const openDialog = (kind: OrbitDialogKind) => { if (native && desktop) { void runNative<void>('orbit_open_panel', { kind }).catch(error => notify('Could not open tool', String(error), 'danger')); } else setDialog(kind); };
   const pdfImages = async (format: 'png' | 'jpg') => {
     if (!file.file || (native && !(file.file as File & { nativeBytesLoaded?: boolean }).nativeBytesLoaded)) throw new Error('This PDF cannot be read in the local editor (48 MB limit).');
     const pdf = await getDocument({ data: new Uint8Array(await file.file.arrayBuffer()) }).promise; const outputs: File[] = [];
@@ -225,7 +225,8 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     if (native && !pathOf(file.file)) { notify('File not ready', 'Orbit has not loaded an Explorer selection yet.', 'default'); return; }
     setPointer({ x: event.clientX, y: event.clientY });
     const rect = disc.current?.getBoundingClientRect(); if (rect) { setPulse({ x: event.clientX - rect.left, y: event.clientY - rect.top, id: uid() }); setTimeout(() => setPulse(null), 420); }
-    if (['shred', 'rename', 'watermark', 'split-pdf', 'hover', 'arrange', 'password-zip', 'split-binary', 'more-tools'].includes(wedge.id)) { openDialog(wedge.id as OrbitDialogKind); return; }
+    if (wedge.id === 'hover' && native && desktop) { await runNative<void>('hover_file', { path: file.path }); return; }
+    if (['shred', 'rename', 'watermark', 'split-pdf', 'hover', 'arrange', 'password-zip', 'split-binary', 'more-tools', 'sign'].includes(wedge.id)) { openDialog(wedge.id as OrbitDialogKind); return; }
     if (wedge.id.startsWith('to-')) { setBusy(true); try { await convert(wedge.id.slice(3)); } catch (error) { notify('Orbit action not completed', error instanceof Error ? error.message : 'Conversion failed.', 'danger'); log('Orbit conversion stopped', error instanceof Error ? error.message : 'Conversion failed', 'Orbit', 'error'); } finally { setBusy(false); } return; }
     if (wedge.id === 'copy-path') { await navigator.clipboard.writeText(file.path); notify('Path copied', file.path, 'success'); return; }
     if (wedge.id === 'copy-file') { if (native && desktop) { const dest = await nativeCopyFile(file.path); if (dest) notify('File copied', dest, 'success'); return; } if (file.file) { await downloadBlob(file.file, `Copy of ${file.name}`); notify('Copy downloaded', 'The source File object was not modified.', 'success'); } else notify('Choose a local file', 'Browser preview items without bytes cannot be copied.', 'danger'); return; }
