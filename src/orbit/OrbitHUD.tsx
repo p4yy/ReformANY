@@ -5,8 +5,6 @@ import type { ActivityItem, OrbitFile, OrbitFileKind, OrbitSection, Preferences,
 import { convertImage, createSamplePdf, createZip, downloadBlob, ext, extractPdfText, formatBytes, imagesToPdf, uid } from '../lib/files';
 import { FilePicker } from '../components/UI';
 import { native as desktop, loadNativeFile, pathOf, runNative, nativeConvertImages, nativeReveal, nativeCopyFile, nativeRename, setSourcePath } from '../native/bridge';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { LogicalSize } from '@tauri-apps/api/dpi';
 import { listen } from '@tauri-apps/api/event';
 import { OrbitDialogRouter, type OrbitDialogKind } from './OrbitDialogs';
 import { playOrbitCue } from './sounds';
@@ -124,14 +122,7 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     void listen('reformany:orbit-context-updated', () => void sync()).then(fn => { if (valid) unsubscribe = fn; else fn(); });
     return () => { valid = false; unsubscribe?.(); };
   }, [native, notify, preferences.orbitStart]);
-  // Resize the dedicated transparent Tauri window to the exact dialogue frame.
-  useEffect(() => {
-    if (!native || !desktop) return;
-    const wide = ['watermark', 'arrange', 'hover'].includes(dialog || '');
-    const desired = dialog ? (wide ? [1160, 900] : [700, 790]) : [660, 760];
-    const size = [Math.min(desired[0], Math.max(420, window.screen.availWidth - 24)), Math.min(desired[1], Math.max(480, window.screen.availHeight - 30))];
-    void getCurrentWindow().setSize(new LogicalSize(size[0], size[1])).then(() => getCurrentWindow().center());
-  }, [dialog, native]);
+  // Orbit remains a stable, compact circular native window. Tools open in separate windows.
   const close = () => { if (dialog) { setDialog(null); return; } playOrbitCue(preferences, 'close'); setClosing(true); setTimeout(onClose, 180); };
   const switchSection = (next: OrbitSection) => {
     if (next === section || switching) return; playOrbitCue(preferences, 'switch'); setSwitching(true);
