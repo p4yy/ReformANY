@@ -10,6 +10,23 @@ import { OrbitDialogRouter, type OrbitDialogKind } from './OrbitDialogs';
 import { playOrbitCue } from './sounds';
 
 type Wedge = { id: string; label: string; icon: LucideIcon; danger?: boolean };
+/** Native Orbit section shortcuts; supports both modifiers and custom chords. */
+function shortcutMatches(event: KeyboardEvent, shortcut: string): boolean {
+  const parts = shortcut.toLowerCase().replace(/\\s+/g, '').split('+');
+  const key = parts.pop();
+  if (!key) return false;
+  const expectedCtrl = parts.includes('ctrl') || parts.includes('control');
+  const expectedAlt = parts.includes('alt');
+  const expectedShift = parts.includes('shift');
+  const modifierOnly = ['ctrl', 'control', 'shift', 'alt'].includes(key);
+  if (modifierOnly) {
+    return event.key.toLowerCase() === (key === 'ctrl' ? 'control' : key);
+  }
+  return event.key.toLowerCase() === key &&
+    event.ctrlKey === expectedCtrl && event.altKey === expectedAlt &&
+    event.shiftKey === expectedShift && !event.metaKey;
+}
+
 const imageConvert: Wedge[] = [
   ['tiff', 'TIFF', FileImage], ['pdf', 'PDF', FileText], ['jpeg', 'JPEG', ImageIcon], ['ico', 'ICO', FileImage], ['tga', 'TGA', FileImage],
   ['webp', 'WebP', ImageIcon], ['bmp', 'BMP', ImageIcon], ['gif', 'GIF', FileImage], ['qoi', 'QOI', FileImage], ['avif', 'AVIF', ImageIcon],
@@ -140,8 +157,8 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
       if (event.key === 'Escape') { event.preventDefault(); close(); return; }
       if (dialog || event.repeat) return;
       const mapping: [string, OrbitSection][] = [[preferences.orbitModifiers.convert, 'convert'], [preferences.orbitModifiers.tools, 'tools'], [preferences.orbitModifiers.actions, 'actions']];
-      const match = mapping.find(([modifier]) => event.key === modifier || (modifier === 'Ctrl' && event.key === 'Control'));
-      if (match) switchSection(match[1]);
+      const match = mapping.find(([shortcut]) => shortcutMatches(event, shortcut));
+      if (match) { event.preventDefault(); switchSection(match[1]); }
     };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   });
