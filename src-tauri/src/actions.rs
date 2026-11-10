@@ -1,8 +1,8 @@
 use serde::Serialize;
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,25 +25,40 @@ fn valid_filename(name: &str) -> bool {
         "LPT1"|"LPT2"|"LPT3"|"LPT4"|"LPT5"|"LPT6"|"LPT7"|"LPT8"|"LPT9")
 }
 
+fn rename_file_on_disk(old: &Path, new_name: &str) -> Result<RenameResult, String> {
+    if !valid_filename(new_name) {
+        return Err("Invalid Windows filename".into());
+    }
+    // Explorer's folder Orbit uses this action too. Symlinks remain blocked.
+    crate::external::verify_input(old, true)?;
+    let parent = old.parent().ok_or("Cannot determine parent folder")?;
+    let new = parent.join(new_name);
+    let existing_name = old.file_name().and_then(|part| part.to_str()).unwrap_or("");
+    if old == new {
+        return Ok(RenameResult {
+            path: old.to_string_lossy().into_owned(),
+            name: new_name.to_owned(),
+        });
+    }
+    // NTFS paths are normally case-insensitive: changing photo.PNG to photo.png
+    // is not a collision with a different file.
+    let case_only = cfg!(windows) && existing_name.eq_ignore_ascii_case(new_name);
+    if new.exists() && !case_only {
+        return Err("A file with that name already exists".into());
+    }
+    fs::rename(old, &new).map_err(|e| format!("Rename failed: {e}"))?;
+    Ok(RenameResult {
+        path: new.to_string_lossy().into_owned(),
+        name: new_name.to_owned(),
+    })
+}
+
 #[tauri::command]
 pub async fn rename_file(path: String, new_name: String) -> Result<RenameResult, String> {
-    if !valid_filename(&new_name) { return Err("Invalid Windows filename".into()); }
-    tauri::async_runtime::spawn_blocking(move || {
-        let old = PathBuf::from(&path);
-        // Explorer's folder Orbit uses this action too. Symlinks remain blocked.
-        crate::external::verify_input(&old, true)?;
-        let parent = old.parent().ok_or("Cannot determine parent folder")?;
-        let new = parent.join(&new_name);
-        if new.exists() {
-            return Err("A file with that name already exists".into());
-        }
-        // On Windows, rename across the same folder is atomic if no collision.
-        fs::rename(&old, &new).map_err(|e| format!("Rename failed: {e}"))?;
-        Ok(RenameResult {
-            path: new.to_string_lossy().into_owned(),
-            name: new_name,
-        })
-    }).await.map_err(|_| "Rename worker failed".to_owned())?
+    // Disk work runs outside WebView's event loop, keeping Orbit responsive.
+    tauri::async_runtime::spawn_blocking(move ||
+        rename_file_on_disk(Path::new(&path), &new_name)
+    ).await.map_err(|_| "Rename worker failed".to_owned())?
 }
 
 #[tauri::command]
@@ -89,54 +104,74 @@ pub fn send_bluetooth(path: String) -> Result<String, String> {
     }
 }
 
-/// At most one floating preview. Never expose file paths in a window URL.
+/// At most one hovering preview. Never expose file paths in a window URL.
 #[derive(Default)]
-pub struct FloatRegistry(pub Mutex<Option<String>>);
+pub struct HoveRRegistry(pub Mutex<Option<String>>);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FloatInfo {
+pub struct HoveRInfo {
     path: String,
     name: String,
     bytes: u64,
 }
 
 #[tauri::command]
-pub fn float_file_context(state: State<'_, FloatRegistry>) -> Result<Option<FloatInfo>, String> {
+pub fn hover_file_context(state: State<'_, HoveRRegistry>) -> Result<Option<HoveRInfo>, String> {
     let path = state.0.lock().map_err(|_| "Preview state is unavailable")?
         .clone();
     let Some(path) = path else { return Ok(None); };
     let file = Path::new(&path);
-    let metadata = fs::metadata(file).map_err(|_| "Floating file no longer exists".to_owned())?;
-    Ok(Some(FloatInfo {
+    let metadata = fs::metadata(file).map_err(|_| "Hovering file no longer exists".to_owned())?;
+    Ok(Some(HoveRInfo {
         name: file.file_name().map(|v| v.to_string_lossy().into_owned())
             .unwrap_or("Selected file".into()),
         path, bytes: metadata.len(),
     }))
 }
 
+// A synchronous Tauri command runs on the WebView event loop. Creating a
+// second native WebView from that loop can block the invoke promise and leave
+// an empty white HoveR window. Run window construction off the UI thread.
 #[tauri::command]
-pub fn float_file(app: AppHandle, state: State<'_, FloatRegistry>, path: String) -> Result<(), String> {
+pub async fn hover_file(app: AppHandle, state: State<'_, HoveRRegistry>, path: String) -> Result<(), String> {
     let input = Path::new(&path);
     crate::external::verify_input(input, false)?;
+    // Grant the asset protocol access only to this explicitly selected file.
+    // Never expose arbitrary disk directories to the embedded browser.
+    app.asset_protocol_scope().allow_file(input)
+        .map_err(|e| format!("Cannot authorize hovering media preview: {e}"))?;
     {
         let mut current = state.0.lock().map_err(|_| "Preview state is unavailable")?;
         *current = Some(path);
     }
-    if let Some(existing) = app.get_webview_window("float") {
-        existing.close().map_err(|e| e.to_string())?;
-    }
-    WebviewWindowBuilder::new(&app, "float", WebviewUrl::App("index.html".into()))
-        .title("ReformANY Float")
-        .inner_size(365.0, 410.0)
-        .min_inner_size(290.0, 310.0)
-        .resizable(true)
-        .always_on_top(true)
-        .center()
-        .focused(true)
-        .build()
-        .map_err(|e| format!("Cannot open floating preview: {e}"))?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(existing) = app.get_webview_window("hover") {
+            // Never close/recreate a native WebView with the same label in
+            // one operation: Windows WebView2 can release that label later
+            // than close() returns, causing "label hover already exists".
+            // Keep the existing view alive and notify it to load the latest
+            // validated file context (saved above).
+            existing.show().map_err(|e| format!("Cannot show HoveR: {e}"))?;
+            existing.set_focus().map_err(|e| format!("Cannot focus HoveR: {e}"))?;
+            existing.emit("reformany:hover-file-changed", ())
+                .map_err(|e| format!("Cannot update HoveR preview: {e}"))?;
+            return Ok::<(), String>(());
+        }
+        WebviewWindowBuilder::new(&app, "hover", WebviewUrl::App("index.html".into()))
+            .title("ReformANY HoveR")
+            .inner_size(390.0, 530.0)
+            .min_inner_size(320.0, 390.0)
+            .resizable(true)
+            .decorations(false)
+            .shadow(true)
+            .always_on_top(true)
+            .center()
+            .focused(true)
+            .build()
+            .map_err(|e| format!("Cannot open hovering preview: {e}"))?;
+        Ok::<(), String>(())
+    }).await.map_err(|e| format!("HoveR window task failed: {e}"))?
 }
 
 #[tauri::command]
@@ -165,5 +200,31 @@ mod tests {
         }
         assert!(valid_filename("Reformed photo.png"));
         assert!(valid_filename("échantillon.webp"));
+    }
+
+    #[test]
+    fn rename_changes_disk_name_and_rejects_collisions_without_touching_source() {
+        let root = tempfile::tempdir().unwrap();
+        let old = root.path().join("old name.txt");
+        fs::write(&old, b"original").unwrap();
+        let renamed = rename_file_on_disk(&old, "new name.txt").unwrap();
+        assert_eq!(renamed.name, "new name.txt");
+        assert!(!old.exists());
+        assert_eq!(fs::read(renamed.path).unwrap(), b"original");
+        let second = root.path().join("another.txt");
+        fs::write(&second, b"second").unwrap();
+        let existing = root.path().join("new name.txt");
+        assert!(rename_file_on_disk(&second, "new name.txt").is_err());
+        assert_eq!(fs::read(&second).unwrap(), b"second");
+        assert_eq!(fs::read(&existing).unwrap(), b"original");
+    }
+
+    #[test]
+    fn rename_to_same_name_is_noop_not_a_collision() {
+        let root = tempfile::tempdir().unwrap();
+        let input = root.path().join("stays.txt");
+        fs::write(&input, b"same").unwrap();
+        assert!(rename_file_on_disk(&input, "stays.txt").is_ok());
+        assert_eq!(fs::read(input).unwrap(), b"same");
     }
 }

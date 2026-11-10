@@ -78,14 +78,51 @@ pub fn seven_zip() -> Option<PathBuf> {
     find_binary("7z").or_else(|| find_binary("7zz"))
 }
 
+// Installed does not imply runnable. Test FFmpeg/FFprobe by executing
+// their harmless version command without a console, shell, or network.
+fn working_binary(name: &str) -> bool {
+    let Some(path) = find_binary(name) else { return false; };
+    let mut command = Command::new(path);
+    hide_subprocess_window(&mut command);
+    command.arg("-version").stdin(Stdio::null())
+        .stdout(Stdio::null()).stderr(Stdio::null());
+    let Ok(mut child) = command.spawn() else { return false; };
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Err(_) => { let _ = child.kill(); let _ = child.wait(); return false; }
+            Ok(None) if start.elapsed() >= std::time::Duration::from_secs(3) => {
+                let _ = child.kill(); let _ = child.wait();
+                return false;
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(30)),
+        }
+    }
+}
+
 #[tauri::command]
 pub fn engine_status() -> EngineStatus {
     EngineStatus {
-        ffmpeg: find_binary("ffmpeg").is_some(),
-        ffprobe: find_binary("ffprobe").is_some(),
+        ffmpeg: working_binary("ffmpeg"),
+        ffprobe: working_binary("ffprobe"),
         seven_zip: seven_zip().is_some(),
         winrar: find_binary("rar").is_some(),
     }
+}
+
+/// All background encoders/archivers must run without flashing a Windows
+/// console window. This intentionally does not apply to user-requested
+/// "Open terminal" actions.
+pub fn hide_subprocess_window(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    { let _ = command; }
 }
 
 /// External processes run with argv, never through a shell, and with stdin
@@ -93,6 +130,7 @@ pub fn engine_status() -> EngineStatus {
 pub fn run(program: &Path, args: &[OsString], cwd: Option<&Path>) -> Result<(), String> {
     let stderr_file = tempfile::tempfile().map_err(|e| format!("Cannot create log: {e}"))?;
     let mut command = Command::new(program);
+    hide_subprocess_window(&mut command);
     command.args(args).stdin(Stdio::null()).stdout(Stdio::null())
         .stderr(stderr_file.try_clone().map_err(|e| e.to_string())?);
     if let Some(cwd) = cwd { command.current_dir(cwd); }

@@ -15,11 +15,12 @@ static THUMBNAIL_POOL: Semaphore = Semaphore::const_new(1);
 #[derive(Default)]
 pub struct OrbitLaunch {
     path: Option<PathBuf>,
+    initial_tab: Option<String>,
+    from_shake: bool,
 }
-
 impl OrbitLaunch {
-    pub fn new(path: Option<PathBuf>) -> Self {
-        Self { path }
+    pub fn new_with_tab(path: Option<PathBuf>, initial_tab: Option<String>, from_shake: bool) -> Self {
+        Self { path, initial_tab, from_shake }
     }
 }
 
@@ -27,7 +28,11 @@ impl OrbitLaunch {
 /// turn on Orbit and cannot accidentally interpret a filename as a switch.
 pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<PathBuf> {
     let args: Vec<_> = args.into_iter().collect();
-    if args.len() != 2 || args[0] != "orbit" {
+    if !(args.len()==2 || args.len()==3) || args[0] != "orbit" {
+        return None;
+    }
+    if args.len()==3 && !matches!(args[2].to_str(),
+        Some("--tab=convert"|"--tab=tools"|"--tab=actions"|"--from-shake")) {
         return None;
     }
     let path = PathBuf::from(&args[1]);
@@ -35,6 +40,20 @@ pub fn parse_orbit_args(args: impl IntoIterator<Item = OsString>) -> Option<Path
         return None;
     }
     Some(path)
+}
+
+pub fn parse_orbit_tab(args: impl IntoIterator<Item = OsString>) -> Option<String> {
+    let args: Vec<_> = args.into_iter().collect();
+    parse_orbit_args(args.iter().cloned())?;
+    args.get(2).and_then(|argument|argument.to_str())
+        .and_then(|argument|argument.strip_prefix("--tab="))
+        .map(str::to_owned)
+}
+
+pub fn parse_orbit_from_shake(args: impl IntoIterator<Item = OsString>) -> bool {
+    let args: Vec<_> = args.into_iter().collect();
+    parse_orbit_args(args.iter().cloned()).is_some()
+        && args.get(2).and_then(|argument|argument.to_str())==Some("--from-shake")
 }
 
 #[derive(Serialize)]
@@ -52,11 +71,11 @@ fn classify_file(path: &Path) -> &'static str {
         .unwrap_or("").to_ascii_lowercase();
     match extension.as_str() {
         "png"|"jpg"|"jpeg"|"webp"|"bmp"|"gif"|"tif"|"tiff"|"ico"|"tga"|"qoi"|"svg" => "Image",
-        "mp4"|"webm"|"mkv"|"mov"|"avi"|"wmv"|"m4v"|"mpeg"|"mpg"|"mts"|"m2ts" => "Video",
-        "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aac"|"aiff"|"wma"|"ac3" => "Audio",
+        "mp4"|"mov"|"mkv"|"webm"|"avi"|"wmv"|"m4v"|"flv"|"mpeg"|"mpg"| "3gp"|"ts"|"mts"|"m2ts"|"vob"|"ogv"|"mxf"|"f4v"|"asf" => "Video",
+        "mp3"|"m4a"|"wav"|"flac"|"ogg"|"opus"|"aiff"|"aif"|"wma"|"aac"|"ac3"|"mka"|"caf"|"m4b"|"amr"|"au"|"dts" => "Audio",
         "zip"|"7z"|"rar"|"tar"|"gz"|"bz2"|"xz"|"001"|"iso"|"cab"|"arj"|"lzh"|"zst"|"tgz" => "Archive",
         "pdf" => "PDF",
-        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp" => "Office",
+        "doc"|"docx"|"odt"|"rtf"|"ppt"|"pptx"|"odp"|"txt"|"html"|"htm" => "Office",
         "csv"|"tsv"|"json"|"xls"|"xlsx"|"ods" => "Spreadsheet",
         "srt"|"vtt" => "Subtitle",
         "epub"|"mobi"|"fb2"|"fbz"|"azw"|"azw3"|"cbz"|"cbr"|"cb7"|"htmlz" => "Ebook",
@@ -119,6 +138,14 @@ fn orbit_file_info(path: &Path) -> Option<OrbitInfo> {
 pub fn orbit_context(state: State<'_, OrbitLaunch>) -> Option<OrbitInfo> {
     state.path.as_ref().and_then(|path| orbit_file_info(path))
 }
+#[tauri::command]
+pub fn orbit_initial_tab(state: State<'_, OrbitLaunch>) -> Option<String> {
+    state.initial_tab.clone()
+}
+#[tauri::command]
+pub fn orbit_was_shaken(state: State<'_, OrbitLaunch>) -> bool {
+    state.from_shake
+}
 
 #[tauri::command]
 pub async fn orbit_preview(state: State<'_, OrbitLaunch>) -> Result<Option<String>, String> {
@@ -167,6 +194,28 @@ fn make_preview(path: &Path) -> Result<Option<String>, String> {
         "data:image/png;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(png.into_inner())
     )))
+}
+
+/// Explicit onboarding action: the native file picker supplies an exact
+/// source path. Unlike the mouse shake listener, there is no ambiguity about
+/// the chosen file. Reuse the same process command as Explorer's Orbit verb.
+#[tauri::command]
+pub fn orbit_launch_file(path: String) -> Result<(), String> {
+    let source = PathBuf::from(&path);
+    if !source.is_absolute() {
+        return Err("Choose a file using the system file picker".into());
+    }
+    let metadata = std::fs::symlink_metadata(&source)
+        .map_err(|error| format!("The selected file is unavailable: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Orbit preview requires an existing regular file".into());
+    }
+    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+    let mut process = std::process::Command::new(exe);
+    process.arg("orbit").arg(&source);
+    crate::external::hide_subprocess_window(&mut process);
+    process.spawn().map_err(|error| format!("Cannot open Orbit for selected file: {error}"))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -250,8 +299,13 @@ pub fn position_near_cursor(window: &WebviewWindow) {
         let top = info.rcWork.top;
         let max_x = info.rcWork.right.saturating_sub(size.width as i32);
         let max_y = info.rcWork.bottom.saturating_sub(size.height as i32);
-        let x = (cursor.x + 14).clamp(left, max_x.max(left));
-        let y = (cursor.y - (size.height as i32 / 2)).clamp(top, max_y.max(top));
+        // The selection is under the context-menu invocation point in normal
+        // Explorer/desktop right clicks. Anchor the wheel *around* that point,
+        // rather than opening the whole window to the far right of the file.
+        let x = cursor.x.saturating_sub(size.width as i32 / 2)
+            .clamp(left, max_x.max(left));
+        let y = cursor.y.saturating_sub(size.height as i32 / 2)
+            .clamp(top, max_y.max(top));
         let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
     }
 }
@@ -263,6 +317,18 @@ pub fn position_near_cursor(window: &WebviewWindow) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn orbit_accepts_only_known_tabs(){
+        use super::*;
+        let valid=["orbit","test.pdf","--tab=tools"].map(OsString::from);
+        assert_eq!(parse_orbit_args(valid.clone()),Some(PathBuf::from("test.pdf")));
+        assert_eq!(parse_orbit_tab(valid),Some("tools".to_owned()));
+        assert!(parse_orbit_args(["orbit","test.pdf","--tab=shred"].map(OsString::from)).is_none());
+        let shake=["orbit","test.pdf","--from-shake"].map(OsString::from);
+        assert!(parse_orbit_from_shake(shake.clone()));
+        assert_eq!(parse_orbit_tab(shake),None);
+        assert!(parse_orbit_args(["orbit","test.pdf","--tab=actions","extra"].map(OsString::from)).is_none());
+    }
     use super::*;
 
     #[test]
@@ -340,7 +406,9 @@ mod tests {
         assert_eq!(classify_file(Path::new("tool.LNK")), "Shortcut");
         assert_eq!(classify_file(Path::new("website.url")), "Shortcut");
         assert_eq!(classify_file(Path::new("installer.MSI")), "Application");
-        assert_eq!(classify_file(Path::new("notes.txt")), "File");
+        assert_eq!(classify_file(Path::new("notes.txt")), "Office");
+        assert_eq!(classify_file(Path::new("notes.html")), "Office");
+        assert_eq!(classify_file(Path::new("unknown.xyz")), "File");
     }
 
 }

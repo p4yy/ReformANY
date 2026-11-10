@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert,
+  ArrowDownToLine, ArrowRight, CheckCircle2, ChevronDown, CircleAlert,
   Copy, FileImage, Folder, Layers3, Plus, Settings2,
   Trash2, X, Languages, Volume2,
 } from "lucide-react";
@@ -14,11 +14,13 @@ import MediaToolsPanel from "./MediaToolsPanel";
 import DataToolsPanel from "./DataToolsPanel";
 import DocumentPreview from "./DocumentPreview";
 import { getLanguage, LANGUAGE_OPTIONS, setDocumentLanguage, t, type LangKey, type LanguageCode } from "./localization";
-import { getOrbitSoundsEnabled, setOrbitSoundsEnabled, getOrbitVolume, setOrbitVolume, previewOrbitSound } from "./orbitAudio";
-import { readOrbitMousePreferences, saveOrbitMousePreferences, type OrbitMousePreferences } from "./orbitMousePreferences";
+import { getOrbitSoundsEnabled, setOrbitSoundsEnabled, getOrbitVolume, setOrbitVolume, previewOrbitSound, getOrbitSoundKindEnabled, setOrbitSoundKindEnabled, type OrbitSoundEvent } from "./orbitAudio";
+import { readOrbitMousePreferences, saveOrbitMousePreferences, shortcutFromKeyboard, validateShortcut, DEFAULT_SHORTCUTS, type OrbitMousePreferences, type OrbitSection } from "./orbitMousePreferences";
+import WindowChrome from "./WindowChrome";
 import DesktopChrome, { isWorkspacePage as isWorkspaceSection, isPreferencesPage as isPreferencesSection, type DesktopPage } from "./DesktopChrome";
 import GuidePage from "./GuidePage";
 import ThemePicker from "./ThemePicker";
+import { readOutputPreference, resolvePreferredDestination, saveOutputPreference, type OutputMode } from "./outputLocation";
 import ActivityPage from "./ActivityPage";
 import Welcome, { shouldShowWelcome } from "./Welcome";
 
@@ -32,6 +34,8 @@ function isMediaInput(path: string): boolean {
   return MEDIA_INPUT_EXTENSIONS.has(ext);
 }
 
+type WatchRule = {id:string;folder:string;inputExt:string;target:string;destination:string|null};
+type WatchEvent = {id:string;path:string;status:string;outputPath:string|null;error:string|null};
 type Target = "png" | "jpeg" | "webp" | "bmp" | "gif" | "tiff" | "ico" | "tga" | "qoi" | "avif";
 type Status = "ready" | "processing" | "completed" | "failed" | "cancelled";
 type Page = DesktopPage;
@@ -137,7 +141,8 @@ function App() {
       ).slice(0, 100);
     } catch { return []; }
   });
-  const [destination, setDestination] = useState<string | null>(null);
+  const [outputMode, setOutputMode] = useState<OutputMode>(() => readOutputPreference().mode);
+  const [destination, setDestination] = useState<string | null>(() => readOutputPreference().folder);
   const [quality, setQuality] = useState(86);
   const [matte, setMatte] = useState<"white" | "black">("white");
   const [maxDimension, setMaxDimension] = useState<number | null>(null);
@@ -152,7 +157,99 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(getLanguage);
   const [orbitSounds, setOrbitSounds] = useState(getOrbitSoundsEnabled);
   const [orbitVolume, setSavedOrbitVolume] = useState(getOrbitVolume);
+  const [openCue, setOpenCue] = useState(() => getOrbitSoundKindEnabled("open"));
+  const [closeCue, setCloseCue] = useState(() => getOrbitSoundKindEnabled("close"));
+  const [hoverCue, setHoverCue] = useState(() => getOrbitSoundKindEnabled("hover"));
+  useEffect(() => {
+    if (!isTauri()) return;
+    // Persist once per settled preference change. The standalone shake
+    // listener cannot read Chromium localStorage, so native playback must
+    // receive the same opt-out and volume as the main app.
+    const timer=window.setTimeout(() => {
+      void invoke("set_orbit_sound_preferences",{
+        enabled:orbitSounds,volume:orbitVolume,
+        openEnabled:openCue,closeEnabled:closeCue,hoverEnabled:hoverCue,
+      }).catch(() => { /* Sound must never block the UI. */ });
+    },90);
+    return () => window.clearTimeout(timer);
+  },[orbitSounds,orbitVolume,openCue,closeCue,hoverCue]);
   const [orbitMouse, setOrbitMouse] = useState(readOrbitMousePreferences);
+  const [shortcutEditing, setShortcutEditing] = useState<OrbitSection|null>(null);
+  const [shortcutError, setShortcutError] = useState<string|null>(null);
+  const [shakeConfig, setShakeConfig] = useState({enabled:false,sensitivity:3});
+  const [shakeError, setShakeError] = useState<string|null>(null);
+  const [shakeBusy, setShakeBusy] = useState(false);
+  const [queueMode, setQueueMode] = useState<"sequential"|"balanced">("balanced");
+  const [queueError, setQueueError] = useState<string|null>(null);
+  const [watchRules, setWatchRules] = useState<WatchRule[]>([]);
+  const [watchFolder, setWatchFolder] = useState<string|null>(null);
+  const [watchInput, setWatchInput] = useState("png");
+  const [watchTarget, setWatchTarget] = useState("pdf");
+  const [watchError, setWatchError] = useState<string|null>(null);
+  const [watchBusy, setWatchBusy] = useState(false);
+  useEffect(()=>{
+    if(!isTauri())return;
+    void invoke<{mode:"sequential"|"balanced"}>("get_queue_policy")
+      .then(result=>setQueueMode(result.mode))
+      .catch(e=>setQueueError(String(e)));
+  },[]);
+  async function updateQueueMode(mode:"sequential"|"balanced"){
+    setQueueError(null);
+    try{
+      const result=await invoke<{mode:"sequential"|"balanced"}>("set_queue_policy",{mode});
+      setQueueMode(result.mode);
+    }catch(e){setQueueError(String(e));}
+  }
+  useEffect(()=>{
+    if(!isTauri())return;
+    void invoke<WatchRule[]>("get_watch_rules").then(setWatchRules)
+      .catch(e=>setWatchError(String(e)));
+    const watchListener=listen<WatchEvent>("reformany:watch-job",event=>{
+      const job=event.payload;
+      if(job.status==="completed")setNotice("Auto Convert saved "+(job.outputPath?.split(/[\\/]/).at(-1)??"a file"));
+      if(job.status==="failed")setWatchError(job.error||"Auto Convert failed");
+    });
+    return()=>{void watchListener.then(fn=>fn());};
+  },[]);
+  async function chooseWatchFolder(){
+    try{
+      const folder=await open({directory:true,multiple:false,title:"Choose a folder to watch"});
+      if(typeof folder==="string"){setWatchFolder(folder);setWatchError(null);}
+    }catch(e){setWatchError(String(e));}
+  }
+  async function addWatchRule(){
+    if(!watchFolder||watchBusy)return;
+    setWatchBusy(true);setWatchError(null);
+    try{
+      const rules=await invoke<WatchRule[]>("add_watch_rule",{
+        folder:watchFolder,inputExt:watchInput,target:watchTarget,
+        destination:await resolvePreferredDestination(),
+      });
+      setWatchRules(rules);setWatchFolder(null);
+    }catch(e){setWatchError(String(e));}
+    finally{setWatchBusy(false);}
+  }
+  async function removeWatchRule(id:string){
+    setWatchBusy(true);setWatchError(null);
+    try{setWatchRules(await invoke<WatchRule[]>("remove_watch_rule",{id}));}
+    catch(e){setWatchError(String(e));}
+    finally{setWatchBusy(false);}
+  }
+  useEffect(()=>{
+    if(!isTauri())return;
+    void invoke<{enabled:boolean;sensitivity:number}>("get_shake_settings")
+      .then(setShakeConfig).catch(e=>setShakeError(String(e)));
+  },[]);
+  async function saveShakeConfig(enabled:boolean,sensitivity:number){
+    setShakeBusy(true);setShakeError(null);
+    try{
+      const saved=await invoke<{enabled:boolean;sensitivity:number}>("set_shake_settings",{
+        enabled,sensitivity,
+      });
+      setShakeConfig(saved);
+    }catch(e){setShakeError(String(e));}
+    finally{setShakeBusy(false);}
+  }
   function updateOrbitMouse(changes: Partial<OrbitMousePreferences>) {
     setOrbitMouse(current => {
       const next = { ...current, ...changes };
@@ -169,7 +266,22 @@ function App() {
     setOrbitSounds(next);
     setOrbitSoundsEnabled(next);
   }
-  const [accent, setAccent] = useState(() => localStorage.getItem("reformany.accent") || "blue");
+  function updateSoundCue(kind: OrbitSoundEvent, enabled: boolean) {
+    setOrbitSoundKindEnabled(kind, enabled);
+    if (kind === "open") setOpenCue(enabled);
+    else if (kind === "close") setCloseCue(enabled);
+    else setHoverCue(enabled);
+  }
+  async function previewSoundCue(kind: OrbitSoundEvent) {
+    if (!orbitSounds || orbitVolume === 0 ||
+        (kind === "open" && !openCue) || (kind === "close" && !closeCue) ||
+        (kind === "hover" && !hoverCue)) return;
+    if (!isTauri()) { previewOrbitSound(kind); return; }
+    try { await invoke("orbit_play_sound",{kind}); }
+    catch (cause) { setNotice("Sound preview unavailable: " + String(cause)); }
+  }
+  // Orbit sage is the official accent throughout ReformANY.
+  const accent = "sage";
   const [batchId, setBatchId] = useState<string | null>(null);
   // A very fast batch may finish before its Tauri command promise resolves.
   const finishedBatchIds = useRef(new Set<string>());
@@ -318,7 +430,22 @@ function App() {
     if (!desktop) { setNotice("Open the desktop app to choose a folder."); return; }
     try {
       const path = await open({ directory: true, multiple: false });
-      if (typeof path === "string") setDestination(path);
+      if (typeof path === "string") {
+        saveOutputPreference({ mode: "folder", folder: path });
+        setOutputMode("folder");
+        setDestination(path);
+      }
+    } catch (error) { setNotice(String(error)); }
+  }
+  function changeOutputMode(mode: OutputMode) {
+    if (mode === "folder") {
+      void chooseDestination();
+      return;
+    }
+    try {
+      saveOutputPreference({ mode, folder: null });
+      setOutputMode(mode);
+      setDestination(null);
     } catch (error) { setNotice(String(error)); }
   }
   async function runConversion() {
@@ -331,7 +458,7 @@ function App() {
           id: row.id, path: row.path, target: row.target, quality, matte,
           options: { maxDimension, rotation, grayscale },
         })),
-        destination,
+        destination: await resolvePreferredDestination(),
       });
       if (finishedBatchIds.current.delete(id)) {
         setBatchId(null);
@@ -360,9 +487,11 @@ function App() {
     page === "activity" ? "Activity" : "Guide";
 
 
-  if (showWelcome) return <Welcome onFinish={() => setShowWelcome(false)} />;
+  if (showWelcome) return <><WindowChrome title="ReformANY" /><Welcome onFinish={() => setShowWelcome(false)} /></>;
 
   return (
+    <>
+    <WindowChrome title="ReformANY" />
     <div className="shell">
       <DesktopChrome page={page} navigate={setPage} historyCount={history.length} language={language}/>
       <main className="main" ref={mainScrollRef}>
@@ -426,9 +555,14 @@ function App() {
             <button className="settings-head" onClick={() => setExpanded(current => !current)} aria-expanded={expanded}>
               <span><Settings2 size={18}/> Conversion settings</span><span className="settings-hint">{expanded ? "Hide options" : "Fine-tune output"} <ChevronDown className={expanded ? "rotate" : ""} size={16}/></span>
             </button>
-            <div className="destination-row"><div><strong>Save converted files</strong><small>{destination || "Alongside the originals · No files are overwritten"}</small></div>
+            <div className="destination-row"><div><strong>Save converted files</strong><small>{outputMode === "desktop" ? "Windows Desktop" : outputMode === "folder" ? destination : "Alongside the originals · No files are overwritten"}</small></div>
+              <label className="select-field"><span>Destination</span><select aria-label="Conversion result destination" value={outputMode} onChange={event => changeOutputMode(event.target.value as OutputMode)}>
+                <option value="alongside">Next to original</option>
+                <option value="desktop">Desktop</option>
+                <option value="folder">Choose folder…</option>
+              </select></label>
               <button className="button subtle" onClick={() => void chooseDestination()}><Folder size={16}/> Choose folder</button>
-              {destination && <button className="icon-button" title="Save alongside originals" aria-label="Reset output folder" onClick={() => setDestination(null)}><X size={16}/></button>}
+              {outputMode !== "alongside" && <button className="icon-button" title="Save alongside originals" aria-label="Reset output folder" onClick={() => changeOutputMode("alongside")}><X size={16}/></button>}
             </div>
             {expanded && <div className="advanced-grid">
               <label className="range-field"><span>JPEG quality <strong>{quality}%</strong></span><input type="range" min="30" max="100" value={quality} onChange={e => setQuality(Number(e.target.value))}/><small>Only affects JPEG output.</small></label>
@@ -464,6 +598,73 @@ function App() {
           onReveal={path => void invoke("reveal_output", { path }).catch(error => setNotice(String(error)))}
           onOpenWorkspace={() => setPage("convert")} />}
 
+        {page === "files" && <div className="content page-panel">
+          <div className="eyebrow">PREFERENCES</div>
+          <h1>Files & jobs</h1><p>Choose where outputs go and how image conversion batches are scheduled.</p>
+          <div className="preference-group">
+            <h2>Output destination</h2>
+            <p>Used by Orbit and ReformANY when no individual job overrides it. Existing files are never silently overwritten.</p>
+            <label className="orbit-mouse-setting">
+              <span><strong>Save converted files</strong><small>{outputMode==="desktop"?"Windows Desktop":outputMode==="folder"?destination:"Beside the original file"}</small></span>
+              <select aria-label="Default output destination" value={outputMode}
+                onChange={e=>changeOutputMode(e.target.value as OutputMode)}>
+                <option value="alongside">Next to original</option>
+                <option value="desktop">Desktop</option>
+                <option value="folder">Choose folder…</option>
+              </select>
+            </label>
+            {outputMode==="folder"&&<button type="button" className="button subtle" onClick={()=>void chooseDestination()}>Change destination folder</button>}
+          </div>
+          <div className="preference-group">
+            <h2>Conversion queue</h2>
+            <p>Real image conversion workers obey this setting. Sequential runs one at a time; Balanced uses up to two workers.</p>
+            <label className="orbit-mouse-setting">
+              <span><strong>Batch scheduling</strong><small>Saved across application restarts and standalone Orbit processes.</small></span>
+              <select aria-label="Conversion queue behavior" value={queueMode}
+                onChange={e=>void updateQueueMode(e.target.value as "sequential"|"balanced")}>
+                <option value="sequential">Sequential · 1 at a time</option>
+                <option value="balanced">Balanced · 2 in parallel</option>
+              </select>
+            </label>
+            {queueError&&<p role="alert">{queueError}</p>}
+          </div>
+          <div className="preference-group">
+            <h2>Auto Convert · watched folders</h2>
+            <p>A native filesystem watcher converts newly saved image files after their size and modification time stabilize. These rules run only while the main ReformANY app is open. Files are never modified in place.</p>
+            <div className="orbit-mouse-setting">
+              <span><strong>Watch folder</strong><small>{watchFolder||"Choose a folder. Subfolders are excluded for predictable handling."}</small></span>
+              <button type="button" className="button subtle" onClick={()=>void chooseWatchFolder()}>Browse…</button>
+            </div>
+            <div className="orbit-mouse-setting">
+              <span><strong>Incoming file type</strong><small>Filters prevent recursively converting generated outputs.</small></span>
+              <select aria-label="Auto Convert incoming image type" value={watchInput}
+                onChange={e=>setWatchInput(e.target.value)}>
+                {["png","jpg","jpeg","webp","bmp","tiff"].map(ext=><option key={ext} value={ext}>{ext.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <div className="orbit-mouse-setting">
+              <span><strong>Convert to</strong><small>Uses the real offline image converter or PDF writer.</small></span>
+              <select aria-label="Auto Convert output format" value={watchTarget}
+                onChange={e=>setWatchTarget(e.target.value)}>
+                {["pdf","png","jpeg","webp","bmp","tiff"].map(ext=><option key={ext} value={ext}>{ext.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <button type="button" className="button secondary" disabled={!watchFolder||watchBusy}
+              onClick={()=>void addWatchRule()}>Add watched folder rule</button>
+            {watchRules.length>0&&<div className="engine-card">
+              <strong>Active rules ({watchRules.length})</strong>
+              {watchRules.map(rule=><div className="orbit-mouse-setting" key={rule.id}>
+                <span><strong>{rule.inputExt.toUpperCase()} → {rule.target.toUpperCase()}</strong>
+                  <small title={rule.folder}>{rule.folder} · Output {rule.destination||"next to source"}</small>
+                </span>
+                <button type="button" className="button subtle" disabled={watchBusy}
+                  onClick={()=>void removeWatchRule(rule.id)}>Remove</button>
+              </div>)}
+            </div>}
+            {watchError&&<p role="alert">{watchError}</p>}
+          </div>
+        </div>}
+
         {page === "appearance" && <div className="content page-panel">
           <div className="eyebrow">{tx("preferences").toUpperCase()}</div><h1>{tx("appearance")}</h1><p>Customize the application.</p>
           <div className="preference-group"><h2>{tx("theme")}</h2><p>{tx("themeDescription")}</p>
@@ -482,12 +683,12 @@ function App() {
           </div>
           <div className="preference-group preference-sounds">
             <div className="preference-sound-copy">
-              <h2><Volume2 size={18} aria-hidden="true"/> {tx("orbitSounds")}</h2>
-              <p id="orbit-sounds-help">{tx("orbitSoundsDescription")}</p>
+              <h2><Volume2 size={18} aria-hidden="true"/> Orbit sound design</h2>
+              <p id="orbit-sounds-help">Silk Glass — a quiet, original three-part sound set. Gentle opening and closing cues, with optional subtle tactile feedback over Orbit sections and formats.</p>
             </div>
             <button type="button" role="switch"
               className={`orbit-sound-switch ${orbitSounds ? "is-on" : ""}`}
-              aria-label={tx("orbitSounds")}
+              aria-label="Enable Orbit sounds"
               aria-describedby="orbit-sounds-help"
               aria-checked={orbitSounds}
               onClick={toggleOrbitSounds}>
@@ -495,35 +696,93 @@ function App() {
               <span className="orbit-switch-state">{tx(orbitSounds ? "enabled" : "disabled")}</span>
             </button>
             <div className="orbit-volume-control">
-              <label htmlFor="orbit-volume">Volume <output htmlFor="orbit-volume">{orbitVolume}%</output></label>
+              <label htmlFor="orbit-volume">Overall volume <output htmlFor="orbit-volume">{orbitVolume}%</output></label>
               <div className="orbit-volume-row">
                 <input id="orbit-volume" type="range" min="0" max="100" step="5"
                   value={orbitVolume} disabled={!orbitSounds}
                   onChange={event => updateOrbitVolume(Number(event.target.value))}
                   aria-label="Orbit sound volume" />
-                <button type="button" className="button secondary" disabled={!orbitSounds || orbitVolume === 0}
-                  onClick={previewOrbitSound}>Test sound</button>
               </div>
             </div>
+            <div className="orbit-audio-events" role="group" aria-label="Individual Orbit sound effects">
+              {([
+                ["open",openCue,"Opening","Soft airy bloom when Orbit appears"],
+                ["close",closeCue,"Closing","A complementary gentle release when Orbit closes"],
+                ["hover",hoverCue,"Hover","Quiet tactile response over sections and formats"],
+              ] as const).map(([kind,enabled,title,description])=>
+                <div className="orbit-audio-event" key={kind}>
+                  <label className="orbit-audio-event-setting">
+                    <input type="checkbox" checked={enabled} disabled={!orbitSounds}
+                      onChange={event => updateSoundCue(kind,event.target.checked)}
+                      aria-label={title+" sound"} />
+                    <span><strong>{title}</strong><small>{description}</small></span>
+                  </label>
+                  <button type="button" className="button secondary orbit-audio-preview"
+                    disabled={!orbitSounds || !enabled || orbitVolume === 0}
+                    onClick={() => void previewSoundCue(kind)}
+                    aria-label={"Preview Orbit "+title.toLowerCase()+" sound"}>Preview</button>
+                </div>
+              )}
+            </div>
+            <p className="orbit-audio-note">Sounds are generated locally. No downloads or recording. Toggle any cue independently; zero volume is silent.</p>
           </div>
           <div className="preference-group">
             <h2>Orbit mouse control</h2>
-            <p>Customize the compact wheel. These controls work inside Orbit and never intercept Windows Explorer input.</p>
+            <p>Customize the compact Orbit wheel, keyboard controls, and opt-in Explorer gesture activation.</p>
             <div className="orbit-mouse-preferences">
-              <label className="orbit-mouse-setting">
-                <span><strong>Open on</strong><small>Choose the section Orbit displays first.</small></span>
-                <select aria-label="Starting Orbit section" value={orbitMouse.firstSection}
-                  onChange={event => updateOrbitMouse({ firstSection: event.target.value as OrbitMousePreferences["firstSection"] })}>
-                  <option value="convert">Convert</option>
-                  <option value="tools">Tools</option>
-                  <option value="actions">Actions</option>
-                </select>
-              </label>
+              <div className="orbit-mouse-setting">
+                <span><strong>Starting section</strong><small>Always opens on Convert with available formats.</small></span>
+                <strong>Convert</strong>
+              </div>
               <label className="orbit-mouse-setting">
                 <span><strong>Scroll between sections</strong><small>Use the mouse wheel over Orbit to move between Convert, Tools and Actions.</small></span>
                 <input type="checkbox" checked={orbitMouse.scrollSections}
                   onChange={event => updateOrbitMouse({ scrollSections: event.target.checked })}/>
               </label>
+              <div className="orbit-mouse-setting">
+                <span><strong>Section shortcuts</strong><small>Choose your own shortcuts while Orbit is open. Click a key to rebind.</small></span>
+              </div>
+              {(["convert","tools","actions"] as OrbitSection[]).map(section=><div className="orbit-mouse-setting" key={section}>
+                <span><strong>{section[0].toUpperCase()+section.slice(1)}</strong><small>Switches Orbit tab only; never runs a file action.</small></span>
+                <button type="button" className="button subtle"
+                  aria-label={`Change ${section} shortcut`}
+                  onClick={()=>{setShortcutError(null);setShortcutEditing(section);}}>
+                  {shortcutEditing===section?"Press keys…":orbitMouse.shortcuts[section]}
+                </button>
+              </div>)}
+              {shortcutEditing&&<input autoFocus readOnly aria-label="Press new shortcut"
+                placeholder="Press a modifier or a modified letter"
+                onKeyDown={event=>{
+                  event.preventDefault();event.stopPropagation();
+                  if(event.key==="Escape"){setShortcutEditing(null);return;}
+                  const next=shortcutFromKeyboard(event.nativeEvent);
+                  if(!next){setShortcutError("Choose Shift, Ctrl, Alt or a modified letter, digit or F-key.");return;}
+                  const problem=validateShortcut(next,orbitMouse.shortcuts,shortcutEditing);
+                  if(problem){setShortcutError(problem);return;}
+                  updateOrbitMouse({shortcuts:{...orbitMouse.shortcuts,[shortcutEditing]:next}});
+                  setShortcutEditing(null);setShortcutError(null);
+                }}/>}
+              {shortcutError&&<p role="alert" className="orbit-dialog-error">{shortcutError}</p>}
+              <button type="button" className="button secondary" onClick={()=>{
+                updateOrbitMouse({shortcuts:{...DEFAULT_SHORTCUTS}});
+                setShortcutEditing(null);setShortcutError(null);
+              }}>Reset section shortcuts</button>
+              <div className="orbit-mouse-setting">
+                <span><strong>Hold-and-shake in Explorer</strong>
+                  <small>Drag a file in Explorer and make three horizontal reversals of at least 40 px within 0.8 seconds. ReformANY checks for a visible Explorer drag image before showing the drop target. Release over Orbit to open that exact file. One file per gesture.</small></span>
+                <input type="checkbox" checked={shakeConfig.enabled} disabled={!desktop||shakeBusy}
+                  aria-label="Enable hold-and-shake Orbit gesture"
+                  onChange={event=>void saveShakeConfig(event.target.checked,shakeConfig.sensitivity)}/>
+              </div>
+              <label className="orbit-mouse-setting">
+                <span><strong>Shake sensitivity</strong>
+                  <small>{shakeConfig.sensitivity===1?"Very deliberate":shakeConfig.sensitivity===2?"Deliberate":shakeConfig.sensitivity===3?"Balanced":shakeConfig.sensitivity===4?"Responsive":"Very responsive"} · three 40 px horizontal reversals within {800-(5-shakeConfig.sensitivity)*25} ms</small></span>
+                <input type="range" min={1} max={5} step={1} value={shakeConfig.sensitivity}
+                  aria-label="Shake sensitivity" disabled={!shakeConfig.enabled||shakeBusy}
+                  onChange={event=>void saveShakeConfig(true,Number(event.target.value))}/>
+              </label>
+              <p>Opt-in 20 ms Windows poller. Respects swapped primary mouse buttons and ignores vertical shakes. The non-activating OLE target reads the active drag, never a potentially different Explorer selection. Single-file Explorer/Desktop acceptance testing is still required.</p>
+              {shakeError&&<p role="alert" className="orbit-dialog-error">{shakeError}</p>}
               <label className="orbit-mouse-setting">
                 <span><strong>Pointer loading ring</strong><small>Show a small progress indicator beside the cursor while Orbit is processing.</small></span>
                 <input type="checkbox" checked={orbitMouse.pointerSpinner}
@@ -531,9 +790,9 @@ function App() {
               </label>
             </div>
           </div>
-          <div className="preference-group"><h2>{tx("accent")}</h2><p>Highlight color for selected controls.</p>
-            <div className="accent-grid">{[{key:"blue",color:"#3679e9",name:"Blue"},{key:"indigo",color:"#5455bf",name:"Indigo"},{key:"sage",color:"#4b806b",name:"Sage"},{key:"slate",color:"#52657d",name:"Slate"},{key:"coral",color:"#bf6d5c",name:"Coral"}].map(item =>
-              <button key={item.key} className={`accent-chip ${accent === item.key ? "picked" : ""}`} onClick={() => setAccent(item.key)} aria-label={item.name} title={item.name} style={{background:item.color}}>{accent === item.key && <Check size={17}/>}</button>)}</div>
+          <div className="preference-group"><h2>{tx("accent")}</h2>
+            <p>Orbit olive and sage are the official application colors.</p>
+            <span className="official-brand-accent">● Sage · Official</span>
           </div>
           <div className="preference-group welcome-replay-setting">
             <div>
@@ -549,6 +808,7 @@ function App() {
       </main>
       {notice && <div className="toast" role="alert"><CircleAlert size={18}/><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={16}/></button></div>}
     </div>
+    </>
   );
 }
 export default App;

@@ -1,0 +1,449 @@
+/*
+ * ReformANY 0.3.2 desktop navigation and readability.
+ * Imported last: replaces legacy horizontal-layout rules without touching
+ * Orbit, HoveR, or the independent premium installer surface.
+ */
+html[data-mode="main"] {
+  font-size:14px;
+  --muted:#b3c1a6;
+}
+html[data-mode="main"][data-theme="light"] { --muted:#52664f; }
+html[data-mode="main"] .shell {
+  display:grid;
+  grid-template-columns:250px minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr);
+  height:100dvh;
+  min-height:0;
+  overflow:hidden;
+  transition:grid-template-columns .18s ease;
+}
+html[data-mode="main"] .shell:has(.reformany-sidebar.is-collapsed) {
+  grid-template-columns:74px minmax(0,1fr);
+}
+html[data-mode="main"] .reformany-sidebar,
+html[data-mode="main"] .sidebar.reformany-sidebar {
+  grid-column:1;
+  grid-row:1;
+  position:relative;
+  display:flex!important;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  width:100%;
+  height:100%;
+  min-height:0;
+  padding:0;
+  margin:0;
+  overflow:hidden;
+  background:var(--side);
+  border-right:1px solid var(--line);
+}
+html[data-mode="main"] .reformany-sidebar .sidebar-heading {
+  display:flex;
+  flex:0 0 auto;
+  align-items:center;
+  justify-content:space-between;
+  min-height:77px;
+  padding:12px 14px 11px 16px;
+  gap:6px;
+  border-bottom:1px solid var(--line);
+}
+html[data-mode="main"] .reformany-sidebar .brand {
+  position:static;
+  display:flex;
+  flex:1 1 auto;
+  align-items:center;
+  min-width:0;
+  margin:0;
+  padding:0;
+  font-size:17px;
+  letter-spacing:-.5px;
+  line-height:1;
+}
+html[data-mode="main"] .reformany-sidebar .brand-wordmark {
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+html[data-mode="main"] .reformany-sidebar .brand-mark {
+  flex:0 0 34px;
+  width:34px;
+  height:34px;
+}
+html[data-mode="main"] .reformany-sidebar .sidebar-toggle {
+  flex:0 0 29px;
+  width:29px;
+  height:32px;
+  padding:5px;
+  display:grid;
+  place-items:center;
+  border:1px solid transparent;
+  border-radius:8px;
+  background:transparent;
+  color:var(--muted);
+}
+html[data-mode="main"] .reformany-sidebar .sidebar-toggle:hover {
+  background:var(--soft);
+  color:var(--text);
+  border-color:var(--line);
+}
+html[data-mode="main"] .reformany-sidebar .sidebar-scroll {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:15px 10px 22px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--strong-line) transparent;
+}
+html[data-mode="main"] .reformany-sidebar .sidebar-divider {
+  height:1px;
+  width:calc(100% - 22px);
+  margin:14px 11px 13px;
+  background:var(--line);
+}
+html[data-mode="main"] .reformany-sidebar .nav-label {
+  display:block;
+  margin:0 11px 7px;
+  font-size:11px;
+  line-height:1.5;
+  font-weight:680;
+  color:var(--muted);
+  letter-spacing:.25px;
+}
+html[data-mode="main"] .reformany-sidebar nav,
+html[data-mode="main"] .reformany-sidebar .primary-navigation,
+html[data-mode="main"] .reformany-sidebar nav[aria-label="Workspace tools"],
+html[data-mode="main"] .reformany-sidebar nav[aria-label="Preferences"] {
+  position:static;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch;
+  justify-content:flex-start;
+  flex-wrap:nowrap;
+  width:100%;
+  min-width:0;
+  height:auto;
+  min-height:0;
+  padding:0!important;
+  margin:0!important;
+  gap:3px;
+  border:0;
+  background:transparent;
+  overflow:visible;
+}
+html[data-mode="main"] .reformany-sidebar .workspace-navigation {
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch;
+  width:100%;
+  height:auto;
+  padding:0;
+  margin:0;
+  overflow:visible;
+  border:0;
+}
+html[data-mode="main"] .reformany-sidebar nav .nav-button,
+html[data-mode="main"] .reformany-sidebar nav .nav-button:not(.selected),
+html[data-mode="main"] .reformany-sidebar .primary-navigation .nav-button {
+  display:flex!important;
+  flex:0 0 auto;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  min-width:0;
+  min-height:41px;
+  margin:0;
+  padding:9px 12px;
+  gap:12px;
+  border:1px solid transparent;
+  border-radius:9px;
+  background:transparent;
+  color:var(--muted);
+  text-align:left;
+  line-height:1.45;
+  font-size:13px;
+  font-weight:540;
+}
+html[data-mode="main"] .reformany-sidebar nav .nav-button .nav-button-label {
+  display:flex;
+  flex:1 1 auto;
+  align-items:center;
+  justify-content:space-between;
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  font-size:inherit;
+}
+html[data-mode="main"] .reformany-sidebar nav .nav-button svg {
+  flex:0 0 18px;
+  width:18px;
+  height:18px;
+}
+html[data-mode="main"] .reformany-sidebar nav .nav-button:hover {
+  color:var(--text);
+  background:var(--soft);
+}
+html[data-mode="main"] .reformany-sidebar nav .nav-button.selected,
+html[data-mode="main"] .reformany-sidebar .primary-navigation .nav-button.selected {
+  background:var(--accent-soft);
+  border-color:var(--strong-line);
+  color:var(--text);
+  font-weight:660;
+}
+html[data-mode="main"] .reformany-sidebar nav .nav-button.selected svg {
+  color:var(--accent);
+}
+html[data-mode="main"] .reformany-sidebar .nav-count {
+  font-size:11px;
+  padding:2px 6px;
+  border-radius:7px;
+  background:var(--surface);
+  color:var(--text);
+}
+html[data-mode="main"] .reformany-sidebar.is-collapsed .sidebar-heading {
+  flex-direction:column;
+  align-items:center;
+  gap:7px;
+  padding:13px 6px 8px;
+  min-height:105px;
+}
+html[data-mode="main"] .reformany-sidebar.is-collapsed .brand {
+  flex:0 0 auto;
+  margin:0;
+}
+html[data-mode="main"] .reformany-sidebar.is-collapsed .brand-wordmark,
+html[data-mode="main"] .reformany-sidebar.is-collapsed .nav-button-label,
+html[data-mode="main"] .reformany-sidebar.is-collapsed .nav-label {
+  display:none!important;
+}
+html[data-mode="main"] .reformany-sidebar.is-collapsed .sidebar-scroll {
+  padding-inline:9px;
+}
+html[data-mode="main"] .reformany-sidebar.is-collapsed .sidebar-divider {
+  width:35px;
+  margin:12px auto;
+}
+html[data-mode="main"] .reformany-sidebar.is-collapsed nav .nav-button,
+html[data-mode="main"] .reformany-sidebar.is-collapsed nav .nav-button:not(.selected) {
+  width:100%;
+  min-width:0;
+  padding:10px!important;
+  justify-content:center;
+  gap:0;
+}
+html[data-mode="main"] .main {
+  grid-column:2;
+  grid-row:1;
+  min-width:0;
+  min-height:0;
+  height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:thin;
+  scrollbar-color:var(--strong-line) transparent;
+}
+html[data-mode="main"] .topbar {
+  position:sticky;
+  top:0;
+  z-index:10;
+  display:flex;
+  min-height:47px;
+  height:47px;
+  padding-inline:clamp(20px,3vw,38px);
+  border-bottom:1px solid var(--line);
+  background:var(--base);
+}
+html[data-mode="main"] .topbar-right {
+  font-size:12px;
+}
+html[data-mode="main"] :is(.content,.engine-page) {
+  max-width:1110px;
+  padding:23px clamp(20px,3vw,38px) 38px;
+}
+html[data-mode="main"] h1 {
+  font-size:clamp(23px,2vw,28px);
+  line-height:1.24;
+  letter-spacing:-.55px;
+}
+html[data-mode="main"] h2 {
+  font-size:17px;
+  line-height:1.4;
+}
+html[data-mode="main"] p {
+  font-size:14px;
+  line-height:1.55;
+}
+html[data-mode="main"] .page-intro {
+  margin-bottom:15px;
+}
+html[data-mode="main"] .dropzone {
+  min-height:116px;
+  padding:17px;
+  border-radius:11px;
+}
+html[data-mode="main"] .drop-icon {
+  width:34px;
+  height:34px;
+  margin-bottom:6px;
+}
+html[data-mode="main"] .dropzone small {
+  font-size:12px;
+  margin-top:6px;
+}
+html[data-mode="main"] .section-header {
+  margin:18px 0 9px;
+}
+html[data-mode="main"] .section-header p {
+  font-size:13px;
+}
+html[data-mode="main"] .empty-list {
+  height:auto;
+  min-height:42px;
+  padding:9px 13px;
+  font-size:13px;
+  border:1px dashed var(--line);
+  background:transparent;
+}
+html[data-mode="main"] .settings-card {
+  margin-top:12px;
+}
+html[data-mode="main"] .settings-head {
+  min-height:45px;
+  padding:12px 16px;
+  font-size:13px;
+}
+html[data-mode="main"] .settings-hint {
+  font-size:12px;
+}
+html[data-mode="main"] .destination-row {
+  padding:11px 16px;
+}
+html[data-mode="main"] .action-bar {
+  margin-top:12px;
+  padding:12px 16px;
+}
+html[data-mode="main"] .button {
+  min-height:39px;
+  font-size:13px;
+}
+html[data-mode="main"] .engine-card {
+  margin-top:13px;
+  padding:17px 19px;
+}
+html[data-mode="main"] .engine-form-grid {
+  margin-top:13px;
+  gap:12px;
+}
+html[data-mode="main"] :is(.engine-form-grid label,.engine-password) {
+  font-size:13px;
+}
+html[data-mode="main"] .engine-input small,
+html[data-mode="main"] .engine-footnote {
+  font-size:12px;
+}
+html[data-mode="main"] :is(.engine-form-grid select,.engine-form-grid input,.engine-password input) {
+  font-size:13px;
+}
+html[data-mode="main"] .engine-footnote {
+  margin-top:12px;
+}
+html[data-mode="main"] .guide-steps {
+  max-width:780px;
+  margin-top:16px;
+}
+html[data-mode="main"] .guide-steps section {
+  grid-template-columns:28px minmax(0,1fr);
+  gap:14px;
+  padding:13px 2px;
+}
+html[data-mode="main"] .guide-steps section>span {
+  font-size:12px;
+}
+html[data-mode="main"] .guide-steps h2 {
+  font-size:15px;
+  margin-bottom:2px;
+}
+html[data-mode="main"] .guide-steps p {
+  font-size:13.5px;
+  margin:0;
+}
+html[data-mode="main"] .guide-footer {
+  margin-top:18px;
+}
+html[data-mode="main"] .guide-footer span {
+  display:none;
+}
+/* A compact, wrapping tool switch is clearer than five tiny pill buttons. */
+html[data-mode="main"] .engine-page .engine-switch-three {
+  width:max-content;
+  max-width:100%;
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  margin:13px 0 0;
+  padding:4px;
+  border-radius:11px;
+}
+html[data-mode="main"] .engine-page .engine-switch-three button {
+  flex:0 1 auto;
+  min-height:36px;
+  padding:8px 12px;
+  border-radius:8px;
+  font-size:12.5px;
+}
+html[data-mode="main"] .engine-directory label,
+html[data-mode="main"] .engine-directory strong {
+  font-size:13px;
+}
+html[data-mode="main"] .engine-directory select {
+  min-height:40px;
+  padding:8px 13px;
+  font-size:13px;
+  border:1px solid var(--strong-line);
+  border-radius:8px;
+  background:var(--base);
+  color:var(--text);
+}
+html[data-mode="main"] .main:has(.guide-page) .topbar {
+  display:none;
+}
+html[data-mode="main"] .engine-help-disclosure {
+  max-width:780px;
+  margin:15px 0 2px;
+  padding:10px 0 0;
+  border-top:1px solid var(--line);
+  color:var(--muted);
+  font-size:12px;
+}
+html[data-mode="main"] .engine-help-disclosure summary {
+  display:list-item;
+  cursor:pointer;
+  width:max-content;
+  max-width:100%;
+  font-weight:590;
+  line-height:1.5;
+}
+html[data-mode="main"] .engine-help-disclosure p {
+  max-width:65ch;
+  margin:8px 0 0;
+  color:var(--muted);
+  font-size:12.5px;
+  line-height:1.55;
+}
+@media (max-width:850px) {
+  html[data-mode="main"] .shell:not(:has(.reformany-sidebar.is-collapsed)) {
+    grid-template-columns:218px minmax(0,1fr);
+  }
+  html[data-mode="main"] .reformany-sidebar nav .nav-button {
+    font-size:12.5px;
+  }
+  html[data-mode="main"] .topbar-right {
+    display:none;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  html[data-mode="main"] .shell {transition:none;}
+}

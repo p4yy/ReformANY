@@ -72,6 +72,7 @@ pub fn run_ffmpeg(
     if cancelled.load(Ordering::Relaxed) { return Err("cancelled".into()); }
     let stderr = tempfile::tempfile().map_err(|e| e.to_string())?;
     let mut command = Command::new(program);
+    crate::external::hide_subprocess_window(&mut command);
     command.args(["-progress", "pipe:1", "-nostats"])
         .args(args).stdin(Stdio::null()).stdout(Stdio::piped())
         .stderr(stderr.try_clone().map_err(|e| e.to_string())?);

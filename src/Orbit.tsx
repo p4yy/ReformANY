@@ -2,14 +2,22 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
+import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
+import WindowChrome from "./WindowChrome";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage, setDocumentLanguage, t } from "./localization";
-import { playOrbitHover, unlockOrbitAudio } from "./orbitAudio";
-import { readOrbitMousePreferences } from "./orbitMousePreferences";
+import { playOrbitHover, unlockOrbitAudio, suppressOrbitHover } from "./orbitAudio";
+import { readOrbitMousePreferences, shortcutFromKeyboard, type OrbitSection } from "./orbitMousePreferences";
 import { appIcon } from "./brand";
 import OrbitActionDialog from "./OrbitActionDialog";
+import PdfPageDialog, {type PdfPageAction, type PdfPageRequest} from "./PdfPageDialog";
+import { convertPdfToPageImages, convertPdfToLayoutDocx } from "./pdfPageRender";
+import PdfMarkDialog, {type PdfMark} from "./PdfMarkDialog";
+import PdfArrangeDialog, {type PageEdit} from "./PdfArrangeDialog";
+import PdfPasswordDialog, {type PdfPasswordRequest} from "./PdfPasswordDialog";
+import ShredDialog from "./ShredDialog";
 import OrbitNotice from "./OrbitNotice";
+import { resolvePreferredDestination } from "./outputLocation";
 import { orbitPoint, roundedOrbitSlice, orbitSectorAngles } from "./orbitGeometry";
 import {
   Archive, ArrowRightLeft, Bluetooth, Check, CheckCircle2, Clapperboard,
@@ -29,6 +37,7 @@ type OrbitFile = {
 type Phase = "ready" | "processing" | "completed" | "failed";
 type Tab = "convert" | "tools" | "actions";
 type EngineStatus = { ffmpeg: boolean; ffprobe: boolean; sevenZip: boolean; winrar: boolean };
+type EngineProgressEvent = { id: string; percent: number | null; phase: string };
 type EventPayload = {
   id: string;
   status: "processing" | "completed" | "failed" | "cancelled" | "batch-finished";
@@ -36,8 +45,8 @@ type EventPayload = {
   error: string | null;
 };
 const imageFormats = ["PNG", "JPEG", "WebP", "BMP", "GIF", "TIFF", "ICO", "TGA", "QOI", "AVIF"];
-const audioFormats = ["MP3", "WAV", "FLAC", "M4A", "OGG", "Opus"];
-const videoFormats = ["MP4", "WebM", "MKV", "MOV", "AVI"];
+const audioFormats = ["MP3", "M4A", "WAV", "FLAC", "OGG", "Opus", "AIFF", "WMA", "AC3"];
+const videoFormats = ["MP4", "MP4 H.265", "MOV", "MKV", "WebM", "AVI", "WMV", "GIF"];
 type FileKind = "image" | "audio" | "video" | "archive" | "pdf" | "office" | "spreadsheet" | "subtitle" | "ebook" | "shortcut" | "application" | "folder" | "other";
 function getKind(file: OrbitFile | null): FileKind {
   const value = (file?.detected || "").toLowerCase();
@@ -48,7 +57,7 @@ function getKind(file: OrbitFile | null): FileKind {
   if (["srt", "vtt"].includes(extension)) return "subtitle";
   if (["epub", "mobi", "fb2", "fbz", "azw", "azw3", "cbz", "cbr", "cb7", "htmlz"].includes(extension)) return "ebook";
   if (value === "pdf") return "pdf";
-  if (value === "office") return "office";
+  if (value === "office" || ["txt", "htm", "html", "md", "markdown", "doc", "docx", "odt", "rtf"].includes(extension)) return "office";
   if (["spreadsheet", "subtitle", "ebook"].includes(value)) return value as FileKind;
   if (value === "shortcut") return "shortcut";
   if (value === "application") return "application";
@@ -78,7 +87,7 @@ function orbitActionIcon(label: string, tab: Tab, kind: FileKind): LucideIcon {
   if (value.includes("copy path") || value.includes("copy file") || value.includes("copy shortcut")) return Copy;
   if (value.includes("rename")) return Pencil;
   if (value.includes("terminal")) return SquareTerminal;
-  if (value.includes("float")) return PanelsTopLeft;
+  if (value.includes("hover")) return PanelsTopLeft;
   if (value.includes("bluetooth")) return Bluetooth;
   if (value.includes("show") || value.includes("folder")) return FolderOpen;
   if (value.includes("extract") || value.includes("archive")) return Archive;
@@ -131,7 +140,7 @@ function OrbitRing({ items, inner, outer, label, tab, kind }: {
         onClick={disabled ? undefined : item.run}
         onPointerEnter={() => { if (disabled) return; setHovered(item.label); setFocused(index); playOrbitHover(); }}
         onPointerLeave={() => setHovered(null)}
-        onFocus={() => { if (!disabled) setFocused(index); }}
+        onFocus={() => { if (!disabled) { setFocused(index); playOrbitHover(); } }}
         onKeyDown={event => {
           if (disabled) return;
           if (event.key === "Enter" || event.key === " ") {
@@ -164,20 +173,40 @@ function OrbitRing({ items, inner, outer, label, tab, kind }: {
 export default function Orbit() {
   const [file, setFile] = useState<OrbitFile | null>(null);
   const [mousePreferences] = useState(readOrbitMousePreferences);
-  const [tab, setTab] = useState<Tab>(() => readOrbitMousePreferences().firstSection);
+  const [tab, setTab] = useState<Tab>("convert");
   const [engines, setEngines] = useState<EngineStatus | null>(null);
   const [officeReady, setOfficeReady] = useState(false);
   const [calibreReady, setCalibreReady] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
+  const [renameBusy, setRenameBusy] = useState(false);
   const [splitting, setSplitting] = useState(false);
-  const [partSize, setPartSize] = useState("100");
+  const [partSize, setPartSize] = useState("5");
+  const [pdfSplitMode, setPdfSplitMode] = useState<"size" | "parts" | "pages">("size");
+  const [pdfDialog, setPdfDialog] = useState<PdfPageAction | null>(null);
+  const [pdfCount, setPdfCount] = useState<number | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfMarkMode, setPdfMarkMode] = useState<"watermark"|"signature"|null>(null);
+  const [arrangingPages, setArrangingPages] = useState(false);
+  const [pdfPasswording, setPdfPasswording] = useState(false);
+  const [shredding, setShredding] = useState(false);
+  const [shredBusy, setShredBusy] = useState(false);
+  const [shredError, setShredError] = useState<string|null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [passwording, setPasswording] = useState(false);
   const [archivePassword, setArchivePassword] = useState("");
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(true);
-  const [phase, setPhase] = useState<Phase>("ready");
+  const [phase, setPhaseState] = useState<Phase>("ready");
+  // The native Orbit window must outlive the job even when Explorer takes focus.
+  // Keep a synchronously updated ref: onFocusChanged is registered once.
+  const phaseRef = useRef<Phase>("ready");
+  const setPhase = (next: Phase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  };
   const [output, setOutput] = useState<string | null>(null);
+  const [mediaProgress, setMediaProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const requestId = useRef<string | null>(null);
@@ -185,11 +214,19 @@ export default function Orbit() {
   const wheelSum = useRef(0);
   const nativeDialogOpen = useRef(false);
   const ignoreInitialFocus = useRef(true);
+  const closingRef = useRef(false);
+  const openingSoundRequested = useRef(false);
   const lastWheelAction = useRef(0);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const kind = getKind(file);
   const isFolder = file?.detected === "Folder";
   const isNativeZip = kind === "archive" && file?.name.toLowerCase().endsWith(".zip");
+  const toolEditorOpen = renaming || splitting || passwording || Boolean(pdfDialog)
+    || Boolean(pdfMarkMode) || arrangingPages || pdfPasswording || shredding;
+  const toolEditorIsLarge = Boolean(pdfMarkMode) || arrangingPages;
+  const radialPosition = useRef<{ x: number; y: number } | null>(null);
+  const toolEditorOpenRef = useRef(toolEditorOpen);
+  toolEditorOpenRef.current = toolEditorOpen;
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -224,12 +261,77 @@ export default function Orbit() {
   }, []);
 
   useEffect(() => {
+    // Keep the radial launcher compact. Substantial editors become native,
+    // independently resizable Windows surfaces with real title-bar dragging.
+    // Return to the original compact Orbit position when the editor closes.
+    document.documentElement.dataset.orbitEditor = toolEditorOpen ? "true" : "false";
+    document.documentElement.dataset.orbitEditorKind = pdfMarkMode ? "mark" : arrangingPages ? "arrange"
+      : pdfDialog ? "pages" : passwording ? "zip" : "compact";
+    const win = getCurrentWindow();
+    let stale = false;
+    const resize = async () => {
+      try {
+        const fit = Math.min(420 / 560,
+          Math.max(320, window.screen.availWidth - 32) / 560,
+          Math.max(350, window.screen.availHeight - 32) / 640);
+        if (toolEditorOpen) {
+          if (radialPosition.current === null) {
+            const position = await win.outerPosition();
+            radialPosition.current = { x: position.x, y: position.y };
+          }
+          if (stale) return;
+          // Reuse the same custom titlebar as the main app; do not reveal
+          // Windows chrome or the transparent background around the tool.
+          await win.setDecorations(false);
+          await win.setResizable(true);
+          if (stale) return;
+          const preferred = toolEditorIsLarge ? { w: 1020, h: 740 }
+            : pdfDialog ? { w: 620, h: 440 }
+            : passwording ? { w: 640, h: 540 } : { w: 660, h: 490 };
+          const width = Math.min(preferred.w, Math.max(320, window.screen.availWidth - 32));
+          const height = Math.min(preferred.h, Math.max(310, window.screen.availHeight - 36));
+          await win.setSize(new LogicalSize(width, height));
+          if (!stale) await win.center();
+        } else {
+          // Revert only when switching out of an editor, not on initial mount.
+          if (radialPosition.current === null) return;
+          await win.setResizable(false);
+          await win.setDecorations(false);
+          await win.setSize(new LogicalSize(Math.round(560 * fit), Math.round(640 * fit)));
+          const old = radialPosition.current;
+          radialPosition.current = null;
+          if (!stale) await win.setPosition(new PhysicalPosition(old.x, old.y));
+        }
+      } catch (cause) {
+        if (!stale) setError("Cannot resize Orbit tool window: " + String(cause));
+      }
+    };
+    void resize();
+    return () => { stale = true; };
+  }, [toolEditorOpen, toolEditorIsLarge, pdfMarkMode, arrangingPages, pdfDialog, passwording]);
+
+  useEffect(() => {
     let mounted = true;
     setDocumentLanguage(getLanguage());
+    suppressOrbitHover();
     invoke<OrbitFile | null>("orbit_context")
       .then(info => { if (mounted) setFile(info); })
       .catch(reason => { if (mounted) setError(String(reason)); })
       .finally(() => { if (mounted) setLoading(false); });
+
+    invoke<Tab | null>("orbit_initial_tab")
+      .then(section => { if (mounted && section) setTab(section); })
+      .catch(() => { /* Default Convert section remains available. */ });
+
+    if (!openingSoundRequested.current) {
+      openingSoundRequested.current = true;
+      // Native shake already played its opening cue. Explorer right-click
+      // must get the same sound, but never duplicate the shake cue.
+      void invoke<boolean>("orbit_was_shaken")
+        .then(shaken => {
+          if (mounted && !shaken) void invoke("orbit_play_sound",{kind:"open"}).catch(() => {});
+        }).catch(() => { /* Audio must never interrupt opening Orbit. */ });
+    }
 
     invoke<EngineStatus>("engine_status")
       .then(status => { if (mounted) setEngines(status); })
@@ -241,6 +343,11 @@ export default function Orbit() {
       .then(ready => { if (mounted) setCalibreReady(ready); })
       .catch(() => { /* Optional e-book routes stay unavailable. */ });
 
+    const mediaSubscribed = listen<EngineProgressEvent>("reformany:engine-progress", ({ payload }) => {
+      if (payload.id !== requestId.current) return;
+      if (payload.phase === "encoding") setMediaProgress(payload.percent);
+      if (payload.phase === "completed") setMediaProgress(100);
+    });
     const subscribed = listen<EventPayload>("reformany:conversion", ({ payload }) => {
       if (payload.id !== requestId.current) return;
       if (payload.status === "processing") {
@@ -257,8 +364,22 @@ export default function Orbit() {
     });
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        event.preventDefault();
-        void close();
+        if (!document.querySelector("[data-orbit-dialog]")) {
+          event.preventDefault();
+          void close();
+        }
+        return;
+      }
+      if (phaseRef.current === "processing" || document.querySelector("[data-orbit-dialog]")) return;
+      const shortcut=shortcutFromKeyboard(event);
+      if (!shortcut) return;
+      for (const section of ["convert","tools","actions"] as OrbitSection[]) {
+        if (mousePreferences.shortcuts[section] === shortcut) {
+          event.preventDefault();
+          setTab(section);
+          setError(null);setNote(null);
+          return;
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -270,14 +391,15 @@ export default function Orbit() {
     const focusListener = windowHandle.onFocusChanged(({ payload: focused }) => {
       if (focused) {
         ignoreInitialFocus.current = false;
-      } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current) {
-        void windowHandle.close();
+      } else if (!ignoreInitialFocus.current && !nativeDialogOpen.current && !toolEditorOpenRef.current && phaseRef.current !== "processing") {
+        void close();
       }
     });
 
     return () => {
       mounted = false;
       void subscribed.then(unlisten => unlisten());
+      void mediaSubscribed.then(unlisten => unlisten());
       window.removeEventListener("keydown", onKey);
       window.clearTimeout(activationGuard);
       void focusListener.then(unlisten => unlisten());
@@ -309,7 +431,22 @@ export default function Orbit() {
   }
 
   async function close() {
-    await getCurrentWindow().close();
+    // Native sound plays to completion before this standalone Orbit exits.
+    if (phaseRef.current === "processing") {
+      setNote("Conversion is running. Cancel it before closing Orbit.");
+      return;
+    }
+    if (closingRef.current) return;
+    closingRef.current = true;
+    try {
+      await invoke("orbit_play_sound",{kind:"close"}).catch(() => {});
+    } finally {
+      try { await getCurrentWindow().close(); }
+      catch (cause) {
+        closingRef.current = false;
+        setError("Could not close the Orbit window: " + String(cause));
+      }
+    }
   }
 
   async function convert(target: string) {
@@ -321,17 +458,24 @@ export default function Orbit() {
     setOutput(null);
     setError(null);
     setNote(null);
+    setMediaProgress(null);
     try {
-      if (kind === "image") {
+      if (kind === "image" && target === "PDF") {
+        const result = await invoke<string>("images_to_pdf", {
+          paths: [file.path], destination: await resolvePreferredDestination(),
+        });
+        setOutput(result);
+        setPhase("completed");
+      } else if (kind === "image") {
         batchId.current = await invoke<string>("convert_batch", {
           files: [{ id, path: file.path, target: target.toLowerCase(),
             quality: 88, matte: "white", options: {} }],
-          destination: null,
+          destination: await resolvePreferredDestination(),
         });
       } else if (kind === "video" || kind === "audio") {
         const result = await invoke<string>("media_convert", {
-          job: { path: file.path, target: target.toLowerCase(), destination: null,
-            profile: "standard", startSeconds: null, durationSeconds: null },
+          job: { path: file.path, target: target === "MP4 H.265" ? "mp4_h265" : target.toLowerCase(), destination: await resolvePreferredDestination(),
+            profile: "standard", startSeconds: null, durationSeconds: null, progressId: id },
         });
         setOutput(result);
         setPhase("completed");
@@ -343,22 +487,49 @@ export default function Orbit() {
     }
   }
 
-  async function convertDocument(target: "txt" | "md" | "html" | "pdf") {
+  async function convertDocument(target: "txt" | "md" | "html" | "pdf" | "png" | "jpg" | "docx" | "odt" | "rtf" | "epub" | "docx-editable" | "docx-layout") {
     if (!file || file.error || phase === "processing") return;
     const isPdf = kind === "pdf";
-    if (!isPdf && (kind !== "office" || target !== "pdf" || !officeReady)) return;
+    const isTxt = kind === "office" && file.name.toLowerCase().endsWith(".txt");
+    if (!isPdf && !isTxt && (kind !== "office" || target !== "pdf" || !officeReady)) return;
     setSelected(target.toUpperCase());
     setPhase("processing");
     setOutput(null);
     setError(null);
     setNote(null);
     try {
-      const result = isPdf
-        ? await invoke<string>("pdf_to_text_format", {
-            path: file.path, target, destination: null,
-          })
-        : await invoke<string>("office_to_pdf", { path: file.path, destination: null });
-      setOutput(result);
+      if (isTxt) {
+        const results = await invoke<string[]>("text_convert", {
+          path: file.path, target, destination: await resolvePreferredDestination(),
+        });
+        if (!results.length) throw new Error("TXT conversion created no output");
+        setOutput(results[0]);
+        if (results.length > 1) setNote(`Created ${results.length} pages of text output`);
+      } else if (isPdf && (target === "docx-editable" || target === "docx-layout")) {
+        const destination = await resolvePreferredDestination();
+        const result = target === "docx-layout"
+          ? await convertPdfToLayoutDocx(file.path, destination)
+          : await invoke<string>("pdf_docx_editable", {path:file.path,destination});
+        if (!result) throw Error("PDF DOCX conversion returned no file");
+        setOutput(result);
+        setNote(target === "docx-layout"
+          ? "Saved visual page-layout DOCX. Page images preserve appearance, but their text is not editable."
+          : "Saved a flowing editable-text DOCX. Complex layouts may be simplified.");
+      } else if (isPdf && (target === "png" || target === "jpg")) {
+        const outputs = await convertPdfToPageImages(
+          file.path, target, await resolvePreferredDestination(),
+        );
+        if (!outputs.length) throw new Error("PDF page renderer returned no images");
+        setOutput(outputs[0]);
+        setNote(`Saved ${outputs.length} full-page ${target.toUpperCase()} images beside the source or in the selected folder`);
+      } else {
+        const result = isPdf
+          ? await invoke<string>("pdf_to_text_format", {
+              path: file.path, target, destination: await resolvePreferredDestination(),
+            })
+          : await invoke<string>("office_to_pdf", { path: file.path, destination: await resolvePreferredDestination() });
+        setOutput(result);
+      }
       setPhase("completed");
     } catch (reason) {
       setError(String(reason));
@@ -375,7 +546,7 @@ export default function Orbit() {
     setNote(null);
     try {
       const result = await invoke<string>(command, {
-        job: { path: file.path, target: target.toLowerCase(), destination: null },
+        job: { path: file.path, target: target.toLowerCase(), destination: await resolvePreferredDestination() },
       });
       setOutput(result);
       setPhase("completed");
@@ -385,7 +556,7 @@ export default function Orbit() {
     }
   }
 
-  async function archive(action: "zip" | "7z" | "extract") {
+  async function archive(action: "zip" | "7z" | "tar" | "rar" | "extract") {
     if (!file || phase === "processing") return;
     setSelected(action === "extract" ? "Extract" : action.toUpperCase());
     setPhase("processing");
@@ -395,16 +566,22 @@ export default function Orbit() {
     try {
       if (action === "extract") {
         const result = await invoke<string>("archive_extract", {
-          job: { path: file.path, destination: null, password: null },
+          job: { path: file.path, destination: await resolvePreferredDestination(), password: null },
         });
         setOutput(result);
       } else {
         const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
-        const result = await invoke<{ outputPaths: string[] }>("archive_create", {
-          job: { paths: [file.path], destination: null, name,
-            format: action, password: null, splitMegabytes: null, level: 5 },
-        });
-        setOutput(result.outputPaths[0] || null);
+        const destination = await resolvePreferredDestination();
+        const result = kind === "archive"
+          ? await invoke<{ outputPaths: string[] }>("archive_repack", {
+              path: file.path, target: action, destination,
+            })
+          : await invoke<{ outputPaths: string[] }>("archive_create", {
+              job: { paths: [file.path], destination, name,
+                format: action, password: null, splitMegabytes: null, level: 5 },
+            });
+        if (!result.outputPaths.length) throw new Error("Archive conversion returned no saved file");
+        setOutput(result.outputPaths[0]);
       }
       setPhase("completed");
     } catch (reason) {
@@ -413,7 +590,7 @@ export default function Orbit() {
     }
   }
 
-  async function act(action: "copy" | "folder" | "terminal" | "bluetooth" | "copyFile" | "float") {
+  async function act(action: "copy" | "folder" | "terminal" | "bluetooth" | "copyFile" | "hover") {
     if (!file) return;
     setNote(null);
     setError(null);
@@ -433,8 +610,8 @@ export default function Orbit() {
         if (typeof destination !== "string") return;
         const result = await invoke<string>("copy_file_to", { path: file.path, destination });
         setNote("Copied: " + result.split(/[\\/]/).pop());
-      } else if (action === "float") {
-        await invoke("float_file", { path: file.path });
+      } else if (action === "hover") {
+        await invoke("hover_file", { path: file.path });
         await getCurrentWindow().close();
       } else if (action === "folder") {
         await invoke("reveal_output", { path: file.path });
@@ -452,19 +629,141 @@ export default function Orbit() {
 
   async function splitFile() {
     if (!file || isFolder) return;
-    const size = Number(partSize);
-    if (!Number.isInteger(size) || size < 1 || size > 4096) {
-      setError("Part size must be between 1 and 4096 MB");
+    const value = Number(partSize);
+    const min = kind === "pdf" && pdfSplitMode === "parts" ? 2 : 1;
+    if (!Number.isInteger(value) || value < min || value > 4096) {
+      setError("Choose a valid PDF split setting or binary volume size");
       return;
     }
-    setSplitting(false); setPhase("processing"); setSelected("Split");
+    setSplitting(false); setPhase("processing"); setSelected(kind === "pdf" ? "Split PDF" : "Split binary file");
     setError(null); setNote(null); setOutput(null);
     try {
-      const result = await invoke<{ manifestPath: string }>("file_split", {
-        path: file.path, destination: null, partMegabytes: size,
-      });
-      setOutput(result.manifestPath); setPhase("completed");
+      if (kind === "pdf") {
+        const result = await invoke<{ outputPaths: string[]; oversizedPages: number[] }>("pdf_split", {
+          path: file.path, destination: await resolvePreferredDestination(), mode: pdfSplitMode, value,
+        });
+        if (!result.outputPaths.length) throw new Error("PDF splitter returned no files");
+        setOutput(result.outputPaths[0]);
+        setNote(`Created ${result.outputPaths.length} standalone PDFs` +
+          (result.oversizedPages.length ? `; pages ${result.oversizedPages.join(", ")} exceed the target size` : ""));
+      } else {
+        const result = await invoke<{ manifestPath: string }>("file_split", {
+          path: file.path, destination: await resolvePreferredDestination(), partMegabytes: value,
+        });
+        setOutput(result.manifestPath);
+        setNote("Binary part files need ReformANY Join Parts; they are not standalone documents.");
+      }
+      setPhase("completed");
     } catch (reason) { setError(String(reason)); setPhase("failed"); }
+  }
+
+  async function extractPdfImages() {
+    if (!file || kind !== "pdf" || phaseRef.current === "processing") return;
+    setPhase("processing"); setSelected("Extract images");
+    setError(null); setNote(null); setOutput(null);
+    try {
+      const result = await invoke<{outputPaths:string[];skippedUnsupported:number}>("pdf_extract_images",{
+        path:file.path, destination:await resolvePreferredDestination(),
+      });
+      if (!result.outputPaths.length) throw new Error("No extractable embedded images were produced");
+      setOutput(result.outputPaths[0]);
+      setNote(`Saved ${result.outputPaths.length} embedded image files`+
+        (result.skippedUnsupported ? `; ${result.skippedUnsupported} unsupported assets skipped` : ""));
+      setPhase("completed");
+    } catch (reason) {setError(String(reason));setPhase("failed");}
+  }
+
+  async function openPdfTool(action: PdfPageAction) {
+    if (!file || kind !== "pdf" || phaseRef.current === "processing") return;
+    setPdfDialog(action); setPdfCount(null); setPdfError(null);
+    try {
+      const count = await invoke<number>("pdf_page_count", {path:file.path});
+      if (count < 1) throw new Error("PDF has no pages");
+      setPdfCount(count);
+    } catch (reason) { setPdfError(String(reason)); }
+  }
+
+  async function runPdfTool(request: PdfPageRequest) {
+    if (!file || !pdfDialog || pdfBusy) return;
+    setPdfBusy(true); setPdfError(null); setPhase("processing");
+    setSelected(pdfDialog === "extract" ? "Extract pages" : "Rotate pages");
+    setError(null); setNote(null); setOutput(null);
+    try {
+      const destination = await resolvePreferredDestination();
+      const result = pdfDialog === "extract"
+        ? await invoke<string>("pdf_extract_pages", {
+            path:file.path, pages:request.pages, destination,
+          })
+        : await invoke<string>("pdf_rotate_pages", {
+            path:file.path, pages:request.pages, degrees:request.degrees, destination,
+          });
+      if (!result) throw new Error("PDF tool returned no output file");
+      setOutput(result); setPdfDialog(null); setPhase("completed");
+    } catch (reason) {
+      setPhase("ready"); setPdfError(String(reason));
+    } finally { setPdfBusy(false); }
+  }
+
+  async function applyPdfPassword(request:PdfPasswordRequest){
+    if(!file||!pdfPasswording||pdfBusy)return;
+    setPdfBusy(true);setPdfError(null);
+    try{
+      const result=await invoke<string>(request.mode==="protect"?"pdf_protect":"pdf_unlock",{
+        path:file.path,password:request.password,destination:await resolvePreferredDestination(),
+      });
+      if(!result)throw new Error("PDF password worker created no document");
+      setOutput(result);setSelected(request.mode==="protect"?"Protect PDF":"Unlock PDF");
+      setPdfPasswording(false);setPhase("completed");
+    }catch(e){setPdfError(String(e));}
+    finally{setPdfBusy(false);}
+  }
+  async function openArrange(){
+    if(!file||kind!=="pdf")return;
+    setArrangingPages(true);setPdfCount(null);setPdfError(null);
+    try{setPdfCount(await invoke<number>("pdf_page_count",{path:file.path}));}
+    catch(e){setPdfError(String(e));}
+  }
+  async function saveArrangedPages(items:PageEdit[]){
+    if(!file||!arrangingPages||pdfBusy)return;
+    setPdfBusy(true);setPdfError(null);
+    try{
+      const result=await invoke<string>("pdf_arrange_pages",{
+        path:file.path,items,destination:await resolvePreferredDestination(),
+      });
+      if(!result)throw Error("PDF arrange did not produce an output");
+      setOutput(result);setSelected("Arrange Pages");
+      setArrangingPages(false);setPhase("completed");
+    }catch(cause){setPdfError(String(cause));}
+    finally{setPdfBusy(false);}
+  }
+  async function applyPdfMark(mark:PdfMark){
+    if(!file||pdfBusy||!pdfMarkMode)return;
+    setPdfBusy(true);setPdfError(null);
+    const mode=pdfMarkMode;
+    try{
+      const result=await invoke<string>("pdf_add_mark",{
+        path:file.path,mark,visualSignature:mode==="signature",
+        destination:await resolvePreferredDestination(),
+      });
+      if(!result)throw new Error("PDF marking returned no saved document");
+      setOutput(result);setSelected(mode==="signature"?"Visual signature":"Watermark");
+      setPdfMarkMode(null);setError(null);setPhase("completed");
+    }catch(cause){setPdfError(String(cause));setPhase("ready");}
+    finally{setPdfBusy(false);}
+  }
+
+  async function confirmShred(){
+    if(!file||shredBusy||!shredding)return;
+    setShredBusy(true);setShredError(null);setSelected("Shred");
+    setPhase("processing");setError(null);setOutput(null);
+    try{
+      const result=await invoke<{fileCount:number;directories:number}>("shred_confirm",{
+        path:file.path,confirmation:"SHRED",
+      });
+      setFile(null);setShredding(false);setPhase("completed");
+      setNote("Permanently deleted "+result.fileCount+" files and "+result.directories+" folders. Secure erasure is not guaranteed on SSDs or cloud storage.");
+    }catch(e){setShredError(String(e));setPhase("ready");}
+    finally{setShredBusy(false);}
   }
 
   async function joinParts() {
@@ -472,7 +771,7 @@ export default function Orbit() {
     setPhase("processing"); setSelected("Join"); setError(null); setNote(null); setOutput(null);
     try {
       const result = await invoke<string>("file_join", {
-        manifestPath: file.path, destination: null,
+        manifestPath: file.path, destination: await resolvePreferredDestination(),
       });
       setOutput(result); setPhase("completed");
     } catch (reason) { setError(String(reason)); setPhase("failed"); }
@@ -485,7 +784,7 @@ export default function Orbit() {
     try {
       const name = (isFolder ? file.name : file.name.replace(/\.[^.]+$/, "")) || "Archive";
       const result = await invoke<{ outputPaths: string[] }>("archive_create", {
-        job: { paths: [file.path], destination: null, name, format: "zip",
+        job: { paths: [file.path], destination: await resolvePreferredDestination(), name, format: "zip",
           password: archivePassword, splitMegabytes: null, level: 5 },
       });
       setOutput(result.outputPaths[0] || null); setPhase("completed");
@@ -494,8 +793,10 @@ export default function Orbit() {
   }
 
   async function rename() {
-    if (!file) return;
+    if (!file || renameBusy) return;
+    setRenameBusy(true);
     setError(null);
+    setNote(null);
     try {
       const result = await invoke<{ path: string; name: string }>("rename_file", {
         path: file.path, newName,
@@ -503,7 +804,12 @@ export default function Orbit() {
       setFile({ ...file, path: result.path, name: result.name });
       setRenaming(false);
       setNote("Renamed successfully");
-    } catch (reason) { setError(String(reason)); }
+    } catch (reason) {
+      // Keep the dialog editable with the actual filesystem error visible.
+      setError(String(reason));
+    } finally {
+      setRenameBusy(false);
+    }
   }
 
   async function reveal() {
@@ -521,17 +827,20 @@ export default function Orbit() {
   }
 
   async function cancel() {
-    if (batchId.current) {
-      try { await invoke("cancel_batch", { batchId: batchId.current }); }
-      catch (reason) { setError(String(reason)); }
-    }
+    try {
+      if (batchId.current) {
+        await invoke("cancel_batch", { batchId: batchId.current });
+      } else if ((kind === "video" || kind === "audio") && requestId.current) {
+        await invoke("cancel_engine_job", { id: requestId.current });
+      }
+    } catch (reason) { setError(String(reason)); }
   }
 
   const canConvert = Boolean(file && file.detected && !file.error && !loading);
   const ext = (file?.name.split(".").at(-1) || "").toLowerCase();
   const detectedFormat = (file?.detected || "").toLowerCase();
   const mediaReady = Boolean(engines?.ffmpeg && engines?.ffprobe);
-  const imageTargets = imageFormats.filter(format => format.toLowerCase() !== detectedFormat);
+  const imageTargets = ["PDF", ...imageFormats].filter(format => format.toLowerCase() !== detectedFormat);
   const mediaTargets = (kind === "video" ? [...videoFormats, ...audioFormats] : audioFormats)
     .filter(format => format.toLowerCase() !== ext);
   const spreadsheetTargets = ["CSV", "TSV", "JSON", "XLSX"].filter(v => v.toLowerCase() !== ext);
@@ -543,22 +852,31 @@ export default function Orbit() {
   // formats remain visible but explicitly unavailable until FFmpeg is installed.
   const convertActions: OrbitAction[] = !canConvert ? [] :
     kind === "image" ? imageTargets.map(label => ({
-      label, run: () => void convert(label),
+      label, unavailable: label === "PDF" && ext === "svg"
+        ? "SVG must first be converted to a raster image" : undefined,
+      run: () => void convert(label),
     })) :
     kind === "video" || kind === "audio" ? mediaTargets.map(label => ({
       label, unavailable: mediaReady ? undefined : "Install FFmpeg and FFprobe",
       run: () => void convert(label),
     })) :
     kind === "pdf" ? [
-      ...(["TXT", "MD", "HTML"] as const).map(label => ({
-        label, run: () => void convertDocument(label.toLowerCase() as "txt" | "md" | "html"),
+      ...(["TXT", "MD", "HTML", "PNG", "JPG"] as const).map(label => ({
+        label, run: () => void convertDocument(label.toLowerCase() as "txt" | "md" | "html" | "png" | "jpg"),
       })),
+      {label:"DOCX · Editable",run:()=>void convertDocument("docx-editable")},
+      {label:"DOCX · Layout",run:()=>void convertDocument("docx-layout")},
       ...(calibreReady ? ebookTargets.filter(label => !["TXT", "PDF"].includes(label)).map(label => ({
         label, run: () => void convertOther(label, "ebook_convert_file"),
       })) : []),
     ] :
     kind === "office" ? [
-      ...(officeReady ? [{ label: "PDF", run: () => void convertDocument("pdf") }] : []),
+      ...(ext === "txt" ? (["PDF","DOCX","RTF","ODT","HTML","MD","EPUB","PNG","JPG"] as const).map(label => ({
+        label, run: () => void convertDocument(label.toLowerCase() as "pdf"|"docx"|"rtf"|"odt"|"html"|"md"|"epub"|"png"|"jpg"),
+      })) : []),
+      ...(ext === "txt" ? [] : [{ label: "PDF", unavailable: officeReady && ext !== "md" && ext !== "markdown" ? undefined
+        : ext === "md" || ext === "markdown" ? "Markdown rendering is not available yet" : "LibreOffice is required",
+        run: () => void convertDocument("pdf") }]),
       ...(calibreReady && ["docx", "odt", "rtf"].includes(ext)
         ? ebookTargets.filter(label => label !== "PDF").map(label => ({
             label, run: () => void convertOther(label, "ebook_convert_file"),
@@ -572,7 +890,19 @@ export default function Orbit() {
     })) :
     kind === "ebook" && calibreReady ? ebookTargets.map(label => ({
       label, run: () => void convertOther(label, "ebook_convert_file"),
-    })) : [];
+    })) :
+    kind === "archive" || kind === "folder" ? [
+      { label: "ZIP", unavailable: kind === "archive" && ext === "zip" ? "Already ZIP" : undefined,
+        run: () => void archive("zip") },
+      { label: "7Z", unavailable: !engines?.sevenZip ? "Install 7-Zip" :
+          kind === "archive" && ext === "7z" ? "Already 7Z" : undefined,
+        run: () => void archive("7z") },
+      { label: "TAR", unavailable: !engines?.sevenZip ? "Install 7-Zip" :
+          kind === "archive" && ext === "tar" ? "Already TAR" : undefined,
+        run: () => void archive("tar") },
+      ...(engines?.winrar ? [{ label: "RAR", unavailable: kind === "archive" && ext === "rar" ? "Already RAR" : undefined,
+        run: () => void archive("rar") }] : []),
+    ] : [];
 
   const description = file?.error ?? (loading ? "Reading file…"
     : kind === "pdf" ? "PDF · Text export"
@@ -580,33 +910,43 @@ export default function Orbit() {
     : kind === "ebook" && !calibreReady ? "Calibre required"
     : (kind === "video" || kind === "audio") && !mediaReady ? "FFmpeg and FFprobe required"
     : kind === "shortcut" || kind === "application" ? "Use Actions"
-    : kind === "archive" ? "Use Tools to extract"
-    : isFolder ? "Use Tools to archive the folder"
+    : kind === "archive" ? "Choose an available archive format"
+    : isFolder ? "Choose an archive format"
     : "No direct conversion for this file type");
+  // A PDF tool is never placed in Convert, and a format is never a PDF Tool.
+  // Unsupported operations are visibly disabled rather than run as placeholders.
+  const pdfTools: OrbitAction[] = kind === "pdf" && canConvert ? [
+    { label: "Split PDF", run: () => setSplitting(true) },
+    { label: "Extract pages", run: () => void openPdfTool("extract") },
+    { label: "Rotate pages", run: () => void openPdfTool("rotate") },
+    { label: "Extract images", run: () => void extractPdfImages() },
+    { label: "Password", run: () => {setPdfError(null);setPdfPasswording(true);} },
+    { label: "Arrange pages", run: () => void openArrange() },
+    { label: "Watermark", run: () => {setPdfError(null);setPdfMarkMode("watermark");} },
+    { label: "Sign", run: () => {setPdfError(null);setPdfMarkMode("signature");} },
+  ] : [];
+
   const innerActions: OrbitAction[] = tab === "convert"
     ? convertActions.slice(0, 5)
-    : tab === "tools" ? [
-        ...(kind === "archive"
-          ? ((isNativeZip || engines?.sevenZip) && canConvert
-            ? [{ label: "Extract", run: () => void archive("extract") }] : [])
-          : canConvert ? [
-              { label: "ZIP", run: () => void archive("zip") },
-              ...(engines?.sevenZip ? [{ label: "7z", run: () => void archive("7z") }] : []),
-            ] : []),
-      ] : file && !file.error ? [
-        { label: "Rename", run: () => { setNewName(file.name); setRenaming(true); } },
-        { label: "Copy path", run: () => void act("copy") },
-        { label: "Terminal", run: () => void act("terminal") },
-        ...(!isFolder && kind !== "shortcut" && kind !== "application"
-          ? [{ label: "Float", run: () => void act("float") }] : []),
-      ] : [];
+    : tab === "tools" ? kind === "pdf" ? pdfTools
+      : [
+        ...(kind === "archive" && (isNativeZip || engines?.sevenZip)
+          ? [{label: "Extract archive", run: () => void archive("extract")}] : []),
+      ]
+    : file && !file.error ? [
+      {label: "Rename", run: () => {setNewName(file.name);setRenaming(true);} },
+      {label: "Copy path", run: () => void act("copy")},
+      {label: "Terminal", run: () => void act("terminal")},
+      ...(!isFolder && kind !== "shortcut" && kind !== "application"
+        ? [{label: "HoveR", run: () => void act("hover")}] : []),
+    ] : [];
   const outerActions: OrbitAction[] = tab === "convert"
     ? convertActions.slice(5)
-    : tab === "tools" ? [
-        { label: kind === "pdf" || kind === "office" ? "Document tools" : "More tools", run: () => void openWorkspace() },
-        ...(file && !file.error ? [{ label: isFolder ? "Open folder" : "Show file", run: () => void act("folder") }] : []),
+    : tab === "tools" ? kind === "pdf" ? []
+      : [
+        {label: "More tools", run: () => void openWorkspace()},
         ...(file && !file.error && !isFolder && kind !== "shortcut" && kind !== "application" ? [{
-          label: "Split file", run: () => setSplitting(true),
+          label: "Split binary file", run: () => setSplitting(true),
         }] : []),
         ...(file?.name.toLowerCase().endsWith(".reformany.parts.json") ? [{
           label: "Join parts", run: () => void joinParts(),
@@ -616,14 +956,17 @@ export default function Orbit() {
         }] : []),
       ]
     : file && !file.error ? [
-        { label: isFolder ? "Open folder" : kind === "shortcut" ? "Show shortcut" : "Show file",
-          run: () => void act("folder") },
-        ...(!isFolder ? [
-          { label: kind === "shortcut" ? "Copy shortcut" : "Copy file", run: () => void act("copyFile") },
-          ...(kind !== "shortcut" && kind !== "application"
-            ? [{ label: "Bluetooth", run: () => void act("bluetooth") }] : []),
-        ] : []),
-      ] : [];
+      { label: isFolder ? "Open folder" : kind === "shortcut" ? "Show shortcut" : "Show file",
+        run: () => void act("folder") },
+      ...(kind !== "shortcut" && kind !== "application" ? [{
+        label: "Shred", danger: true, run: () => {setShredError(null);setShredding(true);},
+      }] : []),
+      ...(!isFolder ? [
+        { label: kind === "shortcut" ? "Copy shortcut" : "Copy file", run: () => void act("copyFile") },
+        ...(kind !== "shortcut" && kind !== "application"
+          ? [{label: "Bluetooth", run: () => void act("bluetooth")}] : []),
+      ] : []),
+    ] : [];
 
   const message = phase === "ready" && tab === "convert" &&
     (convertActions.length === 0 || convertActions.every(a => Boolean(a.unavailable)))
@@ -634,7 +977,11 @@ export default function Orbit() {
     <div className="orbit-frame" onPointerDown={event => {
       // Transparent corners are part of the native rectangular window.
       // Dismiss them explicitly without swallowing clicks on the three section tabs.
-      if ((event.target as Element).closest(".orbit-section-tabs, .orbit-action-dialog")) return;
+      // Native editor controls are outside the radial disc. Never dismiss Orbit
+      // on their pointer-down event before Close or Maximize receives its click.
+      if (toolEditorOpenRef.current || (event.target as Element).closest(
+        ".reformany-window-chrome, .orbit-section-tabs, .orbit-action-dialog, .orbit-reference-toast"
+      )) return;
       const disc = event.currentTarget.querySelector(".orbit-disc");
       if (!disc) return;
       const rect = disc.getBoundingClientRect();
@@ -642,6 +989,7 @@ export default function Orbit() {
         event.clientY - rect.top - rect.height / 2);
       if (distance > rect.width / 2 - 1) void close();
     }}>
+      {toolEditorOpen && <WindowChrome title={pdfMarkMode ? (pdfMarkMode === "signature" ? "Visual PDF signature" : "Watermark PDF") : arrangingPages ? "Arrange PDF pages" : pdfDialog ? (pdfDialog === "extract" ? "Extract PDF pages" : "Rotate PDF pages") : passwording ? "Password-protected ZIP" : "ReformANY Orbit"} maximizable={toolEditorIsLarge} compact onClose={() => void close()} />}
       <section className="orbit-disc" aria-label="ReformANY Orbit file menu"
         onWheel={handleWheel} onPointerMove={handlePointerMove}
         onPointerLeave={() => setCursor(null)} onPointerDownCapture={unlockOrbitAudio}>
@@ -659,18 +1007,19 @@ export default function Orbit() {
         <div className="orbit-hub">
           {(splitting || passwording || renaming) ? <>
             <img className="orbit-logo" src={appIcon} alt="ReformANY"/>
-            <strong>{renaming ? "Rename" : splitting ? "Split file" : "Password ZIP"}</strong>
+            <strong>{renaming ? "Rename" : splitting ? (kind === "pdf" ? "Split PDF" : "Split binary file") : "Password ZIP"}</strong>
           </> : phase === "processing" ? <>
             <LoaderCircle size={26} className="orbit-spinner" aria-hidden="true" />
             <strong>{selected} · Working</strong>
-            <span className="orbit-hub-subtitle">Processing locally</span>
-            {kind === "image" && <button className="orbit-hub-close" onClick={() => void cancel()}>Cancel</button>}
+            <span className="orbit-hub-subtitle">{(kind === "audio" || kind === "video") && mediaProgress !== null ? `${mediaProgress}% · Encoding locally` : "Processing locally"}</span>
+            {(kind === "image" || kind === "video" || kind === "audio") && <button className="orbit-hub-close" onClick={() => void cancel()}>Cancel</button>}
           </> : phase === "completed" ? <>
             <CheckCircle2 size={27} className="orbit-done-icon" aria-hidden="true" />
             <strong>Done</strong>
             <span className="orbit-hub-subtitle" title={output || ""}>{output?.split(/[\\/]/).pop()}</span>
-            <button className="orbit-hub-close" onClick={() => void reveal()}>Show result</button>
-            <button className="orbit-hub-close" onClick={() => {setPhase("ready"); setError(null);}}>Again</button>
+            {selected!=="Shred" && <button className="orbit-hub-close" onClick={() => void reveal()}>Show result</button>}
+            {selected==="Shred" && <span className="orbit-hub-subtitle">Permanently deleted</span>}
+            <button className="orbit-hub-close" onClick={() => {if(selected==="Shred")void close();else {setPhase("ready"); setError(null);}}}>{selected==="Shred"?"Close":"Again"}</button>
           </> : <>
             <img className="orbit-logo" src={appIcon} alt="ReformANY" />
             <strong>{tab === "convert" ? "Convert" : tab === "tools" ? "Tools" : "Actions"}</strong>
@@ -691,7 +1040,10 @@ export default function Orbit() {
           {(["convert", "tools", "actions"] as Tab[]).map(value =>
             <button type="button" role="tab" aria-selected={tab === value}
               key={value} className={tab === value ? "is-active" : ""}
-              disabled={phase === "processing"} onClick={() => {
+              disabled={phase === "processing"}
+              onPointerEnter={() => { if (phase !== "processing") playOrbitHover(); }}
+              onFocus={() => { if (phase !== "processing") playOrbitHover(); }}
+              onClick={() => {
                 setTab(value);setError(null);setNote(null);
                 setRenaming(false);setSplitting(false);setPasswording(false);
                 setArchivePassword("");setPhase("ready");
@@ -704,17 +1056,37 @@ export default function Orbit() {
         </nav>
         <div className="orbit-message" role="status" aria-live="polite"
           title={message || file?.name || ""}>
-          {message || (file ? (isFolder ? "Folder" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
+          {message || (file ? (isFolder ? "Folder" : kind === "pdf" ? "PDF" : file.detected || "File") + " · " + formatSize(file.bytes) : "Local · No uploads")}
         </div>
       {(error || note) && <OrbitNotice key={error || note}
         message={error || note || ""} error={Boolean(error)}
         onDismiss={() => { setError(null);setNote(null); }}/>}
+      {shredding && file && <ShredDialog path={file.path} name={file.name}
+        busy={shredBusy} error={shredError} onDelete={()=>void confirmShred()}
+        onClose={()=>{if(!shredBusy){setShredding(false);setShredError(null);}}}/>}
+      {pdfPasswording && file && <PdfPasswordDialog name={file.name} working={pdfBusy}
+        error={pdfError} onSave={request=>void applyPdfPassword(request)}
+        onClose={()=>{if(!pdfBusy){setPdfPasswording(false);setPdfError(null);}}}/>}
+      {arrangingPages && file && pdfCount !== null && <PdfArrangeDialog
+        path={file.path} name={file.name} pageCount={pdfCount} working={pdfBusy}
+        error={pdfError} onSave={items=>void saveArrangedPages(items)}
+        onClose={()=>{if(!pdfBusy){setArrangingPages(false);setPdfError(null);}}}/>}
+      {pdfMarkMode && file && <PdfMarkDialog path={file.path} name={file.name}
+        signature={pdfMarkMode==="signature"} working={pdfBusy} error={pdfError}
+        onClose={() => {if(!pdfBusy){setPdfMarkMode(null);setPdfError(null);}}}
+        onSave={mark=>void applyPdfMark(mark)}/>}
+      {pdfDialog && file && <PdfPageDialog action={pdfDialog} name={file.name} pageCount={pdfCount}
+        working={pdfBusy} error={pdfError} onSubmit={request => void runPdfTool(request)}
+        onClose={() => {if (!pdfBusy) {setPdfDialog(null);setPdfError(null);}}}/>}
       {(renaming || splitting || passwording) && file && <OrbitActionDialog
         kind={renaming ? "rename" : splitting ? "split" : "password"}
-        name={file.name} bytes={formatSize(file.bytes)}
+        splitPdf={kind === "pdf"} splitMode={pdfSplitMode} onSplitMode={setPdfSplitMode}
+        name={file.name} bytes={isFolder ? "Folder · all accessible files included" : file.bytes === 0 ? "0 B · empty file" : formatSize(file.bytes)}
+        busy={(renaming && renameBusy) || phase === "processing" || pdfBusy} error={error || undefined}
         value={renaming ? newName : splitting ? partSize : archivePassword}
         onValue={renaming ? setNewName : splitting ? setPartSize : setArchivePassword}
         onClose={() => {
+          if (phase === "processing" || pdfBusy || renameBusy) return;
           setRenaming(false);setSplitting(false);setPasswording(false);
           setArchivePassword("");setError(null);
         }}

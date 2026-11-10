@@ -25,6 +25,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
+      - name: Enforce HoveR naming across tracked source and documents
+        run: node scripts/check-hover-terminology.mjs
       - name: Typecheck and build frontend
         run: npm run build
       - name: Verify offline runtime boundaries

@@ -1,0 +1,168 @@
+/*
+ * The circular Orbit launcher remains unchanged. Editing work opens in an
+ * expanded, decorated and resizable Tauri native window, not a 420px circle.
+ * These overrides are applied ONLY while a substantial tool dialog is open.
+ */
+html[data-mode="orbit"][data-orbit-editor="true"],
+html[data-mode="orbit"][data-orbit-editor="true"] body,
+html[data-mode="orbit"][data-orbit-editor="true"] #root {
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  background:#1a1f14;
+}
+html[data-mode="orbit"][data-theme="light"][data-orbit-editor="true"],
+html[data-mode="orbit"][data-theme="light"][data-orbit-editor="true"] body,
+html[data-mode="orbit"][data-theme="light"][data-orbit-editor="true"] #root {
+  background:#f3f5ee;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-frame {
+  display:flex;
+  position:relative;
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  max-width:none;
+  max-height:none;
+  padding:0;
+  margin:0;
+  overflow:hidden;
+  transform:none!important;
+  justify-content:center;
+  align-items:stretch;
+  background:transparent;
+  color:var(--ref-ink);
+}
+html[data-mode="orbit"][data-orbit-editor="true"] :is(
+  .orbit-disc,.orbit-section-tabs,.orbit-message,.orbit-reference-toast
+) {
+  display:none!important;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-action-dialog {
+  position:absolute;
+  inset:0;
+  z-index:30;
+  display:flex;
+  align-items:stretch;
+  justify-content:center;
+  margin:0;
+  padding:clamp(12px,3vw,28px);
+  overflow:auto;
+  background:transparent;
+  animation:none;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-action-panel {
+  box-sizing:border-box;
+  flex:1 1 auto;
+  align-self:stretch;
+  width:min(100%,850px);
+  max-width:100%;
+  min-height:0;
+  max-height:none;
+  margin:0 auto;
+  padding:clamp(20px,3vw,34px);
+  border:1px solid var(--ref-stroke);
+  border-radius:16px;
+  overflow:auto;
+  background:var(--ref-surface);
+  box-shadow:0 14px 48px #0002;
+  animation:none;
+  scrollbar-width:thin;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-action-panel h2 {
+  margin-bottom:9px;
+  font-size:25px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-action-panel>p {
+  font-size:14px;
+  line-height:1.55;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-action-panel label,
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-dialog-file {
+  font-size:14px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] :is(
+  .orbit-action-panel input,
+  .orbit-action-panel select,
+  .orbit-action-panel textarea
+) {
+  min-height:42px;
+  font-size:14px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] :is(
+  .orbit-dialog-hint,
+  .orbit-dialog-error,
+  .orbit-dialog-file small
+) {
+  font-size:12.5px;
+  line-height:1.5;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-dialog-presets button {
+  font-size:13px;
+  min-height:36px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-dialog-footer button {
+  font-size:13px;
+  min-height:42px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-pdf-mark-dialog,
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-arrange-dialog {
+  display:flex;
+  flex-direction:column;
+  max-height:none;
+  height:100%;
+  overflow:hidden;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-mark-scroll {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  scrollbar-width:thin;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-pdf-mark-preview {
+  min-height:190px;
+  max-height:310px;
+  padding:15px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-mark-paper canvas {
+  max-height:290px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-arrange-pages {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:12px;
+  max-height:none;
+  flex:1 1 auto;
+  min-height:150px;
+  padding:12px;
+  overflow-y:auto;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-arrange-thumb {
+  width:99px;
+  height:130px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-arrange-tile {
+  padding:12px 8px;
+  gap:8px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-arrange-tile small {
+  font-size:12px;
+}
+html[data-mode="orbit"][data-orbit-editor="true"] .orbit-arrange-toolbar button {
+  min-height:36px;
+  font-size:12px;
+}
+@media(max-width:760px), (max-height:580px) {
+  html[data-mode="orbit"][data-orbit-editor="true"] .orbit-action-dialog {
+    padding:8px;
+  }
+  html[data-mode="orbit"][data-orbit-editor="true"] .orbit-action-panel {
+    padding:14px;
+    border-radius:10px;
+  }
+}

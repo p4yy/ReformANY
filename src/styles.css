@@ -1,17 +1,17 @@
 :root {
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #20212a; background: #f7f7f5; font-synthesis: none; text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased; --base: #f7f7f5; --surface: #fff; --side: #f2f2f0;
-  --text: #20212a; --muted: #85858f; --line: #e7e7e5; --strong-line: #dedee1;
-  --soft: #f6f6f8; --shadow: 0 12px 40px rgba(22, 23, 44, .035); --accent: #5455bf;
-  --accent-hover: #4647a9; --accent-soft: #eeedfa; --mark-ink: #fff;
+  color: #293329; background: #f5f7f0; font-synthesis: none; text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased; --base: #f5f7f0; --surface: #fff; --side: #edf1e6;
+  --text: #293329; --muted: #64725b; --line: #dfe6d5; --strong-line: #c7d1bd;
+  --soft: #eef2e9; --shadow: 0 12px 40px rgba(23, 35, 18, .055); --accent: #718452;
+  --accent-hover: #5c7441; --accent-soft: #e3ebd7; --mark-ink: #1a1f14;
 }
-:root[data-accent="sage"] { --accent:#4b806b; --accent-hover:#3f6d5b; --accent-soft:#e9f3ed; }
-:root[data-accent="slate"] { --accent:#52657d; --accent-hover:#415269; --accent-soft:#ebeff5; }
-:root[data-accent="coral"] { --accent:#bf6d5c; --accent-hover:#ab5c4c; --accent-soft:#faeeea; }
+:root[data-accent="sage"] { --accent:#718452; --accent-hover:#5c7441; --accent-soft:#e3ebd7; }
+:root[data-accent="slate"] { --accent:#718452; --accent-hover:#5c7441; --accent-soft:#e3ebd7; }
+:root[data-accent="coral"] { --accent:#718452; --accent-hover:#5c7441; --accent-soft:#e3ebd7; }
 :root[data-theme="dark"] {
-  color-scheme:dark; --base:#16171a; --surface:#1f2024; --side:#1a1b1f; --text:#f2f2f4; --muted:#a4a3ad;
-  --line:#303136; --strong-line:#45464c; --soft:#28292f; --shadow:none; --accent-soft:#302f40;
+  color-scheme:dark; --base:#1a1f14; --surface:#232a1c; --side:#1a1f14; --text:#e8eede; --muted:#a3b27a;
+  --line:#303a2a; --strong-line:#47533c; --soft:#2d3524; --shadow:none; --accent:#c8d4a2; --accent-hover:#dce4be; --accent-soft:#363f2c; --mark-ink:#1a1f14;
 }
 * {box-sizing:border-box} body{margin:0;min-width:650px} button,input,select{font:inherit} button{cursor:pointer} button:disabled{cursor:not-allowed;opacity:.48}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:2px}
@@ -256,3 +256,7 @@ html[dir="rtl"] .orbit-sound-switch.is-on .orbit-switch-thumb {transform:transla
 .orbit-mouse-setting select {flex-shrink:0;min-width:120px;background:var(--soft);border:1px solid var(--strong-line);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px}
 .orbit-mouse-setting input[type=checkbox] {flex-shrink:0;width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
 @media(max-width:700px) {.orbit-mouse-setting{align-items:flex-start;gap:12px;flex-wrap:wrap}}
+
+/* Official brand: sage buttons use dark ink for accessible contrast. */
+:root[data-theme="dark"] .button.primary { color:#1a1f14; }
+.official-brand-accent { display:inline-flex;align-items:center;padding:8px 12px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:650; }

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ReformANY Setup",
+  "version": "0.3.0",
+  "identifier": "app.reformany.desktop.setup",
+  "build": {
+    "frontendDist": "../frontend/dist",
+    "devUrl": "http://localhost:1421"
+  },
+  "app": {
+    "windows": [{
+      "label": "main",
+      "title": "ReformANY Setup",
+      "width": 640,
+      "height": 480,
+      "minWidth": 640,
+      "minHeight": 480,
+      "center": true,
+      "decorations": false,
+      "transparent": true,
+      "shadow": false,
+      "resizable": true
+    }],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.ico", "icons/icon.png"]
+  }
+}

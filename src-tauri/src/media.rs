@@ -28,8 +28,8 @@ enum MediaKind { Audio, Video }
 
 fn output_spec(target: &str) -> Result<(MediaKind, &'static str), String> {
     match target {
-        "mp3" | "m4a" | "wav" | "flac" | "ogg" | "opus" => Ok((MediaKind::Audio, target_extension(target))),
-        "mp4" | "webm" | "mkv" | "mov" | "avi" => Ok((MediaKind::Video, target_extension(target))),
+        "mp3" | "m4a" | "wav" | "flac" | "ogg" | "opus" | "aiff" | "wma" | "ac3" => Ok((MediaKind::Audio, target_extension(target))),
+        "mp4" | "webm" | "mkv" | "mov" | "avi" | "wmv" | "gif" | "mp4_h265" => Ok((MediaKind::Video, target_extension(target))),
         _ => Err("Unsupported media destination format".into()),
     }
 }
@@ -38,6 +38,7 @@ fn target_extension(target: &str) -> &'static str {
     match target {
         "mp3" => "mp3", "m4a" => "m4a", "wav" => "wav",
         "flac" => "flac", "ogg" => "ogg", "opus" => "opus",
+        "aiff" => "aiff", "wma" => "wma", "ac3" => "ac3", "gif" => "gif", "wmv" => "wmv", "mp4_h265" => "mp4",
         "mp4" => "mp4", "webm" => "webm", "mkv" => "mkv",
         "mov" => "mov", "avi" => "avi",
         _ => "",
@@ -87,6 +88,9 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 "flac" => "flac",
                 "ogg" => "libvorbis",
                 "opus" => "libopus",
+                "aiff" => "pcm_s16be",
+                "wma" => "wmav2",
+                "ac3" => "ac3",
                 _ => unreachable!(),
             };
             args.extend(["-c:a".into(), codec.into()]);
@@ -106,11 +110,18 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
             ]);
             let codec = match job.target.as_str() {
                 "webm" => "libvpx-vp9",
+                "mp4_h265" => "libx265",
+                "wmv" => "wmv2",
+                "gif" => "gif",
                 "avi" => "mpeg4",
                 _ => "libx264",
             };
             args.extend(["-c:v".into(), codec.into()]);
-            if job.target == "avi" {
+            if job.target == "gif" {
+                args.extend(["-an".into(), "-vf".into(), "fps=12,scale=640:-1:flags=lanczos".into()]);
+            } else if job.target == "wmv" {
+                args.extend(["-b:v".into(), "2500k".into(), "-c:a".into(), "wmav2".into()]);
+            } else if job.target == "avi" {
                 args.extend(["-q:v".into(), (match job.profile.as_str() {
                     "high" => "3", "small" => "8", _ => "5",
                 }).into()]);
@@ -119,11 +130,13 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
                 args.extend(["-crf".into(), (match job.profile.as_str() {
                     "small" => "32", "high" => "18", _ => "24",
                 }).into()]);
-                if job.target == "webm" {
-                    args.extend(["-b:v".into(), "0".into(), "-c:a".into(), "libopus".into()]);
+                if job.target == "mp4_h265" {
+                    args.extend(["-preset".into(), "medium".into(), "-tag:v".into(), "hvc1".into(), "-pix_fmt".into(), "yuv420p".into(), "-c:a".into(), "aac".into(), "-movflags".into(), "+faststart".into()]);
+                } else if job.target == "webm" {
+                    args.extend(["-b:v".into(), "0".into(), "-row-mt".into(), "1".into(), "-cpu-used".into(), "4".into(), "-c:a".into(), "libopus".into()]);
                 } else {
                     args.extend([
-                        "-preset".into(), "medium".into(),
+                        "-preset".into(), "veryfast".into(),
                         "-pix_fmt".into(), "yuv420p".into(),
                         "-c:a".into(), "aac".into(),
                     ]);
@@ -139,7 +152,9 @@ fn media_args(job: &MediaJob, input: &Path, stage: &Path) -> Result<Vec<OsString
 }
 
 fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String> {
-    let output = Command::new(ffprobe)
+    let mut command = Command::new(ffprobe);
+    crate::external::hide_subprocess_window(&mut command);
+    let output = command
         .args(["-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
             "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
         .arg(input)
@@ -157,7 +172,9 @@ fn probe(input: &Path, desired: MediaKind, ffprobe: &Path) -> Result<(), String>
 }
 
 fn media_duration(input: &Path, ffprobe: &Path) -> Option<f64> {
-    let output = Command::new(ffprobe).args([
+    let mut command = Command::new(ffprobe);
+    crate::external::hide_subprocess_window(&mut command);
+    let output = command.args([
         "-v", "error", "-protocol_whitelist", "file,pipe,data,crypto",
         "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
     ]).arg(input).output().ok()?;
@@ -165,6 +182,28 @@ fn media_duration(input: &Path, ffprobe: &Path) -> Option<f64> {
     String::from_utf8_lossy(&output.stdout).trim().parse::<f64>()
         .ok().filter(|d| d.is_finite() && *d > 0.0)
 }
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaDetails {
+    pub size_bytes: u64,
+    pub duration_seconds: Option<f64>,
+    pub input_format: String,
+}
+
+#[tauri::command]
+pub async fn media_details(path:String) -> Result<MediaDetails,String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = PathBuf::from(&path);
+        verify_input(&source,false)?;
+        let size_bytes = fs::metadata(&source).map_err(|e| e.to_string())?.len();
+        let input_format = source.extension().and_then(|ext| ext.to_str())
+            .unwrap_or("Unknown").to_ascii_uppercase();
+        let duration_seconds = find_binary("ffprobe")
+            .and_then(|binary| media_duration(&source,&binary));
+        Ok(MediaDetails { size_bytes, duration_seconds, input_format })
+    }).await.map_err(|e| format!("Media probe failed: {e}"))?
+}
+
 fn convert_with_monitor(job: MediaJob, cancellation: Option<Arc<AtomicBool>>,
     app: Option<AppHandle>) -> Result<String, String> {
     let kind = validate_job(&job)?;
@@ -175,6 +214,15 @@ fn convert_with_monitor(job: MediaJob, cancellation: Option<Arc<AtomicBool>>,
     let input = PathBuf::from(&job.path);
     verify_input(&input, false)?;
     probe(&input, kind, &ffprobe)?;
+    if let Some(length) = media_duration(&input,&ffprobe) {
+        let start = job.start_seconds.unwrap_or(0.0);
+        if start >= length { return Err(format!("Trim start exceeds media duration ({length:.1}s)")); }
+        if let Some(duration) = job.duration_seconds {
+            if duration > length - start + 0.02 {
+                return Err(format!("Trim duration exceeds the remaining media length ({:.1}s)",length-start));
+            }
+        }
+    }
     let directory = output_dir(&input, job.destination.as_deref())?;
     let staging = tempfile::Builder::new().prefix(".reformany-media-")
         .tempdir_in(&directory).map_err(|e| e.to_string())?;
@@ -240,11 +288,15 @@ mod tests {
 
     #[test]
     fn output_profiles_have_explicit_codec_mappings() {
-        for target in ["mp3","m4a","wav","flac","ogg","opus","mp4","webm","mkv","mov","avi"] {
+        for target in ["mp3","m4a","wav","flac","ogg","opus","aiff","wma","ac3","mp4","mp4_h265","webm","mkv","mov","avi","wmv","gif"] {
             assert!(output_spec(target).is_ok(), "{target}");
             let args = media_args(&sample(target), Path::new("source"), Path::new("dest"))
                 .unwrap();
-            assert!(args.iter().any(|a| a == "-c:a"));
+            if target == "gif" {
+                assert!(args.iter().any(|a| a == "-an"), "GIF output must be video-only");
+            } else {
+                assert!(args.iter().any(|a| a == "-c:a"), "{target}");
+            }
         }
         assert!(output_spec("exe").is_err());
     }

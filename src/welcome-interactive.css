@@ -1,0 +1,259 @@
+/* First-run Orbit walkthrough: radial wheel stays unobstructed. Sections and
+   action feedback live BELOW it, not over the lower annular sectors. */
+html[data-mode="main"] .welcome-screen {
+  box-sizing:border-box;
+  height:calc(100dvh - var(--window-chrome-height,44px));
+  min-height:0;
+  max-height:none;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.welcome-screen .welcome-main {
+  min-height:0;
+  grid-template-columns:minmax(275px,1fr) minmax(345px,.98fr);
+  gap:clamp(16px,3vw,42px);
+  padding-top:18px;
+  padding-bottom:18px;
+}
+.welcome-screen .welcome-demo {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  min-width:0;
+  width:100%;
+  max-width:480px;
+}
+.welcome-screen .welcome-demo-heading {
+  width:100%;
+  margin:0;
+  padding:0 10px 0;
+}
+.welcome-screen .welcome-orbit-stage {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  min-height:0!important;
+  max-height:none;
+  padding:6px 0 0;
+  margin:0;
+  gap:0;
+}
+.welcome-screen .welcome-orbit {
+  box-sizing:border-box;
+  flex:0 0 auto;
+  width:min(365px,100%);
+  height:auto;
+  aspect-ratio:1/1;
+  padding:0;
+  margin:0;
+  overflow:visible;
+  transform:none!important;
+  touch-action:manipulation;
+}
+.welcome-screen .welcome-radial-rings {
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+.welcome-screen .welcome-radial-hub {
+  width:121px;
+  height:121px;
+  pointer-events:none;
+}
+.welcome-screen .welcome-radial-hub strong {
+  max-width:105px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.welcome-screen .welcome-radial-sector.is-interactive {
+  outline:none;
+  cursor:pointer;
+}
+.welcome-screen .welcome-radial-sector.is-interactive path {
+  transition:fill .16s ease,stroke .16s ease;
+}
+.welcome-screen .welcome-radial-sector.is-interactive:hover path,
+.welcome-screen .welcome-radial-sector.is-interactive:focus-visible path {
+  fill:#3b5032!important;
+  stroke:#c1d49a;
+  stroke-width:3;
+}
+.welcome-screen .welcome-radial-sector.is-selected path {
+  fill:#3e5435!important;
+  stroke:#d5e5b0;
+  stroke-width:3;
+}
+.welcome-screen .welcome-radial-sector.is-selected text {
+  fill:#f4f9e6;
+  font-weight:750;
+}
+.welcome-screen .welcome-orbit-tabs {
+  position:static!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  flex:0 0 auto;
+  align-items:center;
+  width:min(326px,100%);
+  min-height:0;
+  margin:6px auto 10px!important;
+  padding:4px;
+  gap:3px;
+  border:1px solid #424e3c;
+  border-radius:999px;
+  background:#202720;
+  box-shadow:0 4px 16px #0003;
+  transform:none!important;
+}
+.welcome-screen .welcome-orbit-tabs button {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:7px;
+  min-height:33px;
+  padding:6px 8px!important;
+  border:0!important;
+  border-radius:999px!important;
+  background:transparent;
+  color:#b7c5a8;
+  font-size:11px!important;
+  font-weight:650;
+}
+.welcome-screen .welcome-orbit-tabs button.active {
+  background:#dce9c4!important;
+  color:#22301d;
+  box-shadow:0 2px 6px #0002;
+}
+.welcome-screen .welcome-orbit-tabs button small {
+  display:inline-grid;
+  place-items:center;
+  width:16px;height:16px;
+  border-radius:50%;
+  background:#526147;
+  color:#d9e4cd;
+  font-size:9px;
+  font-weight:750;
+}
+.welcome-screen .welcome-orbit-tabs button.active small {
+  background:#c2d1a9;
+  color:#263520;
+}
+.welcome-screen .welcome-orbit-tabs button:focus-visible {
+  outline:2px solid #d9e8b6;
+  outline-offset:2px;
+}
+.welcome-screen .welcome-orbit-action {
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px 12px;
+  width:100%;
+  min-height:83px;
+  margin:0;
+  padding:12px 13px;
+  border:1px solid #3d5039;
+  border-radius:12px;
+  background:#20291e;
+  color:#f1f5e9;
+}
+.welcome-screen .welcome-orbit-action-copy {
+  flex:1 1 170px;
+  min-width:0;
+}
+.welcome-screen .welcome-orbit-action-copy strong {
+  display:block;
+  margin-bottom:3px;
+  font-size:12px;
+  font-weight:730;
+}
+.welcome-screen .welcome-orbit-action-copy p {
+  margin:0;
+  font-size:11px;
+  line-height:1.5;
+  color:#b7c9a1;
+}
+.welcome-screen .welcome-orbit-done {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  margin-top:4px;
+  font-size:10px;
+  color:#d6ebac;
+}
+.welcome-screen .welcome-orbit-demo-controls {
+  flex:0 0 auto;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+}
+.welcome-screen .welcome-orbit-demo-controls button {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  min-height:34px;
+  padding:7px 10px;
+  border:1px solid #5a6e50;
+  border-radius:8px;
+  background:#2c3927;
+  color:#ecf4e2;
+  font-size:11px;
+  font-weight:650;
+  cursor:pointer;
+}
+.welcome-screen .welcome-orbit-demo-controls button.welcome-orbit-real {
+  background:#d7e6b8;
+  color:#20301d;
+  border-color:#d7e6b8;
+}
+.welcome-screen .welcome-orbit-demo-controls button:hover:not(:disabled) {
+  filter:brightness(1.12);
+}
+.welcome-screen .welcome-orbit-demo-controls button:disabled {
+  opacity:.45;
+  cursor:not-allowed;
+}
+.welcome-screen .welcome-orbit-error {
+  width:100%;
+  margin:0;
+  font-size:11px;
+  color:#ffb6a3;
+}
+.welcome-screen .welcome-demo-caption {
+  padding:8px 2px 0;
+  font-size:10px;
+  line-height:1.45;
+  color:#a8b89b;
+}
+@media(max-width:970px) {
+  .welcome-screen .welcome-main {
+    grid-template-columns:minmax(235px,1fr) minmax(305px,.98fr);
+    gap:12px;
+    padding-inline:22px;
+  }
+  .welcome-screen .welcome-orbit {width:min(328px,100%);}
+  .welcome-screen .welcome-demo-heading {font-size:9px;}
+}
+@media(max-width:760px) {
+  .welcome-screen .welcome-main {
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+  }
+  .welcome-screen .welcome-demo {max-width:475px;}
+  .welcome-screen .welcome-orbit {width:min(330px,90%);}
+  .welcome-screen .welcome-copy h1 {font-size:clamp(37px,8vw,51px);}
+}
+@media(max-height:700px) and (min-width:761px) {
+  .welcome-screen .welcome-orbit {width:min(290px,100%);}
+  .welcome-screen .welcome-demo-heading span {font-size:9px;}
+  .welcome-screen .welcome-demo-caption {padding-top:4px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .welcome-screen .welcome-radial-sector.is-interactive path {transition:none;}
+}

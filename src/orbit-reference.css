@@ -417,6 +417,20 @@ html[data-mode="orbit"] .orbit-action-panel input {
 html[data-mode="orbit"][data-theme="light"] .orbit-action-panel input {
   background:#f5f7f2;
 }
+html[data-mode="orbit"] .orbit-action-panel select {
+  width:100%;
+  min-height:41px;
+  border:1px solid var(--ref-stroke);
+  border-radius:9px;
+  padding:9px 11px;
+  color:var(--ref-ink);
+  background:var(--ref-surface);
+  font:600 12px "Segoe UI Variable Text","Segoe UI",sans-serif;
+}
+html[data-mode="orbit"] .orbit-action-panel select:focus-visible {
+  outline:2px solid var(--ref-accent);
+  outline-offset:2px;
+}
 html[data-mode="orbit"] .orbit-action-panel input:focus-visible {
   outline:2px solid var(--ref-accent);outline-offset:2px;
 }
@@ -561,3 +575,29 @@ html[data-mode="orbit"] .orbit-reference-toast button:hover {
 @media(prefers-reduced-motion:reduce) {
   html[data-mode="orbit"] .orbit-reference-toast {animation:none;}
 }
+
+/* PDF mark editors remain frameless inside native Orbit and scroll internally. */
+html[data-mode="orbit"] .orbit-pdf-mark-dialog {display:flex;flex-direction:column;max-height:calc(100% - 20px);overflow:hidden}
+html[data-mode="orbit"] .orbit-mark-scroll {min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(200,212,162,.32) transparent;padding-right:3px}
+html[data-mode="orbit"] .orbit-pdf-mark-preview {border:1px solid rgba(200,212,162,.12);border-radius:12px;min-height:125px;max-height:180px;overflow:hidden;display:flex;justify-content:center;background:#22281f;margin:5px 0 14px;padding:9px}
+html[data-mode="orbit"] .orbit-mark-paper {position:relative;background:white;box-shadow:0 4px 18px #0003;overflow:hidden;display:flex;justify-content:center;align-items:center}
+html[data-mode="orbit"] .orbit-mark-paper canvas {max-width:100%;max-height:170px;object-fit:contain}
+html[data-mode="orbit"] .orbit-mark-controls {display:flex;gap:9px;justify-content:space-between}
+html[data-mode="orbit"] .orbit-mark-controls label {flex:1;min-width:0}
+html[data-mode="orbit"] .orbit-mark-scroll input[type="range"] {width:100%;min-height:24px;accent-color:#c8d4a2}
+html[data-mode="orbit"] .orbit-mark-scroll input[type="color"] {min-width:46px;height:30px}
+html[data-mode="orbit"] .orbit-mark-scroll input[type="number"] {width:100%;max-width:100px}
+
+html[data-mode="orbit"] .orbit-arrange-dialog {display:flex;flex-direction:column;max-height:calc(100% - 12px);overflow:hidden}
+html[data-mode="orbit"] .orbit-arrange-toolbar {display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 8px}
+html[data-mode="orbit"] .orbit-arrange-toolbar button {flex:1;min-width:65px;display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--ref-stroke);background:var(--ref-surface);color:var(--ref-ink);font-size:11px;padding:6px 3px;border-radius:8px;cursor:pointer}
+html[data-mode="orbit"] .orbit-arrange-toolbar button:disabled {opacity:.4;cursor:default}
+html[data-mode="orbit"] .orbit-arrange-pages {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;overflow-y:auto;min-height:100px;max-height:210px;scrollbar-width:thin;scrollbar-color:rgba(200,212,162,.35) transparent;padding:6px}
+html[data-mode="orbit"] .orbit-arrange-tile {background:rgba(200,212,162,.05);color:var(--ref-ink);border:1px solid transparent;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;min-width:0;cursor:grab;gap:4px}
+html[data-mode="orbit"] .orbit-arrange-tile.is-selected {border-color:#c8d4a2;background:rgba(200,212,162,.16)}
+html[data-mode="orbit"] .orbit-arrange-thumb {background:white;display:flex;align-items:center;justify-content:center;height:78px;width:65px;overflow:hidden;box-shadow:0 2px 7px #0003}
+html[data-mode="orbit"] .orbit-arrange-thumb canvas {max-width:95%;max-height:95%;object-fit:contain}
+html[data-mode="orbit"] .orbit-arrange-tile small {font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+html[data-mode="orbit"] .orbit-shred-meter{height:6px;background:rgba(255,255,255,.09);border-radius:12px;overflow:hidden;margin:8px 0}
+html[data-mode="orbit"] .orbit-shred-meter>span{display:block;height:100%;background:#de7967;transition:width .2s ease}

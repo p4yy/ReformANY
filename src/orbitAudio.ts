@@ -1,10 +1,20 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
 /**
- * Private, local Orbit interaction audio.
- * A tiny synthesized navigation tick; no sound assets, uploads or telemetry.
+ * ReformANY Orbit sound preferences.
+ * Native opening/closing cues are produced by Windows so the closing cue
+ * finishes before the process exits. Short hover feedback uses WebAudio on
+ * the pointer thread for immediate response, not a Tauri IPC round trip.
  */
 export const ORBIT_AUDIO_KEY = "reformany.orbitSounds";
 export const ORBIT_VOLUME_KEY = "reformany.orbitVolume";
-export const DEFAULT_ORBIT_VOLUME = 65;
+export const DEFAULT_ORBIT_VOLUME = 55;
+export type OrbitSoundEvent = "open" | "close" | "hover";
+
+const kindKeys: Record<OrbitSoundEvent, string> = {
+  open: "reformany.orbitAudio.open",
+  close: "reformany.orbitAudio.close",
+  hover: "reformany.orbitAudio.hover",
+};
 
 export function getOrbitVolume(): number {
   try {
@@ -16,116 +26,108 @@ export function getOrbitVolume(): number {
     return DEFAULT_ORBIT_VOLUME;
   }
 }
-
 export function setOrbitVolume(volume: number): void {
   try {
     localStorage.setItem(ORBIT_VOLUME_KEY, String(Math.max(0, Math.min(100, Math.round(volume)))));
-  } catch {
-    // Audio settings are optional; never interrupt the app when storage is denied.
-  }
+  } catch { /* Sound is always optional. */ }
 }
-
 export function getOrbitSoundsEnabled(): boolean {
-  try {
-    // Sound is available out of the box; the user can switch it off any time.
-    return localStorage.getItem(ORBIT_AUDIO_KEY) !== "off";
-  } catch {
-    return true;
-  }
+  try { return localStorage.getItem(ORBIT_AUDIO_KEY) !== "off"; }
+  catch { return true; }
 }
-
 export function setOrbitSoundsEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(ORBIT_AUDIO_KEY, enabled ? "on" : "off");
-  } catch {
-    // Do not fail the Appearance screen when local storage is disabled.
-  }
+  try { localStorage.setItem(ORBIT_AUDIO_KEY, enabled ? "on" : "off"); }
+  catch { /* Storage denial must not block Orbit. */ }
+}
+export function getOrbitSoundKindEnabled(kind: OrbitSoundEvent): boolean {
+  try { return localStorage.getItem(kindKeys[kind]) !== "off"; }
+  catch { return true; }
+}
+export function setOrbitSoundKindEnabled(kind: OrbitSoundEvent, enabled: boolean): void {
+  try { localStorage.setItem(kindKeys[kind], enabled ? "on" : "off"); }
+  catch { /* Optional preference. */ }
+}
+let context: AudioContext | null = null;
+let lastHoverAt = -Infinity;
+let hoverSuppressedUntil = 0;
+const HOVER_INTERVAL_MS = 90;
+/** Avoid hover chatter while the longer opening bloom is still audible. */
+export function suppressOrbitHover(milliseconds=420): void {
+  hoverSuppressedUntil = Math.max(hoverSuppressedUntil, performance.now()+milliseconds);
 }
 
-let context: AudioContext | null = null;
-let lastSoundAt = -Infinity;
-const MIN_INTERVAL_MS = 105;
-
-function contextForOrbit(): AudioContext | null {
+function getContext(): AudioContext | null {
   if (context) return context;
   try {
-    if (typeof AudioContext !== "undefined") {
+    if (typeof AudioContext !== "undefined")
       context = new AudioContext({ latencyHint: "interactive" });
-    }
-  } catch {
-    // Unsupported sound devices must not affect file conversion or navigation.
-  }
+  } catch { /* An unsupported audio device must never block file operations. */ }
   return context;
 }
 
-function shortTick(audio: AudioContext): void {
-  if (!getOrbitSoundsEnabled() || getOrbitVolume() === 0 || audio.state !== "running") return;
+/** Subtle, filtered silk-touch texture, not a bright synthesizer tick. */
+function playHaptic(audio: AudioContext): void {
+  if (audio.state !== "running" || !getOrbitSoundsEnabled() ||
+      !getOrbitSoundKindEnabled("hover") || getOrbitVolume() === 0) return;
   try {
-    const started = audio.currentTime;
-    const oscillator = audio.createOscillator();
+    const sampleRate = audio.sampleRate;
+    const length = Math.max(128, Math.round(sampleRate * 0.05));
+    const buffer = audio.createBuffer(1, length, sampleRate);
+    const channel = buffer.getChannelData(0);
+    let seed = 0x50e7a421;
+    let filtered = 0;
+    let softened = 0;
+    const level = getOrbitVolume() / 100;
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+      const noise = ((seed >>> 0) % 65536) / 32767.5 - 1;
+      filtered += (noise - filtered) * 0.18;
+      softened += (filtered - softened) * 0.28;
+      const attack = Math.min(1, t / 0.045);
+      const envelope = attack * Math.pow(1 - t, 2.7);
+      const warmth = Math.sin(2 * Math.PI * 245 * i / sampleRate);
+      channel[i] = (0.92 * softened + 0.08 * warmth) * envelope * 0.095 * level;
+    }
+    const source = audio.createBufferSource();
     const gain = audio.createGain();
-
-    // Subtle tactile 'tick', not a notification beep or a jingle.
-    oscillator.type = "triangle";
-    oscillator.frequency.setValueAtTime(820, started);
-    oscillator.frequency.exponentialRampToValueAtTime(580, started + 0.05);
-    gain.gain.setValueAtTime(0.0001, started);
-    // The old 0.014 fixed peak was barely audible on many Windows devices.
-    // Keep a bounded gain even at 100%; zero is genuinely silent.
-    const volume = getOrbitVolume() / 100;
-    if (volume === 0) return;
-    const peak = 0.09 * Math.pow(volume, 1.25);
-    gain.gain.exponentialRampToValueAtTime(peak, started + 0.004);
-    gain.gain.exponentialRampToValueAtTime(0.0001, started + 0.055);
-
-    oscillator.connect(gain);
+    gain.gain.value = 0.78;
+    source.buffer = buffer;
+    source.connect(gain);
     gain.connect(audio.destination);
-    oscillator.onended = () => {
-      oscillator.disconnect();
-      gain.disconnect();
-    };
-    oscillator.start(started);
-    oscillator.stop(started + 0.06);
-  } catch {
-    // Audio is an optional enhancement; never interrupt mouse navigation.
-  }
+    source.addEventListener("ended", () => { source.disconnect(); gain.disconnect(); }, { once: true });
+    source.start();
+  } catch { /* Pointer response always takes priority. */ }
 }
 
-/** Browser/WebView audio can require a pointer gesture to become unlocked. */
+/** Unlock only when a user gesture occurs; avoid stale delayed hover sounds. */
 export function unlockOrbitAudio(): void {
   if (!getOrbitSoundsEnabled()) return;
-  const audio = contextForOrbit();
-  if (audio?.state === "suspended") {
-    void audio.resume().catch(() => {});
-  }
+  const audio = getContext();
+  if (audio?.state === "suspended") void audio.resume().catch(() => {});
 }
-
-/** Test the saved sound and volume from a user-clicked Preferences button. */
-export function previewOrbitSound(): void {
-  if (!getOrbitSoundsEnabled() || getOrbitVolume() === 0) return;
-  const audio = contextForOrbit();
-  if (!audio) return;
-  if (audio.state === "running") {
-    shortTick(audio);
-  } else if (audio.state === "suspended") {
-    void audio.resume().then(() => shortTick(audio)).catch(() => {});
-  }
-}
-
-/** Runs on entering a different actionable control, never for pointer movement inside one. */
 export function playOrbitHover(): void {
-  if (!getOrbitSoundsEnabled()) return;
+  if (!getOrbitSoundsEnabled() || !getOrbitSoundKindEnabled("hover")) return;
   const now = performance.now();
-  if (now - lastSoundAt < MIN_INTERVAL_MS) return;
-  lastSoundAt = now;
-  const audio = contextForOrbit();
+  if (now < hoverSuppressedUntil || now - lastHoverAt < HOVER_INTERVAL_MS) return;
+  lastHoverAt = now;
+  // A Windows WebView can begin with AudioContext suspended. Native playback
+  // guarantees the *first hover* is heard without requiring an extra click.
+  // Fast IPC and the 90ms gate preserve responsive navigation.
+  if (isTauri()) {
+    void invoke("orbit_play_sound",{kind:"hover"}).catch(() => {});
+    return;
+  }
+  const audio = getContext();
+  if (audio?.state === "running") playHaptic(audio);
+}
+/** Browser fallback for Preferences (installed Windows app uses native previews). */
+export function previewOrbitSound(kind: OrbitSoundEvent = "hover"): void {
+  if (!getOrbitSoundsEnabled() || !getOrbitSoundKindEnabled(kind)) return;
+  const audio = getContext();
   if (!audio) return;
-  if (audio.state === "running") {
-    shortTick(audio);
-  } else if (audio.state === "suspended") {
-    // Some WebViews require the first click. Never play a stale hover afterward.
-    void audio.resume().then(() => {
-      if (performance.now() - now < 140) shortTick(audio);
-    }).catch(() => {});
+  if (audio.state === "running") playHaptic(audio);
+  else if (audio.state === "suspended") {
+    void audio.resume().then(() => playHaptic(audio)).catch(() => {});
   }
 }

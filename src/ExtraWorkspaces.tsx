@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { resolvePreferredDestination } from "./outputLocation";
 import {
   Archive as ArchiveIcon, ArrowRight, CheckCircle2, CircleAlert,
   FileArchive, FileVideo, FileText, Folder, FolderOpen, LoaderCircle, Lock, Plus, Trash2,
@@ -50,9 +51,25 @@ function outputSelector(output: string | null, resultError: string | null) {
   </div>;
 }
 
+type MediaInfo = {sizeBytes:number; durationSeconds:number|null; inputFormat:string};
+function parseMediaClock(value:string):number|null {
+  const raw=value.trim(); if(!raw)return null;
+  if (/^\d+(?:\.\d+)?$/.test(raw))return Number(raw);
+  const parts=raw.split(":");
+  if(parts.length<2||parts.length>3||parts.some(v=>!/^\d+(?:\.\d+)?$/.test(v)))return NaN;
+  const nums=parts.map(Number);
+  if(nums.slice(1).some(n=>n>=60))return NaN;
+  return nums.reduce((sum,n)=>sum*60+n,0);
+}
+function prettyDuration(v:number):string {
+  const secs=Math.floor(v),hours=Math.floor(secs/3600);
+  const mins=Math.floor(secs%3600/60);
+  return hours?hours+"h "+mins+"m "+secs%60+"s":mins+"m "+secs%60+"s";
+}
 export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
   const engines = useEngines();
   const [input, setInput] = useState<string | null>(null);
+  const [mediaInfo, setMediaInfo] = useState<MediaInfo | null>(null);
   const [target, setTarget] = useState("mp4");
   const [profile, setProfile] = useState("standard");
   const [start, setStart] = useState("");
@@ -75,6 +92,14 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ready = Boolean(engines?.ffmpeg && engines?.ffprobe);
+  useEffect(() => {
+    let active=true;
+    setMediaInfo(null);
+    if(input)invoke<MediaInfo>("media_details",{path:input})
+      .then(info=>{if(active)setMediaInfo(info);})
+      .catch(()=>{if(active)setMediaInfo(null);});
+    return ()=>{active=false;};
+  },[input]);
   // Native WebView2 drop events are handled at App level. When a supported file
   // arrives, select it here rather than trying to decode it as an image.
   useEffect(() => {
@@ -119,11 +144,22 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
     const id = crypto.randomUUID();
     jobId.current = id;
     try {
+      const startSeconds=parseMediaClock(start);
+      const durationSeconds=parseMediaClock(duration);
+      if ((start.trim() && (startSeconds===null || !Number.isFinite(startSeconds) || startSeconds<0)) ||
+          (duration.trim() && (durationSeconds===null || !Number.isFinite(durationSeconds) || durationSeconds<=0)))
+        throw Error("Enter trim times as seconds or HH:MM:SS.");
+      if(mediaInfo?.durationSeconds){
+        const remaining=mediaInfo.durationSeconds-(startSeconds??0);
+        if(remaining<=0)throw Error("Start is beyond the end of this file");
+        if(durationSeconds!==null && durationSeconds>remaining+0.02)
+          throw Error("Trim duration exceeds the remaining length of the source");
+      }
       const output = await invoke<string>("media_convert", {
         job: {
-          path: input, target, profile, destination,
-          startSeconds: start.trim() ? Number(start) : null,
-          durationSeconds: duration.trim() ? Number(duration) : null,
+          path: input, target, profile, destination: destination ?? await resolvePreferredDestination(),
+          startSeconds,
+          durationSeconds,
           progressId: id,
         },
       });
@@ -151,7 +187,9 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
       <div className="engine-card-title"><FileVideo size={18}/><h2>Source file</h2></div>
       <button className="engine-input" onClick={() => void chooseInput()} disabled={busy}>
         <FileVideo size={24}/>
-        <span>{input ? fileName(input) : "Choose a video or audio file"}<small>{input || "Formats depend on available FFmpeg decoders."}</small></span>
+        <span>{input ? fileName(input) : "Choose a video or audio file"}<small>{input && mediaInfo
+          ? mediaInfo.inputFormat+" · "+(mediaInfo.sizeBytes/(1024*1024)).toFixed(1)+" MB · "+(mediaInfo.durationSeconds ? prettyDuration(mediaInfo.durationSeconds) : "Duration unknown")
+          : input || "Add a supported audio or video file to see its details."}</small></span>
         <Plus size={17}/>
       </button>
       <div className="engine-form-grid">
@@ -166,12 +204,12 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
             <option value="small">Smaller file</option><option value="standard">Balanced</option><option value="high">Higher quality</option>
           </select>
         </label>
-        <label>Start at (seconds)
-          <input type="number" min={0} max={86400} step={0.1} placeholder="From beginning" value={start}
+        <label>Start time
+          <input type="text" inputMode="decimal" placeholder="0 or 00:01:30" value={start}
             disabled={busy} onChange={event => setStart(event.target.value)}/>
         </label>
-        <label>Duration (seconds)
-          <input type="number" min={0.01} max={86400} step={0.1} placeholder="Entire remaining file" value={duration}
+        <label>Duration
+          <input type="text" inputMode="decimal" placeholder="Entire file or 00:00:30" value={duration}
             disabled={busy} onChange={event => setDuration(event.target.value)}/>
         </label>
       </div>
@@ -184,8 +222,10 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
 
     <div className="engine-action-row">
       <div><strong>{ready ? "FFmpeg ready" : "FFmpeg / FFprobe needed"}</strong>
-        <small>{ready ? "Conversion occurs locally · originals are kept" : "Install both tools to enable real media conversion."}</small></div>
-      <button className="button primary" disabled={!input || busy || !ready} onClick={() => void convert()}>
+        <small>{ready ? "Conversion occurs locally · originals are kept" : "Open Preferences → Engines to configure FFmpeg and FFprobe."}</small></div>
+      <button className="button primary" disabled={!input || busy || !ready}
+        title={!ready ? "FFmpeg and FFprobe are required" : !input ? "Choose a media file first" : undefined}
+        onClick={() => void convert()}>
         {busy ? <><LoaderCircle className="engine-spin" size={17}/> Processing…</> : <>Convert media <ArrowRight size={16}/></>}
       </button>
     </div>
@@ -198,7 +238,9 @@ export function MediaPanel({ droppedPath }: { droppedPath?: string | null }) {
       <button type="button" className="text-action" onClick={() => void cancel()}>Cancel conversion</button>
     </div>}
     {outputSelector(result, error)}
-    <p className="engine-footnote">The percentage is derived from FFmpeg's reported timestamp and input duration. Unknown durations remain indeterminate; cancellation stops the encoder. Trim is optional.</p>
+    <details className="engine-help-disclosure"><summary>About progress and trimming</summary>
+      <p>Progress comes from FFmpeg timestamps. Unknown durations show an indeterminate indicator. Trimming is optional, in seconds or HH:MM:SS.</p>
+    </details>
   </div>;
 }
 
@@ -224,6 +266,7 @@ export function ArchivePanel() {
     : supported;
 
   function changeMode(next: "create" | "extract" | "split" | "join") {
+    if (busy) return; // Do not remap a running archive operation to another mode.
     setMode(next); setSources([]); setResult(null); setError(null); setExtra([]);
   }
 
@@ -265,10 +308,11 @@ export function ArchivePanel() {
     if (!sources.length || busy || !canRun) return;
     setBusy(true);setError(null);setResult(null);setExtra([]);
     try {
+      const outputDestination = destination ?? await resolvePreferredDestination();
       if (mode === "create") {
         const result = await invoke<{ outputPaths: string[] }>("archive_create", {
           job: {
-            paths: sources, destination, name, format,
+            paths: sources, destination: outputDestination, name, format,
             password: password || null, splitMegabytes: Number(split) || null,
             level: Number(level),
           },
@@ -277,17 +321,17 @@ export function ArchivePanel() {
         setExtra(result.outputPaths.slice(1));
       } else if (mode === "extract") {
         const result = await invoke<string>("archive_extract", {
-          job: { path: sources[0], destination, password: password || null },
+          job: { path: sources[0], destination: outputDestination, password: password || null },
         });
         setResult(result);
       } else if (mode === "split") {
         const splitResult = await invoke<{ manifestPath: string; parts: string[] }>("file_split", {
-          path: sources[0], destination, partMegabytes: Number(partSize),
+          path: sources[0], destination: outputDestination, partMegabytes: Number(partSize),
         });
         setResult(splitResult.manifestPath);
         setExtra(splitResult.parts);
       } else {
-        const restored = await invoke<string>("file_join", { manifestPath: sources[0], destination });
+        const restored = await invoke<string>("file_join", { manifestPath: sources[0], destination: outputDestination });
         setResult(restored);
       }
     } catch (cause) {
@@ -302,10 +346,10 @@ export function ArchivePanel() {
     <h1>Archives</h1>
     <p>Create archives or split and rejoin large files. Everything runs locally.</p>
     <div className="engine-switch engine-switch-three">
-      <button className={mode === "create" ? "selected" : ""} onClick={() => changeMode("create")}>Create</button>
-      <button className={mode === "extract" ? "selected" : ""} onClick={() => changeMode("extract")}>Extract</button>
-      <button className={mode === "split" ? "selected" : ""} onClick={() => changeMode("split")}>Split file</button>
-      <button className={mode === "join" ? "selected" : ""} onClick={() => changeMode("join")}>Join parts</button>
+      <button type="button" className={mode === "create" ? "selected" : ""} disabled={busy} onClick={() => changeMode("create")}>Create</button>
+      <button type="button" className={mode === "extract" ? "selected" : ""} disabled={busy} onClick={() => changeMode("extract")}>Extract</button>
+      <button type="button" className={mode === "split" ? "selected" : ""} disabled={busy} onClick={() => changeMode("split")}>Split file</button>
+      <button type="button" className={mode === "join" ? "selected" : ""} disabled={busy} onClick={() => changeMode("join")}>Join parts</button>
     </div>
 
     <div className="engine-card">
@@ -378,13 +422,19 @@ export function ArchivePanel() {
   </div>;
 }
 
-type DocumentTask = "images" | "text" | "office";
+type DocumentTask = "images" | "text" | "txt" | "office" | "split";
 
 export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => void }) {
   const [mode, setMode] = useState<DocumentTask>("images");
+  const [textTarget, setTextTarget] = useState("pdf");
+  const [textOutputs, setTextOutputs] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
   const [destination, setDestination] = useState<string | null>(null);
   const [office, setOffice] = useState(false);
+  const [splitMode, setSplitMode] = useState<"size" | "parts" | "pages">("size");
+  const [splitValue, setSplitValue] = useState("5");
+  const [splitOutputs, setSplitOutputs] = useState<string[]>([]);
+  const [splitWarning, setSplitWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -395,9 +445,13 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
   }, []);
 
   function changeMode(next: DocumentTask) {
+    if (busy) return; // Keep the running job attached to its original operation.
     setMode(next);
+    setTextOutputs([]);
     setSources([]);
     setResult(null);
+    setSplitOutputs([]);
+    setSplitWarning(null);
     setError(null);
   }
 
@@ -405,7 +459,8 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     try {
       const type = mode === "images"
         ? [{ name: "Raster images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }]
-        : mode === "text" ? [{ name: "PDF documents", extensions: ["pdf"] }]
+        : mode === "text" || mode === "split" ? [{ name: "PDF documents", extensions: ["pdf"] }]
+        : mode === "txt" ? [{ name: "Plain text", extensions: ["txt"] }]
         : [{ name: "Office documents", extensions: ["docx", "doc", "rtf", "odt", "pptx", "ppt", "odp", "xlsx", "xls", "ods", "txt", "html", "htm"] }];
       const response: unknown = await open({ multiple: mode === "images", directory: false, filters: type });
       const paths: string[] = Array.isArray(response) ? response.filter((p): p is string => typeof p === "string")
@@ -427,14 +482,38 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
 
   async function process() {
     if (!sources.length || busy) return;
-    setBusy(true);setError(null);setResult(null);
+    setBusy(true);setError(null);setResult(null);setSplitOutputs([]);setSplitWarning(null);setTextOutputs([]);
     try {
-      const path = mode === "images"
-        ? await invoke<string>("images_to_pdf", { paths: sources, destination })
-        : mode === "text"
-          ? await invoke<string>("pdf_to_text", { path: sources[0], destination })
-          : await invoke<string>("office_to_pdf", { path: sources[0], destination });
-      setResult(path);
+      const outputDestination = destination ?? await resolvePreferredDestination();
+      if (mode === "split") {
+        const value = Number(splitValue);
+        if (!Number.isInteger(value) || value < (splitMode === "parts" ? 2 : 1) || value > 4096) {
+          throw new Error("Enter a valid size, number of parts, or pages per part.");
+        }
+        const files = await invoke<{ outputPaths: string[]; oversizedPages: number[] }>("pdf_split", {
+          path: sources[0], destination: outputDestination, mode: splitMode, value,
+        });
+        if (!files.outputPaths.length) throw new Error("PDF splitter produced no files");
+        setSplitOutputs(files.outputPaths);
+        setResult(files.outputPaths[0]);
+        if (files.oversizedPages.length) {
+          setSplitWarning("These individual pages exceed the target size: " + files.oversizedPages.join(", "));
+        }
+      } else if (mode === "txt") {
+        const outputs = await invoke<string[]>("text_convert", {
+          path: sources[0], target: textTarget, destination: outputDestination,
+        });
+        if (!outputs.length) throw new Error("TXT conversion produced no document");
+        setResult(outputs[0]);
+        setTextOutputs(outputs);
+      } else {
+        const path = mode === "images"
+          ? await invoke<string>("images_to_pdf", { paths: sources, destination: outputDestination })
+          : mode === "text"
+            ? await invoke<string>("pdf_to_text", { path: sources[0], destination: outputDestination })
+            : await invoke<string>("office_to_pdf", { path: sources[0], destination: outputDestination });
+        setResult(path);
+      }
     } catch (cause) { setError(String(cause)); }
     finally { setBusy(false); }
   }
@@ -443,9 +522,11 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
     <h1>Documents</h1>
     <p>Actual PDF operations, with original files left in place. Office rendering uses LibreOffice if installed.</p>
     <div className="engine-switch engine-switch-three">
-      <button className={mode === "images" ? "selected" : ""} onClick={() => changeMode("images")}>Images → PDF</button>
-      <button className={mode === "text" ? "selected" : ""} onClick={() => changeMode("text")}>PDF → Text</button>
-      <button className={mode === "office" ? "selected" : ""} onClick={() => changeMode("office")}>Office → PDF</button>
+      <button type="button" className={mode === "images" ? "selected" : ""} disabled={busy} onClick={() => changeMode("images")}>Images → PDF</button>
+      <button type="button" className={mode === "text" ? "selected" : ""} disabled={busy} onClick={() => changeMode("text")}>PDF → Text</button>
+      <button type="button" className={mode === "txt" ? "selected" : ""} disabled={busy} onClick={() => changeMode("txt")}>TXT → Formats</button>
+      <button type="button" className={mode === "office" ? "selected" : ""} disabled={busy} onClick={() => changeMode("office")}>Office → PDF</button>
+      <button type="button" className={mode === "split" ? "selected" : ""} disabled={busy} onClick={() => changeMode("split")}>Split PDF</button>
     </div>
     <div className="engine-card">
       <div className="engine-card-title"><FileText size={18}/><h2>Selected source</h2></div>
@@ -456,25 +537,55 @@ export function DocumentsPanel({ onPreview }: { onPreview?: (path: string) => vo
           <small>{sources.length ? sources.join(" · ") : "Only the formats supported by this operation are accepted."}</small>
         </span><Plus size={17}/>
       </button>
+      {mode === "txt" && <div className="engine-directory">
+        <label htmlFor="txt-convert-target">Convert TXT to</label>
+        <select id="txt-convert-target" value={textTarget} disabled={busy}
+          onChange={event => setTextTarget(event.target.value)}>
+          {[["pdf","PDF document"],["docx","Word document (DOCX)"],["rtf","Rich Text (RTF)"],
+            ["odt","OpenDocument (ODT)"],["html","HTML"],["md","Markdown"],
+            ["epub","EPUB e-book"],["png","PNG images"],["jpg","JPEG images"]].map(([key,label]) =>
+            <option value={key} key={key}>{label}</option>)}
+        </select>
+      </div>}
       <div className="engine-directory">
         <div><strong>Output location</strong><small>{destination || "Alongside the source file"}</small></div>
         {destination && <button className="text-action" onClick={() => setDestination(null)}>Reset</button>}
         <button className="button secondary" disabled={busy} onClick={() => void folder()}><Folder size={16}/> Choose folder</button>
       </div>
     </div>
+    {mode === "split" && <div className="engine-card">
+      <div className="engine-directory"><div><strong>Split method</strong><small>Create individual, readable PDF files—not binary volumes or ZIP archives.</small></div>
+      <select aria-label="PDF splitting method" value={splitMode} onChange={event => {
+        const next = event.target.value as "size" | "parts" | "pages";
+        setSplitMode(next); setSplitValue(next === "parts" ? "2" : next === "pages" ? "1" : "5");
+      }}>
+        <option value="size">Approximate MB per PDF</option>
+        <option value="parts">Number of output PDFs</option>
+        <option value="pages">Pages per PDF</option>
+      </select></div>
+      <div className="engine-directory"><label htmlFor="document-split-value">{splitMode === "size" ? "Approximate size (MB)" : splitMode === "parts" ? "Number of PDF files" : "Pages per PDF"}</label>
+      <input id="document-split-value" type="number" min={splitMode === "parts" ? 2 : 1} max={4096} step={1} value={splitValue} onChange={event => setSplitValue(event.target.value)}/></div>
+    </div>}
     <div className="engine-action-row">
-      <div><strong>{mode === "office" ? office ? "LibreOffice available" : "LibreOffice is required" : "Local PDF tools"}</strong>
-        <small>{mode === "text" ? "Extract selectable PDF text. Scans require separate OCR."
+      <div><strong>{mode === "office" ? office ? "LibreOffice available" : "LibreOffice is required" : mode === "txt" ? "Offline TXT converter ready" : "Local PDF tools"}</strong>
+        <small>{mode === "txt" ? "Creates real documents from Unicode TXT, without external engines."
+          : mode === "text" ? "Extract selectable PDF text. Scans require separate OCR."
           : mode === "images" ? "One page per image · A4 layout"
+          : mode === "split" ? "Each part is a valid PDF. Size splitting respects page boundaries."
           : "Document layout fidelity depends on LibreOffice."}</small>
       </div>
       <button className="button primary" disabled={!sources.length || busy || (mode === "office" && !office)}
         onClick={() => void process()}>
         {busy ? <><LoaderCircle size={17} className="engine-spin"/> Processing…</>
-          : <>Convert <ArrowRight size={16}/></>}
+          : <>{mode === "images" ? "Create PDF" : mode === "text" ? "Extract text" : mode === "txt" ? "Convert TXT" : mode === "office" ? "Convert to PDF" : "Split PDF"} <ArrowRight size={16}/></>}
       </button>
     </div>
     {outputSelector(result, error)}
+    {textOutputs.length > 1 && <div className="engine-card"><strong>{textOutputs.length} pages saved</strong>
+      {textOutputs.map(path => <button type="button" key={path} className="text-action"
+        onClick={() => void invoke("reveal_output",{path})}>{fileName(path)}</button>)}
+    </div>}
+    {splitOutputs.length > 0 && <div className="engine-card"><strong>Created {splitOutputs.length} standalone PDFs</strong>{splitOutputs.map(path => <button type="button" key={path} className="text-action" onClick={() => void invoke("reveal_output", { path })}>{fileName(path)}</button>)}{splitWarning && <p role="status">{splitWarning}</p>}</div>}
     <div className="document-preview-link-row">
       {onPreview && sources[0]?.toLowerCase().endsWith(".pdf") && <button type="button" className="button secondary" onClick={() => onPreview(sources[0])}><FileText size={15}/> Preview source PDF</button>}
       {onPreview && result && /\.(pdf|txt|md|markdown)$/i.test(result) && <button type="button" className="button secondary" onClick={() => onPreview(result)}><FileText size={15}/> Preview converted file</button>}
