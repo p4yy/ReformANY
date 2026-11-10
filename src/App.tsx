@@ -13,7 +13,7 @@ import OrbitPanelWindow from './native/OrbitPanelWindow';
 import { defaultPreferences, type ActivityItem, type ModuleId, type Preferences, type QueueItem, type ToastMessage } from './types';
 import { uid } from './lib/files';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { setDestinationPreference } from './native/bridge';
+import { setDestinationPreference, runNative } from './native/bridge';
 import { closeCurrentNativeWindow, isNativeFloatRoute, isNativeOrbitRoute, isNativePanelRoute, isTauri, openNativeOrbit } from './lib/desktop';
 
 function loadPreferences(): Preferences {
@@ -44,6 +44,28 @@ export default function App() {
   useEffect(() => { if (isNativeOrbitRoute) document.documentElement.classList.add('reformany-orbit-window'); if (isNativePanelRoute) document.documentElement.classList.add('reformany-panel-window'); }, []);
   useEffect(() => { localStorage.setItem('reformany.preferences', JSON.stringify(preferences)); const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const theme = preferences.theme === 'system' ? systemDark ? 'dark' : 'light' : preferences.theme; document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; setDestinationPreference(preferences.destination); }, [preferences]);
   useEffect(() => { localStorage.setItem('reformany.activity', JSON.stringify(activity)); }, [activity]);
+  // Native listener configuration, not web-local fake settings. The Windows
+  // listener is opt-in and persists independently of the window's WebView.
+  useEffect(() => {
+    if (!isTauri || isNativeOrbitRoute || isNativePanelRoute || isNativeFloatRoute) return;
+    let live = true;
+    void runNative<{ enabled: boolean; sensitivity: number }>('get_shake_settings', {})
+      .then(saved => { if (live) updatePreferences({ holdShake: saved.enabled, shakeSensitivity: saved.sensitivity * 20 }); })
+      .catch(error => { if (live) notify('Shake preferences unavailable', String(error), 'danger'); });
+    return () => { live = false; };
+  }, [notify, updatePreferences]);
+  // Mirror separate Orbit process audio settings to the native playback engine.
+  useEffect(() => {
+    if (!isTauri || isNativeOrbitRoute || isNativePanelRoute || isNativeFloatRoute) return;
+    void runNative('set_orbit_sound_preferences', {
+      enabled: preferences.orbitSounds, volume: preferences.orbitVolume,
+      openEnabled: preferences.orbitOpeningSound,
+      closeEnabled: preferences.orbitClosingSound,
+      hoverEnabled: preferences.orbitHoverSound,
+    }).catch(error => notify('Could not save native Orbit audio', String(error), 'danger'));
+  }, [preferences.orbitSounds, preferences.orbitVolume, preferences.orbitOpeningSound,
+      preferences.orbitClosingSound, preferences.orbitHoverSound, notify]);
+
   useEffect(() => {
     const resize = () => setAutoCompact(window.innerWidth < 1100); resize(); window.addEventListener('resize', resize);
     const focus = () => setFocused(true), blur = () => setFocused(false); window.addEventListener('focus', focus); window.addEventListener('blur', blur);

@@ -61,7 +61,7 @@ export const defaultPreferences: Preferences = {
   orbitOpeningSound: true, orbitClosingSound: true, orbitHoverSound: true,
   orbitVolume: 65, orbitStart: 'convert', orbitScroll: true,
   orbitModifiers: { convert: 'Shift', tools: 'Ctrl', actions: 'Alt' },
-  holdShake: true, shakeSensitivity: 58, pointerRing: true,
+  holdShake: false, shakeSensitivity: 60, pointerRing: true,
   showIntroduction: true, destination: 'Next to original', scheduling: 'balanced',
   watchRules: [], recentFormats: {},
 };

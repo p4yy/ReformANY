@@ -1,4 +1,5 @@
 import type { Preferences } from '../types';
+import { native, runNative } from '../native/bridge';
 export type OrbitCue = 'open' | 'close' | 'hover' | 'switch';
 let context: AudioContext | null = null;
 let lastHover = -1000;
@@ -14,6 +15,12 @@ export function playOrbitCue(settings: Preferences, cue: OrbitCue) {
   if (cue === 'open' && stamp - lastOpen < 400) return;
   if (cue === 'hover') lastHover = stamp;
   if (cue === 'open') lastOpen = stamp;
+  if (native) {
+    void runNative<void>('orbit_play_sound', { kind: cue === 'switch' ? 'hover' : cue })
+      .catch(() => { /* Missing audio device must never prevent conversion. */ });
+    return;
+  }
+
   const Ctor = window.AudioContext || (window as unknown as {webkitAudioContext?: typeof AudioContext}).webkitAudioContext;
   if (!Ctor) return;
   try {

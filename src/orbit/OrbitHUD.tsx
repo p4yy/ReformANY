@@ -93,7 +93,13 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
     return () => { active = false; };
   }, []);
 
-  useEffect(() => { playOrbitCue(preferences, 'open'); }, []);
+  useEffect(() => {
+    if (native && desktop) {
+      void runNative<boolean>('orbit_was_shaken', {})
+        .then(shaken => { if (!shaken) playOrbitCue(preferences, 'open'); })
+        .catch(() => playOrbitCue(preferences, 'open'));
+    } else playOrbitCue(preferences, 'open');
+  }, []);
 
   // Use the actual file supplied by the Explorer context command or desktop launcher.
   useEffect(() => {
