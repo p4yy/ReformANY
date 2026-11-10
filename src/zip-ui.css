@@ -2212,3 +2212,14 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
     grid-template-columns: 16.25rem minmax(0, 1fr);
   }
 }
+
+/* The preserved legacy HoveR stylesheet sets .sidebar { width:260px }.
+   The ZIP shell uses a grid rail instead; make its child fill the track so
+   collapsed navigation cannot overflow or cover the workspace. */
+@media (min-width: 720px) {
+  .shell > .body > .sidebar {
+    width: 100%;
+    max-width: 100%;
+    flex: 0 1 auto;
+  }
+}
