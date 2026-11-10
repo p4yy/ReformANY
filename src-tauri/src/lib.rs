@@ -94,11 +94,11 @@ fn show_main(app: &tauri::AppHandle) {
 #[tauri::command]
 async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), String> {
     if !matches!(kind.as_str(), "sign" | "watermark" | "split-pdf" |
-        "arrange" | "password-zip" | "split-binary" | "rename" |
+        "arrange" | "extract-pages" | "password-zip" | "split-binary" | "rename" |
         "shred" | "more-tools" | "pdf-password") {
         return Err("Unsupported Orbit tool".into());
     }
-    let wide = matches!(kind.as_str(), "sign" | "watermark" | "arrange");
+    let wide = matches!(kind.as_str(), "sign" | "watermark" | "arrange" | "extract-pages");
     let label = format!("orbit-panel-{}-{}", kind, uuid::Uuid::new_v4().simple());
     let (width, height) = if wide { (1080.0, 760.0) } else { (720.0, 710.0) };
     // Avoid blocking the WebView IPC executor while creating a native window.
@@ -113,7 +113,7 @@ async fn orbit_open_panel(app: tauri::AppHandle, kind: String) -> Result<(), Str
             // Only the circular Orbit window is transparent. Tool windows
             // must be fully opaque to prevent Windows compositor ghost frames.
             .transparent(false)
-            .always_on_top(true)
+            .always_on_top(false)
             .center()
             .focused(true)
             .build()
@@ -329,6 +329,14 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == "orbit" {
+                // Dismiss the native wheel when Explorer or another window takes focus.
+                // A separate tool transfers focus, so no stacked/doubled Orbit remains.
+                if let tauri::WindowEvent::Focused(false) = event {
+                    let _ = window.close();
+                }
+                return;
+            }
             if window.label() != "main" { return; }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.app_handle().state::<CloseToTray>().0.load(Ordering::Acquire) {

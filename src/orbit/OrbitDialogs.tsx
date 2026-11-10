@@ -10,7 +10,7 @@ import { CopyButton, Field, FileContextRow, IconButton, InlineNote, KineticButto
 
 const BrowserFile = globalThis.File;
 
-export type OrbitDialogKind = 'shred' | 'rename' | 'sign' | 'watermark' | 'split-pdf' | 'hover' | 'arrange' | 'password-zip' | 'split-binary' | 'more-tools' | 'pdf-password';
+export type OrbitDialogKind = 'shred' | 'rename' | 'sign' | 'watermark' | 'split-pdf' | 'hover' | 'arrange' | 'extract-pages' | 'password-zip' | 'split-binary' | 'more-tools' | 'pdf-password';
 interface DialogProps {
   file: OrbitFile;
   onClose: () => void;
@@ -193,6 +193,83 @@ export function HoverDialog({ file, onClose, notify }: DialogProps) {
 }
 
 type PageItem = { id: string; source: number; rotation: number };
+
+function LazyPageReference({ pdf, page }: { pdf: PDFDocumentProxy | null; page: number }) {
+  const marker = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!pdf) return;
+    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) { setVisible(true); observer.disconnect(); }
+    }, { rootMargin: '180px' });
+    if (marker.current) observer.observe(marker.current);
+    return () => observer.disconnect();
+  }, [pdf]);
+  return <div ref={marker} className="extract-page-paper">{pdf && visible ? <PdfPageCanvas pdf={pdf} page={page} zoom={56} /> : <FileText size={30} />}</div>;
+}
+
+/** PDF extraction never calls the Arrange Pages editor or silently reorders pages. */
+export function ExtractPagesDialog({ file, onClose, notify }: DialogProps) {
+  const { pdf, error } = usePdf(file.file);
+  const [count, setCount] = useState(file.pages || 0);
+  const [range, setRange] = useState('1');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (pdf) setCount(pdf.numPages); }, [pdf]);
+  useEffect(() => {
+    if (!desktop || !pathOf(file.file)) return;
+    let live = true;
+    void runNative<number>('pdf_page_count', { path: file.path })
+      .then(value => { if (live) setCount(value); })
+      .catch(reason => { if (live) notify('PDF page count failed', String(reason), 'danger'); });
+    return () => { live = false; };
+  }, [file.path]);
+  const selected = (() => {
+    const pages: number[] = [], seen = new Set<number>();
+    for (const part of range.trim().split(',')) {
+      const match = /^(\\d+)(?:\\s*-\\s*(\\d+))?$/.exec(part.trim());
+      if (!match) return null;
+      const start = Number(match[1]), end = match[2] ? Number(match[2]) : start;
+      if (start < 1 || end < start || end > count) return null;
+      for (let number = start; number <= end; number++) {
+        if (seen.has(number)) return null;
+        pages.push(number); seen.add(number);
+      }
+    }
+    return pages.length && pages.every((value, index) => index === 0 || value > pages[index - 1]) ? pages : null;
+  })();
+  const toggle = (page: number) => {
+    const next = new Set(selected || []);
+    if (next.has(page)) next.delete(page); else next.add(page);
+    setRange([...next].sort((a, b) => a - b).join(','));
+  };
+  const save = async () => {
+    if (!selected?.length || !file.file) {
+      notify('Select valid page ranges', 'Use an ascending range, such as 1,3-5,9.', 'danger'); return;
+    }
+    setSaving(true);
+    try {
+      if (desktop && pathOf(file.file)) {
+        const output = await runNative<string>('pdf_extract_pages', {
+          path: file.path, pages: selected.join(','), destination: null,
+        });
+        notify('Extracted PDF saved', output, 'success');
+      } else {
+        const pages = selected.map(source => ({ id: String(source), source, rotation: 0 }));
+        await downloadBlob(await arrangePdf(file.file, pages), file.name.replace(/\\.pdf$/i, '') + '-extracted.pdf');
+        notify('Extracted PDF saved', selected.length + ' page(s); original unchanged.', 'success');
+      }
+      onClose();
+    } catch (reason) { notify('PDF extraction failed', String(reason), 'danger'); }
+    finally { setSaving(false); }
+  };
+  return <OrbitDialogFrame wide title="Extract Pages" subtitle="Select PDF pages or enter a page range. This creates a new document without touching the original." icon={<FileText size={22} />} file={{ ...file, pages: count }} onClose={onClose} className="extract-dialog" footer={<><KineticButton tone="ghost" onClick={onClose}>Cancel</KineticButton><KineticButton tone="primary" disabled={saving || !selected?.length || !file.file} onClick={() => void save()}>{saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}Extract {selected?.length || 0} pages</KineticButton></>}>
+    <div className="extract-controls"><Field label="Range Pages"><input className="text-input" aria-label="Pages to extract" placeholder="1,3-5,9" value={range} onChange={event => setRange(event.target.value)} /></Field><div className="extract-summary"><span>{count ? `${count} pages available` : error || 'Reading pages…'}</span><span>{selected ? `${selected.length} selected` : 'Invalid range'}</span></div><div className="extract-actions"><KineticButton tone="ghost" disabled={!count} onClick={() => setRange(`1-${count}`)}>Select all</KineticButton><KineticButton tone="ghost" onClick={() => setRange('')}>Clear</KineticButton></div></div>
+    <div className="extract-grid" role="group" aria-label="Scrollable page references">{Array.from({ length: Math.min(count, 500) }, (_, index) => index + 1).map(page => <button type="button" key={page} className={`extract-page ${selected?.includes(page) ? 'selected' : ''}`} aria-pressed={!!selected?.includes(page)} onClick={() => toggle(page)}><LazyPageReference pdf={pdf} page={page} /><span className="extract-page-number">Page {page}</span></button>)}</div>
+    <div className="arrange-helper">Scroll to view every page. Page numbers are crisp labels, independent of thumbnail resolution.</div>
+  </OrbitDialogFrame>;
+}
+
 function PdfThumbnail({ pdf, item, selected, onSelect, onDragStart, onDrop }: { pdf: PDFDocumentProxy | null; item: PageItem; selected: boolean; onSelect: (event: React.MouseEvent) => void; onDragStart: () => void; onDrop: () => void }) {
   return <button draggable onDragStart={onDragStart} onDragOver={event => event.preventDefault()} onDrop={onDrop} onClick={onSelect} className={`arrange-page ${selected ? 'selected' : ''}`}><div className="arrange-page-paper" style={{ transform: `rotate(${item.rotation}deg)` }}>{pdf ? <PdfPageCanvas pdf={pdf} page={item.source} zoom={22} /> : <FileText size={28} />}</div><GripVertical size={14} /><span>Page {item.id.split('-')[0]} · source {item.source}</span></button>;
 }
@@ -446,6 +523,7 @@ export function OrbitDialogRouter({ kind, ...props }: DialogProps & { kind: Orbi
   if (kind === 'split-pdf') return <SplitPdfDialog {...props} />;
   if (kind === 'hover') return <HoverDialog {...props} />;
   if (kind === 'arrange') return <ArrangeDialog {...props} />;
+  if (kind === 'extract-pages') return <ExtractPagesDialog {...props} />;
   if (kind === 'password-zip') return <PasswordZipDialog {...props} />;
   if (kind === 'split-binary') return <SplitBinaryDialog {...props} />;
   return <MoreToolsDialog {...props} />;

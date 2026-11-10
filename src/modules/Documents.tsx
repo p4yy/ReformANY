@@ -29,7 +29,7 @@ export function DocumentsModule(props: ConverterProps) {
   const run = async () => {
     setBusy(true); setProgress(10);
     try {
-      if (native && ['images-pdf', 'pdf-text', 'office', 'split'].includes(tab)) {
+      if (native && ['images-pdf', 'pdf-text', 'txt', 'office', 'split'].includes(tab)) {
         let outputPath = '';
         const destination = await resolveNativeDestination(props.preferences.destination);
         if (tab === 'images-pdf') {
@@ -38,6 +38,12 @@ export function DocumentsModule(props: ConverterProps) {
         } else if (tab === 'pdf-text') {
           if (!file) throw new Error('Choose a PDF first.');
           outputPath = await runNative<string>('pdf_to_text_format', { path: requireNativePath(file), target: 'txt', destination });
+        } else if (tab === 'txt') {
+          if (!file) throw new Error('Choose a TXT source document.');
+          const saved = await runNative<string[]>('text_convert', { path: requireNativePath(file), target: output, destination });
+          if (!saved.length) throw new Error('Native text conversion did not produce an output.');
+          outputPath = saved[0];
+          props.log('Text converted', `${file.name} → ${saved.join(' · ')}`, 'Documents');
         } else if (tab === 'split') {
           if (!file) throw new Error('Choose a PDF to split.');
           const result = await runNative<{ outputPaths: string[]; oversizedPages: number[] }>('pdf_split', {
@@ -96,7 +102,7 @@ export function DocumentsModule(props: ConverterProps) {
     <section className="panel document-workbench reveal-item" key={tab}>
       {tab === 'images-pdf' && <><DropZone title="Drop images to build a PDF" subtitle="Each image becomes one fitted page · original order is preserved" accept={['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg']} formats={['PNG', 'JPG', 'WEBP', 'BMP', 'SVG']} count={files.length} onFiles={selected => setFiles(current => [...current, ...selected])} />{files.length > 0 && <div className="compact-file-list">{files.map((item, index) => <FileContextRow key={`${item.name}-${index}`} name={`${index + 1}. ${item.name}`} meta={formatBytes(item.size)} />)}</div>}</>}
       {tab === 'pdf-text' && <><SingleSource file={file} setFile={setFile} accept=".pdf" label="Choose PDF" /><InlineNote>Text is extracted page by page with PDF.js. Scanned pages without a text layer need OCR, which is not included.</InlineNote></>}
-      {tab === 'txt' && <><SingleSource file={file} setFile={setFile} accept=".txt,.md,.markdown" label="Choose text document" /><Field label="Output format"><FormatChips options={['md', 'html', 'json', 'txt']} value={output} onChange={setOutput} /></Field></>}
+      {tab === 'txt' && <><SingleSource file={file} setFile={setFile} accept={native ? '.txt' : '.txt,.md,.markdown'} label="Choose text document" /><Field label="Output format"><FormatChips options={native ? ['pdf', 'docx', 'rtf', 'odt', 'html', 'md', 'epub', 'png', 'jpg'] : ['md', 'html', 'json', 'txt']} value={output} onChange={setOutput} /></Field></>}
       {tab === 'office' && <><SingleSource file={file} setFile={setFile} accept=".doc,.docx,.odt,.rtf,.xls,.xlsx,.ppt,.pptx" label="Choose Office document" /><EngineLine name="LibreOffice" detail="Not available to this browser window" /></>}
       {tab === 'split' && <><SingleSource file={file} setFile={setFile} accept=".pdf" label="Choose PDF" /><div className="field-grid"><Field label="Split PDF by"><Select value={splitMode} onChange={value => setSplitMode(value as typeof splitMode)} options={[{ value: 'size', label: 'Approximate size MB' }, { value: 'count', label: 'Number of output PDFs' }, { value: 'pages', label: 'Pages per PDF' }]} /></Field><Field label={splitMode === 'size' ? 'Target size' : splitMode === 'count' ? 'Output PDFs' : 'Pages per file'}><NumberStepper label="Split target" value={target} onChange={setTarget} min={1} max={1000} unit={splitMode === 'size' ? 'MB' : ''} /></Field></div>{splitMode === 'size' && <div className="quick-chips">{[1, 5, 10, 25, 100].map(value => <button className={target === value ? 'active' : ''} key={value} onClick={() => setTarget(value)}>{value} MB</button>)}</div>}<InlineNote>On Windows, native size splitting measures generated PDF parts; large individual pages may exceed a target. The browser preview uses an approximate estimate.</InlineNote></>}
       {busy && <ProgressBar value={progress} label="Document processing" />}<div className="panel-footer"><span>{tab === 'office' ? 'External engine required' : 'Read-only source handling'}</span><KineticButton tone="primary" disabled={busy} onClick={run}>{busy ? <LoaderCircle className="spin" size={16} /> : tab === 'split' ? <Split size={16} /> : <Download size={16} />}{tab === 'images-pdf' ? 'Create PDF' : tab === 'pdf-text' ? 'Extract text' : tab === 'txt' ? 'Convert text' : tab === 'office' ? 'Convert to PDF' : 'Create PDFs'}</KineticButton></div>

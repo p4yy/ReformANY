@@ -42,7 +42,7 @@ const folderConvert: Wedge[] = [['zip', 'ZIP', Archive], ['7z', '7Z', FileArchiv
 const textConvert: Wedge[] = [['txt', 'TXT', FileText], ['md', 'MD', FileCode2], ['pdf', 'PDF', FileText], ['html', 'HTML', FileCode2]].map(([id, label, icon]) => ({ id: `to-${id}`, label: label as string, icon: icon as LucideIcon }));
 const standardTools: Wedge[] = [{ id: 'password-zip', label: 'Password ZIP', icon: LockKeyhole }, { id: 'more-tools', label: 'More tools', icon: MoreHorizontal }, { id: 'split-binary', label: 'Split binary file', icon: Split }];
 const pdfTools: Wedge[] = [
-  { id: 'sign', label: 'Sign', icon: Signature }, { id: 'split-pdf', label: 'Split Pages', icon: Scissors }, { id: 'arrange', label: 'Extract Pages', icon: FileOutput }, { id: 'arrange', label: 'Rotate 90°', icon: RotateCw },
+  { id: 'sign', label: 'Sign', icon: Signature }, { id: 'split-pdf', label: 'Split Pages', icon: Scissors }, { id: 'extract-pages', label: 'Extract Pages', icon: FileOutput }, { id: 'rotate-90', label: 'Rotate 90°', icon: RotateCw },
   { id: 'extract-images', label: 'Extract Images', icon: FileImage }, { id: 'pdf-password', label: 'Password', icon: LockKeyhole }, { id: 'arrange', label: 'Arrange Pages', icon: Sheet }, { id: 'watermark', label: 'Watermark', icon: Stamp },
 ];
 const folderTools: Wedge[] = [{ id: 'more-tools', label: 'More tools', icon: MoreHorizontal }, { id: 'password-zip', label: 'Password ZIP', icon: LockKeyhole }];
@@ -292,12 +292,20 @@ export function OrbitHUD({ preferences, onClose, notify, log, native = false }: 
       finally { setBusy(false); }
       return;
     }
-    if (wedge.id === 'hover' && native && desktop) { await runNative<void>('hover_file', { path: file.path }); return; }
-    if (['shred', 'rename', 'watermark', 'split-pdf', 'hover', 'arrange', 'password-zip', 'split-binary', 'more-tools', 'sign', 'pdf-password'].includes(wedge.id)) { openDialog(wedge.id as OrbitDialogKind); return; }
+    if (wedge.id === 'rotate-90' && file.kind === 'pdf') {
+       if (!native || !desktop) { notify('Desktop required', 'PDF rotation needs the local native engine.', 'default'); return; }
+       setBusy(true);
+       try { const output = await runNative<string>('pdf_rotate_pages', { path: file.path, pages: null, degrees: 90, destination: null }); notify('Rotated PDF saved', output, 'success'); }
+       catch (error) { notify('PDF rotation failed', String(error), 'danger'); }
+       finally { setBusy(false); }
+       return;
+     }
+     if (wedge.id === 'hover' && native && desktop) { await runNative<void>('hover_file', { path: file.path }); return; }
+    if (['shred', 'rename', 'watermark', 'split-pdf', 'hover', 'arrange', 'extract-pages', 'password-zip', 'split-binary', 'more-tools', 'sign', 'pdf-password'].includes(wedge.id)) { openDialog(wedge.id as OrbitDialogKind); return; }
     if (wedge.id.startsWith('to-')) { setBusy(true); try { await convert(wedge.id.slice(3)); } catch (error) { notify('Orbit action not completed', error instanceof Error ? error.message : 'Conversion failed.', 'danger'); log('Orbit conversion stopped', error instanceof Error ? error.message : 'Conversion failed', 'Orbit', 'error'); } finally { setBusy(false); } return; }
     if (wedge.id === 'copy-path') { await navigator.clipboard.writeText(file.path); notify('Path copied', file.path, 'success'); return; }
     if (wedge.id === 'copy-file') { if (native && desktop) { const dest = await nativeCopyFile(file.path); if (dest) notify('File copied', dest, 'success'); return; } if (file.file) { await downloadBlob(file.file, `Copy of ${file.name}`); notify('Copy downloaded', 'The source File object was not modified.', 'success'); } else notify('Choose a local file', 'Browser preview items without bytes cannot be copied.', 'danger'); return; }
-    if (wedge.id === 'show-file' || wedge.id === 'open-folder') { if (native && desktop) { try { await nativeReveal(file.path); } catch(error) { notify('Explorer could not open', String(error), 'danger'); } return; } notify('Explorer handoff ready', 'The Tauri backend reveals and selects this item in Explorer. Browser sandboxing prevents that OS action here.', 'default'); return; }
+    if (wedge.id === 'show-file' || wedge.id === 'open-folder') { if (native && desktop) { try { await nativeReveal(file.path); onClose(); } catch(error) { notify('Explorer could not open', String(error), 'danger'); } return; } notify('Explorer handoff ready', 'The Tauri backend reveals and selects this item in Explorer. Browser sandboxing prevents that OS action here.', 'default'); return; }
     if (wedge.id === 'terminal') { if (native && desktop) { try { await runNative('open_terminal', { path: file.path }); notify('Terminal opened', file.path, 'success'); } catch(error) { notify('Terminal failed', String(error), 'danger'); } return; } notify('Terminal handoff', `Desktop action: start terminal at ${file.path}`, 'default'); return; }
     if (wedge.id === 'bluetooth') { if (native && desktop) { try { const message = await runNative<string>('send_bluetooth', { path: file.path }); notify('Bluetooth', message, 'success'); } catch(error) { notify('Bluetooth failed', String(error), 'danger'); } return; } notify('Windows Bluetooth handoff', 'The desktop build opens the Windows nearby-sharing flow for this file. No browser request was made.', 'default'); return; }
     notify('Operation not available', `${wedge.label} has no verified native handler yet. The source was not modified.`, 'danger');

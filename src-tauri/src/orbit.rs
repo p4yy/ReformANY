@@ -272,7 +272,7 @@ pub async fn orbit_open_workspace(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn reveal_output(path: String) -> Result<(), String> {
+pub fn reveal_output(app: AppHandle, path: String) -> Result<(), String> {
     let file = Path::new(&path);
     if !file.is_file() && !file.is_dir() {
         return Err("Selected output no longer exists".into());
@@ -285,12 +285,17 @@ pub fn reveal_output(path: String) -> Result<(), String> {
         } else {
             explorer.arg(file);
         }
+        if let Some(orbit) = app.get_webview_window("orbit") {
+            // Explorer should never open behind a topmost Orbit window.
+            let _ = orbit.set_always_on_top(false);
+            let _ = orbit.hide();
+        }
         explorer.spawn().map_err(|_| "Could not open File Explorer".to_owned())?;
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = file;
+        let _ = (app, file);
         Err("Reveal in Explorer is available on Windows".into())
     }
 }

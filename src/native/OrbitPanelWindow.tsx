@@ -8,7 +8,7 @@ import type { OrbitFile, ToastMessage } from '../types';
 import { ext, uid } from '../lib/files';
 import { loadNativeFile, nativeRename, runNative, setSourcePath } from './bridge';
 
-const supported: OrbitDialogKind[] = ['sign','watermark','split-pdf','arrange','password-zip','split-binary','rename','shred','more-tools','pdf-password'];
+const supported: OrbitDialogKind[] = ['sign','watermark','split-pdf','arrange','extract-pages','password-zip','split-binary','rename','shred','more-tools','pdf-password'];
 function fileKind(name: string): OrbitFile['kind'] {
   const suffix = ext(name);
   if (suffix === 'pdf') return 'pdf';
