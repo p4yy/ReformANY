@@ -74,7 +74,6 @@ export default function DocumentPreview({ initialPath }: Props) {
     setRendering(true);
     const loadingTask = getDocument({
       data: toPdfData(value.content),
-      isEvalSupported: false,
       cMapUrl: "/pdfjs/cmaps/",
       standardFontDataUrl: "/pdfjs/standard_fonts/",
       wasmUrl: "/pdfjs/wasm/",

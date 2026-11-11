@@ -41,7 +41,7 @@ export function DocumentsModule(props: ConverterProps) {
     } else {
       void file.arrayBuffer().then(async bytes => {
         if (!live) return;
-        const task = getDocument({ data: new Uint8Array(bytes), isEvalSupported: false });
+        const task = getDocument({ data: new Uint8Array(bytes) });
         countTask = task;
         const pdf = await task.promise;
         if (live) setExtractCount(pdf.numPages);
@@ -235,7 +235,7 @@ function PdfCanvas({ file, pageNumber, zoom, onPages }: { file: File; pageNumber
     setError(''); setPdf(null);
     void file.arrayBuffer().then(async data => {
       if (!active) return;
-      const task = getDocument({ data: new Uint8Array(data), isEvalSupported: false });
+      const task = getDocument({ data: new Uint8Array(data) });
       loadingTask = task;
       const document = await task.promise;
       if (active) { setPdf(document); onPages(document.numPages); }

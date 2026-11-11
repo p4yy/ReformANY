@@ -245,7 +245,7 @@ function usePdf(file?: File) {
     if (!file || ext(file.name) !== 'pdf') return;
     void file.arrayBuffer().then(async data => {
       if (!active) return;
-      const task = getDocument({ data: new Uint8Array(data), isEvalSupported: false });
+      const task = getDocument({ data: new Uint8Array(data) });
       loadingTask = task;
       const document = await task.promise;
       if (active) setPdf(document);

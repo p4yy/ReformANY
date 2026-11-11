@@ -221,7 +221,7 @@ export async function imagesToPdf(files: File[]) {
 }
 
 export async function extractPdfText(file: File, onPage?: (page: number, total: number) => void) {
-  const pdf = await getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  const pdf = await getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const sections: string[] = [];
   for (let number = 1; number <= pdf.numPages; number++) {
     onPage?.(number, pdf.numPages);
