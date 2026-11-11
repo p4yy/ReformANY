@@ -5,7 +5,7 @@ This checklist protects the first official release from being confused with a su
 ## Release blockers
 
 - [ ] **Confirm license:** keep the current proprietary source-available license, or approve a replacement and legal review. Do not add an MIT/GPL badge without actually changing the terms.
-- [ ] **Remediate or formally risk-review** the high-severity advisories in npm `xlsx@0.18.5` (CVE-2023-30533, CVE-2024-22363); confirm affected runtime paths and any safe upgrade plan.
+- [ ] **Resolve high-severity dependencies before stable:** npm `xlsx@0.18.5` (CVE-2023-30533, CVE-2024-22363) and `pdfjs-dist@5.6.x` (malicious-PDF arbitrary JavaScript advisory GHSA-hq66-cqwq-w95j). Upgrading PDF.js to 6.x is potentially breaking: update import/worker behavior and rerun all PDF rendering, Orbit and 269-page tests. Confirm spreadsheet parser exposure and a verified upgrade or migration for SheetJS.
 - [ ] Run `npm audit --omit=dev --audit-level=high` and a Rust advisory audit on actual resolved dependency locks; record outputs and fixes.
 - [ ] Review all reachable Git history for secrets (`gitleaks git --redact .` or an equivalent tool) and enable GitHub secret scanning/push protection. Rotate exposed keys; deleting history is not sufficient.
 - [ ] Manually test installer and **portable** binary on clean Windows 10/11 environments, including WebView2, file permissions, offline startup and antivirus/SmartScreen behavior.
