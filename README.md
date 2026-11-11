@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/brand/reformany-icon.png" alt="ReformANY app icon" width="78">
+  <img src="docs/media/reformany-transparent-logo.webp" alt="ReformANY transparent app logo" width="92">
 </p>
 
 <h1 align="center">ReformANY</h1>
@@ -52,9 +52,15 @@ ReformANY brings file conversion and document utilities into one Windows desktop
 - **Documents and data** — supported Office, e-book, spreadsheet, table, text, and subtitle conversion routes.
 - **Archives and files** — ZIP creation/extraction, encrypted ZIP, supported external archive formats, and file split/join tools.
 
+## Inside ReformANY
+
+Three real views of the Windows app: the conversion workspace, ReformANY Orbit, and PDF page tools.
+
 <p align="center">
-  <img src="public/brand/reformany-banner.gif" alt="ReformANY animated format-conversion banner" width="440">
+<a href="https://p4yy.github.io/ReformANY/#screenshots" title="Explore ReformANY screenshots on the website"><img src="docs/media/screenshots/reformany-showcase.webp" alt="Three ReformANY desktop screenshots showing the Images workspace, circular Orbit menu, and PDF page arranger" width="860"></a>
 </p>
+
+<p align="center"><sub>Explore each screenshot on the <a href="https://p4yy.github.io/ReformANY/#screenshots">ReformANY website</a>.</sub></p>
 
 ## Formats
 
