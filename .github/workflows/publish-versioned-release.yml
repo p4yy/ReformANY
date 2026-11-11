@@ -65,6 +65,7 @@ jobs:
           }
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "::notice::Release $tag already exists; leaving its files untouched."
+            echo "RELEASE_ALREADY_EXISTS=1" >> "$GITHUB_ENV"
             exit 0
           fi
           # Prevent tagging the same version a second time or picking a
@@ -92,6 +93,7 @@ jobs:
           echo "Validated tag $tag and successful Windows build $run_id from $target"
 
       - name: Download previously verified portable EXE
+        if: env.RELEASE_ALREADY_EXISTS != '1'
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -100,6 +102,7 @@ jobs:
           path: release/portable
 
       - name: Download previously verified premium setup EXE
+        if: env.RELEASE_ALREADY_EXISTS != '1'
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -108,6 +111,7 @@ jobs:
           path: release/installer
 
       - name: Confirm two genuine Windows executables and generate checksums
+        if: env.RELEASE_ALREADY_EXISTS != '1'
         shell: bash
         run: |
           set -euo pipefail
@@ -124,6 +128,7 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: Publish one tagged release containing both verified executables
+        if: env.RELEASE_ALREADY_EXISTS != '1'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
