@@ -7,7 +7,12 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $version = '9.0.2'
-$source = 'https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip'
+# The GitHub release is the publisher's own mirror of the exact same pinned archive.
+# Both URLs MUST match the same hard-coded SHA256 digest below.
+$sources = @(
+  'https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip',
+  'https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip'
+)
 $expected = '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $bundle = Join-Path $root 'src-tauri\installer\media-bundle'
@@ -17,19 +22,25 @@ $extracted = Join-Path $workspace 'extracted'
 try {
   New-Item -ItemType Directory -Path $workspace, $extracted, $bundle -Force | Out-Null
   $ok = $false
-  for ($attempt = 1; $attempt -le 3; $attempt++) {
-    try {
-      Write-Host "Downloading pinned FFmpeg $version for offline installer (attempt $attempt of 3)"
-      Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 5 -TimeoutSec 240 -UseBasicParsing
-      $sha = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-      if ($sha -ne $expected) { throw "SHA256 mismatch; expected $expected but got $sha" }
-      $ok = $true
-      break
-    } catch {
-      Write-Warning ("FFmpeg archive download/verification failed: " + $_.Exception.Message)
-      Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
-      if ($attempt -lt 3) { Start-Sleep -Seconds (5 * $attempt) }
+  $usedSource = $null
+  # On a 503 from the primary host, immediately try the official GitHub mirror
+  # before another retry. A checksum mismatch never bypasses verification.
+  for ($attempt = 1; $attempt -le 3 -and -not $ok; $attempt++) {
+    foreach ($source in $sources) {
+      try {
+        Write-Host "Downloading pinned FFmpeg $version from $source (attempt $attempt of 3)"
+        Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 5 -TimeoutSec 240 -UseBasicParsing
+        $sha = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($sha -ne $expected) { throw "SHA256 mismatch; expected $expected but got $sha" }
+        $usedSource = $source
+        $ok = $true
+        break
+      } catch {
+        Write-Warning ("FFmpeg archive download/verification failed from " + $source + ": " + $_.Exception.Message)
+        Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+      }
     }
+    if (-not $ok -and $attempt -lt 3) { Start-Sleep -Seconds (5 * $attempt) }
   }
   if (-not $ok) { throw 'Unable to download and verify the pinned FFmpeg release' }
 
@@ -64,7 +75,7 @@ try {
   Copy-Item -LiteralPath $license -Destination (Join-Path $bundle 'LICENSE') -Force
   @(
     "ReformANY private media engine payload: FFmpeg $version / FFprobe",
-    "Source: $source",
+    "Source: $usedSource",
     "SHA256 (source archive): $expected",
     'Distribution: https://www.gyan.dev/ffmpeg/builds/',
     'License: see LICENSE and https://ffmpeg.org/legal.html',
