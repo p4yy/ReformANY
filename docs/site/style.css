@@ -64,7 +64,7 @@ img { display: block; }
 .film-star { font-size:19px; line-height:0; margin-right:8px; vertical-align:middle; }
 .trailer-frame { overflow:hidden; border-radius:13px; line-height:0; border:1px solid rgba(220,238,216,.32); background:#050705; box-shadow:0 18px 60px rgba(0,0,0,.35),0 0 0 9px rgba(209,230,207,.035); }
 .trailer-frame iframe { width:100%; aspect-ratio:16/9; display:block; border:0; background:#050705; }
-.trailer-footnote { padding-top:19px; color:#819687; font-weight:500; letter-spacing:.075em; }
+.trailer-footnote { padding-top:19px; color:#819687; font-weight:500; letter-spacing:.075em; flex-wrap:wrap; }
 .trailer-footnote > span:first-child { color:#d1dfd0; font-weight:700; }
 .youtube-pill { display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:11px 15px; border-radius:999px; border:1px solid rgba(213,237,213,.25); background:rgba(229,242,226,.065); color:#edf4eb; font-size:12px; font-weight:660; letter-spacing:0; text-decoration:none; white-space:nowrap; transition:background .2s,border-color .2s,transform .2s; }
 .youtube-pill:hover { background:rgba(229,242,226,.12); border-color:rgba(213,237,213,.48); transform:translateY(-1px); }

@@ -9,12 +9,18 @@
 </p>
 
 <p align="center">
-  <a href="https://p4yy.github.io/ReformANY/"><strong>Explore the website</strong></a>
-  &nbsp; · &nbsp;
-  <a href="https://p4yy.github.io/ReformANY/#trailer"><strong>Watch the trailer</strong></a>
-  &nbsp; · &nbsp;
-  <a href="https://www.youtube.com/watch?v=qOx84dtkdz4"><strong>Watch on YouTube</strong></a>
+  <a href="https://p4yy.github.io/ReformANY/?v=youtube#trailer" title="Play the official ReformANY YouTube trailer on the website">
+    <img src="docs/media/reformany-youtube-preview.svg" alt="ReformANY official trailer: Files change. Flow stays. Click to watch the YouTube player on the ReformANY website." width="860">
+  </a>
 </p>
+
+<p align="center">
+  <a href="https://p4yy.github.io/ReformANY/?v=youtube#trailer" title="Play the trailer on the ReformANY website"><img src="docs/media/reformany-website-pill.svg" width="199" alt="Play on website"></a>
+  &nbsp;&nbsp;
+  <a href="https://www.youtube.com/watch?v=qOx84dtkdz4" title="Open the ReformANY trailer on YouTube"><img src="docs/media/reformany-youtube-pill.svg" width="199" alt="Watch on YouTube"></a>
+</p>
+
+<p align="center"><sub>Official product trailer · 1 min 14 sec · YouTube playback available on the website</sub></p>
 
 <p align="center">
   <a href="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml"><img src="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml/badge.svg?branch=main" alt="Source verification"></a>
