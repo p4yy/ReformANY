@@ -11,6 +11,6 @@ Thanks for taking the time to improve ReformANY. The project is publicly viewabl
 
 ## Standards for approved pull requests
 
-Keep the change focused, describe expected behavior, add tests where possible, and retain the original files for comparison. Do not remove license notices or introduce telemetry/network uploads. For UI changes, attach redacted before/after Windows screenshots; verify actual keyboard, wheel and pointer interactions rather than appearance alone.
+Keep the change focused, describe expected behavior, add tests where possible, and retain the original files for comparison. Do not remove license notices or introduce telemetry/network uploads. For UI changes, use privacy-reviewed captures from synthetic Windows test fixtures only; never include images or videos from private chats. Verify actual keyboard, wheel and pointer interactions rather than appearance alone.
 
 Development commands are in the [README](README.md). Include a clear test plan and explain any remaining manual Windows checks. Maintainers may close proposals that do not fit the current roadmap.

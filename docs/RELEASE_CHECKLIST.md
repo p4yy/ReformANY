@@ -11,12 +11,12 @@ This checklist protects the first official release from being confused with a su
 - [x] Run the Git history secret scanner across **all fetched refs**: Gitleaks v8.24.3 scanned 773 commits and reported no detected leaks (https://github.com/p4yy/ReformANY/actions/runs/42961408949). This is a pattern-based audit, not proof that no secrets ever existed.
 - [ ] Enable GitHub secret scanning and push protection in repository settings. Independently review sensitive historical content and rotate any credentials discovered later; deleting history is not sufficient.
 - [ ] Manually test installer and **portable** binary on clean Windows 10/11 environments, including WebView2, file permissions, offline startup and antivirus/SmartScreen behavior.
-- [ ] Verify Orbit's right-edge scrollbar in all native tool panels, including normal/maximized windows, and compare against current screenshots.
+- [ ] Verify Orbit's right-edge scrollbar in all native tool panels, including normal/maximized windows, using non-sensitive test PDFs and direct interaction tests.
 - [ ] Validate key conversions on a real fixture corpus (large PDFs, SVG/raster images, archives, media with and without optional engines, invalid/encrypted files).
 - [ ] Check app version **consistently** in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, premium shell metadata and any displayed About/version fields. Current source still states `0.3.0`.
 - [ ] Reconcile preview-era documentation and legal notices; check font and third-party media licenses.
 - [ ] Apply branch protections and rulesets, enable vulnerability reporting/Dependabot and verify code owners.
-- [ ] Confirm full-size, cropped, privacy-reviewed screenshots and social preview image.
+- [ ] Before any public screenshots, videos or social preview are added, verify that they contain no private chat references, personal desktops, real documents or identifying metadata. Prefer the approved first-party icon alone for the social preview.
 
 ## Prepare release commit and assets
 

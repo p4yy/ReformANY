@@ -38,8 +38,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Test captures are delivered as CI artifacts. Public captures live in docs/screenshots.
+# Keep private design references and recordings out of source history.
+# These exclusions do not remove files that were already committed.
 test-screenshots/
+docs/screenshots/
+docs/videos/
+docs/reference-media/
+design/references/
+reference-media/
+reference-images/
+reference-videos/
 
 # Installer packaging outputs (do not ignore required tracked reference fixtures)
 installer/setup-shell/frontend/

@@ -30,3 +30,9 @@
 - Verified screenshot artifact: https://github.com/p4yy/ReformANY/actions/runs/42954690762/artifacts/13826344734
 
 See [the release checklist](RELEASE_CHECKLIST.md) for acceptance gates and deletion protections.
+
+## Public media privacy cleanup
+
+The release-preparation PR removes four documentation screenshot JPEGs and their README references; no standalone video file was found in its tracked tree. The working application brand PNG/ICO files remain because its UI and Windows packaging require them. The premium installer reference ZIP also remains because the Windows build workflow extracts it. That archive must be migrated to a verified replacement before it can safely be removed.
+
+This is a normal, reversible commit, **not** Git history erasure: old commits and GitHub-hosted workflow artifacts may still contain earlier media. Any history rewrite or permanent removal needs a separate inventory, backup, assessment of open PRs, and explicit owner approval. Do not publish unreviewed chat-sourced photos, screenshots or videos.

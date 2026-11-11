@@ -19,7 +19,7 @@ Describe the behavior and what should happen instead.
 - File type and size (no sensitive filenames):
 
 ### Evidence
-Attach redacted screenshots or logs. Remove personal paths, passwords and document content. For vulnerabilities, **do not open a public issue**; use [SECURITY.md](../../SECURITY.md).
+Do not upload private chat images, videos, personal desktops, real customer documents or identifying file paths. If a visual is necessary, recreate the issue with a synthetic fixture and review the capture for privacy before uploading. For vulnerabilities, **do not open a public issue**; use [SECURITY.md](../../SECURITY.md).
 
 ### Verification
 - [ ] I reproduced this with the latest available test or release build.

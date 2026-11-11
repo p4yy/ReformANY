@@ -29,7 +29,7 @@ Trust comes from inspectable code, accurate format documentation, a verified bui
 
 ## Release and marketing artwork
 
-Use actual application captures from a tested Windows build, with permission to publish any sample content shown. Show the actual image workspace, an independent Orbit window, a scrollable multi-page PDF and the dark installer. Do not publish synthetic UI mockups as evidence of shipped functionality.
+Publish only privacy-reviewed captures recorded with synthetic test fixtures, and only after explicit approval. Never commit screenshots, photos or videos from private chats or design references. Do not expose personal desktops, filenames or document contents. A product screenshot is evidence only if it matches a tested Windows build.
 
 Any future logo motion or loading animation must be designed as a separate approved first-party asset. No inherited GIFs or older product assets.
 

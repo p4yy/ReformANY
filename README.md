@@ -24,20 +24,9 @@ ReformANY converts supported files and provides quick desktop tools for PDFs, im
 - **Archives and files:** Create or extract ZIP files, split and rejoin numbered file parts, and use supported external archive utilities when present.
 - **Local by design:** No app account, cloud conversion service or first-party telemetry. Outputs are written separately from source files.
 
-## Screenshots
+## Interface previews
 
-Actual Windows UI captures from the [successful PR #19 smoke test](https://github.com/p4yy/ReformANY/actions/runs/42954690762). Click an image to view the full capture.
-
-<p align="center">
-  <a href="docs/screenshots/images-workspace.jpg"><img src="docs/screenshots/images-workspace.jpg" alt="ReformANY Images workspace with dark sage-green interface" width="560" /></a>
-  <a href="docs/screenshots/orbit-wheel.jpg"><img src="docs/screenshots/orbit-wheel.jpg" alt="Circular ReformANY Orbit conversion menu" width="360" /></a>
-</p>
-<p align="center"><sub>Images workspace · Orbit conversion menu</sub></p>
-<p align="center">
-  <a href="docs/screenshots/audio-video-workspace.jpg"><img src="docs/screenshots/audio-video-workspace.jpg" alt="Audio and Video conversion workspace" width="480" /></a>
-  <a href="docs/screenshots/pdf-arrange-page-269.jpg"><img src="docs/screenshots/pdf-arrange-page-269.jpg" alt="Arrange PDF pages scrolled to page 269 in native Windows tool panel" width="480" /></a>
-</p>
-<p align="center"><sub>Media conversion · Scrollable PDF page arrangement</sub></p>
+Reference screenshots and videos from private design discussions are not stored in this source repository. Future release images, if any, must use non-sensitive test fixtures and be approved for public use.
 
 ## Download and install
 

@@ -29,4 +29,4 @@ The product's inline ReformANY mark and CSS were written for this project. No th
 
 ## User-provided ReformANY brand mark
 
-The small brand icon used in the interface is an optimized crop of the logo image provided by the product owner in the design review on November 8, 2026. It is not a generated replacement or a copied mark from another application. Windows installer icon packaging may still require a higher-resolution, transparent, owner-approved icon asset.
+The application uses its official first-party brand mark in the UI and Windows packaging. These runtime icons are required for the existing build; do not confuse them with private design-reference images or videos. Future replacements require approved assets and build verification.
