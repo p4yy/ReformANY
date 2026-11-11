@@ -2645,6 +2645,16 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
   min-height: 0;
   overflow: hidden;
 }
+/* The same dialog component also renders as a non-native modal; preserve
+   scrolling there rather than relying on native-only selectors. */
+.orbit-dialog .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 .orbit-panel-window .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
   box-sizing: border-box;
   flex: 1 1 0%;
