@@ -2702,3 +2702,47 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
   outline: 2px solid var(--accent-bright);
   outline-offset: -2px;
 }
+
+
+/* Windows verified 269-page fix: an unconstrained flex percentage height let
+   the outer viewport grow to the entire 14,963px document. Use definite grid
+   rows so the scrollbar's clientHeight is the *window*, not document height.
+   The last row always reserves the real Save/Cancel footer. */
+.orbit-panel-window .orbit-dialog,
+.orbit-panel-window .orbit-dialog.wide {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 40px minmax(0, 1fr) auto;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+.orbit-panel-window .orbit-dialog > .orbit-dialog-titlebar {
+  grid-row: 1;
+  min-height: 0;
+}
+.orbit-panel-window .orbit-dialog > .orbit-panel-scroll-host {
+  box-sizing: border-box;
+  grid-row: 2;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  min-width: 0;
+  overflow: hidden !important;
+}
+.orbit-panel-window .orbit-dialog > .orbit-dialog-footer {
+  grid-row: 3;
+  min-height: 0;
+}
+.orbit-panel-window .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  display: block;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
