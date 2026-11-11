@@ -17,7 +17,7 @@
 
 ReformANY brings file conversion and document utilities into one Windows desktop app. Work in the main interface or open **ReformANY Orbit** from File Explorer for quick, file-specific actions. Supported conversions run locally, without an account or cloud upload.
 
-> **Development status:** Windows test builds are available through [GitHub Actions](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml). An official stable release has not been published.
+> **Latest Windows release:** [ReformANY v0.3.0](https://github.com/p4yy/ReformANY/releases/tag/v0.3.0) · portable app and premium installer · [SHA-256 checksums](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/SHA256SUMS.txt). Windows 10/11 (64-bit); binaries are currently unsigned.
 
 ## Features
 
@@ -47,12 +47,14 @@ Support is **operation-specific**; not every listed input converts to every list
 
 ## Installation
 
-ReformANY currently provides Windows **test builds** rather than a published stable release. Open the [Windows build workflow](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml) and select the artifacts from a successful run.
+Download the official [ReformANY v0.3.0 release](https://github.com/p4yy/ReformANY/releases/tag/v0.3.0). Each executable is offered as a **direct download**; no GitHub Actions ZIP is required.
 
-| Package | How to use it |
-| --- | --- |
-| **Portable** — `ReformANY.exe` | Download the **Portable-EXE-test** ZIP, extract it, and launch `ReformANY.exe`. No setup wizard required. |
-| **Installer** — `reformany-setup.exe` | Download the **Premium-Setup-EXE-test** ZIP, extract it, and run the setup executable. |
+| Package | Direct download | How to use it |
+| --- | --- | --- |
+| **Portable app** | [`ReformANY.exe`](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/ReformANY.exe) | Launch the standalone application; no setup wizard required. |
+| **Premium installer** | [`reformany-setup.exe`](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/reformany-setup.exe) | Run the Windows setup wizard. |
+
+Both executables were published from the same verified Windows CI run and have an accompanying [`SHA256SUMS.txt`](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/SHA256SUMS.txt). Future versions use their own `vMAJOR.MINOR.PATCH` release tags.
 
 **Requirements:** Windows 10 or 11 (64-bit), WebView2, and adequate disk space. Optional tools require their respective local engines. Unsigned development builds may trigger Windows SmartScreen.
 
