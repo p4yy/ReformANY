@@ -126,7 +126,7 @@ The Windows CI workflow builds the native executable, premium setup and standalo
 
 - Core conversion and preview operations run locally. ReformANY does not require a cloud account or upload documents to a ReformANY server.
 - Some optional format routes invoke software installed on the device. See the [privacy contract](docs/PRIVACY.md) for settings, local storage and engine details.
-- **Security work remains open.** High/critical dependency advisories and clean-Windows acceptance requirements must be resolved before any stable release. Passing CI or displaying a screenshot is not certification.
+- **Dependency audit cleared on the verified build.** npm and RustSec audits, Linux source tests, Windows installer tests, the 269-page Orbit scrolling test and portable offline checks passed on commit [`1da3e05`](https://github.com/p4yy/ReformANY/commit/1da3e05411c99ce0eb2726a2adcaaf8989c4e477). This is a development build, not a stable-release certification. Manual clean-Windows acceptance, signing and release review remain open.
 - Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md), not a public issue.
 
 ## Project information

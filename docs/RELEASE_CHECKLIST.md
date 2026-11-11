@@ -5,9 +5,9 @@ This checklist protects the first official release from being confused with a su
 ## Release blockers
 
 - [x] **License decision confirmed by project owner (2026-11-11):** retain the existing Acev Dev Co proprietary, source-available `LICENSE`. **Do not** relicense under MIT/GPL. Before commercial/public distribution, independently confirm the legal copyright holder and have the custom terms reviewed; no change was made to `LICENSE`.
-- [ ] **Resolve high-severity dependencies before stable:** npm `xlsx@0.18.5` (CVE-2023-30533, CVE-2024-22363) and `pdfjs-dist@5.6.x` (malicious-PDF arbitrary JavaScript advisory GHSA-hq66-cqwq-w95j). Upgrading PDF.js to 6.x is potentially breaking: update import/worker behavior and rerun all PDF rendering, Orbit and 269-page tests. Confirm spreadsheet parser exposure and a verified upgrade or migration for SheetJS.
-- [ ] **Fix RustSec findings:** Cargo audit reported 16 vulnerabilities and four warnings across resolved crates. High/critical examples include `zip` 8.6.0 and transitive 4.6.1/7.4.0 (update chain to >=9.0.0), `lopdf` 0.39.0 (>=0.42.0), `calamine` 0.31.0 (>=0.38.0), and `quick-xml` 0.38.4 (>=0.41.0). Re-run real PDF, ZIP, worksheet and media tests after updates; review unsound/unmaintained transitives separately.
-- [ ] Re-run `npm audit --omit=dev --audit-level=high` and RustSec `cargo audit` on the final resolved dependency locks until critical/high findings are resolved. GitHub Actions audit run: https://github.com/p4yy/ReformANY/actions/runs/42960934395.
+- [x] **Remediated the reported npm advisories:** replaced vulnerable npm SheetJS with maintainer-published `xlsx@0.20.3` and upgraded `pdfjs-dist` to `6.5.438`. Updated PDF.js 6 loading-task cleanup; frontend and native Orbit/PDF acceptance checks passed on [Windows CI](https://github.com/p4yy/ReformANY/actions/runs/42970136279).
+- [x] **Remediated reported RustSec vulnerabilities:** updated `zip` to 9.0.0, `lopdf` to 0.42.0, `calamine` to 0.38.0 and `rust_xlsxwriter` to 0.102.0; patched ZIP 9 API call sites. Rust tests, lint and Windows tests passed.
+- [x] **Dependency audits passed** on code commit `1da3e05`: [npm + RustSec](https://github.com/p4yy/ReformANY/actions/runs/42970136280). Re-audit any future dependency update and before a stable release; an audit pass does not imply zero vulnerabilities.
 - [x] Run the Git history secret scanner across **all fetched refs**: Gitleaks v8.24.3 scanned 773 commits and reported no detected leaks (https://github.com/p4yy/ReformANY/actions/runs/42961408949). This is a pattern-based audit, not proof that no secrets ever existed.
 - [ ] Enable GitHub secret scanning and push protection in repository settings. Independently review sensitive historical content and rotate any credentials discovered later; deleting history is not sufficient.
 - [ ] Manually test installer and **portable** binary on clean Windows 10/11 environments, including WebView2, file permissions, offline startup and antivirus/SmartScreen behavior.
@@ -20,7 +20,7 @@ This checklist protects the first official release from being confused with a su
 
 ## Prepare release commit and assets
 
-1. Merge and retest the reviewed application PR and this documentation PR into `main`. **Do not force-push** or rewrite history as a substitute for ordinary review.
+1. The reviewed source and security fixes were fast-forwarded to `main` without a force push at `1da3e05`; ensure future release updates are reviewed and retested on `main`.
 2. Build from the exact final `main` commit. Do not reuse an EXE built from an unrelated draft PR SHA as a stable release binary.
 3. Export a dedicated portable ZIP containing `ReformANY.exe` with the expected local runtime requirements documented. Do not call the premium setup EXE portable.
 4. Create `SHA256SUMS.txt` using a trusted machine, for example in PowerShell:
