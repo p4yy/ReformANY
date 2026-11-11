@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/brand/reformany-banner.gif" alt="ReformANY animated conversion banner" width="100%">
+  <img src="public/brand/reformany-banner.gif" alt="ReformANY animated conversion banner" width="720">
 </p>
 
 <h1 align="center">ReformANY</h1>
