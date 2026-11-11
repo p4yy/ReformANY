@@ -23,6 +23,9 @@ interface DialogProps {
 export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer, wide = false, brand = 'ReformANY Orbit', onClose, className = '', toolbar }: { title: string; subtitle?: string; icon: ReactNode; file?: OrbitFile; children: ReactNode; footer?: ReactNode; wide?: boolean; brand?: string; onClose: () => void; className?: string; toolbar?: ReactNode }) {
   const [minimized, setMinimized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const scrollViewport = useRef<HTMLDivElement>(null);
+  const scrollDrag = useRef<{ y: number; top: number } | null>(null);
+  const [scrollGeometry, setScrollGeometry] = useState({ client: 0, total: 0, top: 0 });
   const panel = desktop && getCurrentWindow().label.startsWith('orbit-panel-');
   // Keep the maximize/fullscreen icon synchronized with native window state
   // even when the user changes size through Windows itself.
@@ -70,6 +73,95 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
       console.error('Orbit fullscreen could not be changed', error);
     }
   };
+  // A real scroll controller is required here: the Windows scrollbar drawn
+  // by the WebView could be visible even when nested PDF panels swallowed the
+  // wheel. Track all page-height changes and move the actual viewport.
+  useEffect(() => {
+    if (!panel) return;
+    const viewport = scrollViewport.current;
+    if (!viewport) return;
+    let pending = 0;
+    const measure = () => {
+      cancelAnimationFrame(pending);
+      pending = requestAnimationFrame(() => {
+        const next = {
+          client: viewport.clientHeight,
+          total: viewport.scrollHeight,
+          top: viewport.scrollTop,
+        };
+        setScrollGeometry(previous =>
+          previous.client === next.client && previous.total === next.total && previous.top === next.top
+            ? previous : next);
+      });
+    };
+    const wheel = (event: WheelEvent) => {
+      // A document preview (PDF/film/text) may have intentional local scrolling.
+      // Elsewhere, wheel and touchpad input always control the OUTER panel.
+      const target = event.target;
+      if (target instanceof Element && target.closest(
+        ".watermark-scroll,.hover-preview,.hover-pdf,.hover-text-preview,textarea"
+      )) return;
+      const multiplier = event.deltaMode === 1 ? 18
+        : event.deltaMode === 2 ? viewport.clientHeight : 1;
+      const delta = event.deltaY * multiplier;
+      if (!Number.isFinite(delta) || Math.abs(delta) < 0.05) return;
+      const oldTop = viewport.scrollTop;
+      viewport.scrollTop += delta;
+      if (viewport.scrollTop !== oldTop) {
+        event.preventDefault();
+        event.stopPropagation();
+        measure();
+      }
+    };
+    viewport.addEventListener("wheel", wheel, { capture: true, passive: false });
+    viewport.addEventListener("scroll", measure, { passive: true });
+    const resize = new ResizeObserver(measure);
+    resize.observe(viewport);
+    Array.from(viewport.children).forEach(child => resize.observe(child));
+    const mutations = new MutationObserver(measure);
+    mutations.observe(viewport, { childList: true, subtree: true });
+    measure();
+    return () => {
+      cancelAnimationFrame(pending);
+      viewport.removeEventListener("wheel", wheel, true);
+      viewport.removeEventListener("scroll", measure);
+      resize.disconnect();
+      mutations.disconnect();
+    };
+  }, [panel]);
+  const trackSize = scrollGeometry.client;
+  const scrollMax = Math.max(0, scrollGeometry.total - trackSize);
+  const thumbSize = trackSize > 0
+    ? Math.min(trackSize, Math.max(32, trackSize * trackSize / Math.max(trackSize, scrollGeometry.total)))
+    : 0;
+  const thumbRange = Math.max(1, trackSize - thumbSize);
+  const thumbTop = scrollMax > 0 ? scrollGeometry.top / scrollMax * thumbRange : 0;
+  const trackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const viewport = scrollViewport.current;
+    if (!viewport || !scrollMax) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const track = event.currentTarget.getBoundingClientRect();
+    if (!(event.target as Element).closest(".orbit-panel-scroll-thumb")) {
+      const offset = event.clientY - track.top - thumbSize / 2;
+      viewport.scrollTop = Math.max(0, Math.min(scrollMax, offset / thumbRange * scrollMax));
+    }
+    scrollDrag.current = { y: event.clientY, top: viewport.scrollTop };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const trackPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const viewport = scrollViewport.current;
+    const drag = scrollDrag.current;
+    if (!viewport || !drag || !scrollMax) return;
+    viewport.scrollTop = Math.max(0, Math.min(scrollMax,
+      drag.top + (event.clientY - drag.y) / thumbRange * scrollMax));
+  };
+  const trackPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    scrollDrag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
   const startDrag = (event: ReactPointerEvent<HTMLElement>) => {
     if (!panel || event.button !== 0 || (event.target as HTMLElement).closest('button,input,select,textarea,a,[role="slider"]')) return;
     void getCurrentWindow().startDragging().catch(() => {});
@@ -77,10 +169,30 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
   if (minimized) return <button className="minimized-orbit-dialog" onClick={() => setMinimized(false)}><OrbitMark /><span>{brand} · {title}</span><MaximizeLabel /></button>;
   return <div className="orbit-dialog-backdrop"><section className={`orbit-dialog ${wide ? 'wide' : ''} ${className}`} role="dialog" aria-modal="true" aria-label={title}>
     <header className="orbit-dialog-titlebar" onPointerDown={startDrag}><div><OrbitMark /><span>{brand}</span></div><div>{toolbar}<IconButton label={fullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</IconButton><IconButton label="Minimize" onClick={() => { if (panel) void getCurrentWindow().minimize(); else setMinimized(true); }}><Minus size={15} /></IconButton><IconButton label="Close" onClick={onClose}><X size={16} /></IconButton></div></header>
-    <div className="orbit-dialog-scroll-region" role="region" aria-label={`${title} panel content; scroll down for more`} tabIndex={0}>
-      <div className="orbit-dialog-heading"><div className="muted-icon-chip">{icon}</div><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>
-      {file && <FileContextRow name={file.name} meta={file.pages ? `${file.pages} pages · ${formatBytes(file.size)}` : `${file.typeLabel || file.kind.toUpperCase()} · ${formatBytes(file.size)}`} />}
-      <div className="orbit-dialog-body">{children}</div>
+    <div className="orbit-panel-scroll-host">
+      <div ref={scrollViewport} className="orbit-dialog-scroll-region" role="region" aria-label={`${title} panel content; scroll down for more`} tabIndex={0}>
+        <div className="orbit-dialog-heading"><div className="muted-icon-chip">{icon}</div><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>
+        {file && <FileContextRow name={file.name} meta={file.pages ? `${file.pages} pages · ${formatBytes(file.size)}` : `${file.typeLabel || file.kind.toUpperCase()} · ${formatBytes(file.size)}`} />}
+        <div className="orbit-dialog-body">{children}</div>
+      </div>
+      {panel && <div className="orbit-panel-scroll-track" role="scrollbar"
+        aria-label={`${title} vertical scrollbar`} aria-orientation="vertical"
+        aria-valuemin={0} aria-valuemax={Math.ceil(scrollMax)}
+        aria-valuenow={Math.round(scrollGeometry.top)} tabIndex={0}
+        onPointerDown={trackPointerDown} onPointerMove={trackPointerMove}
+        onPointerUp={trackPointerEnd} onPointerCancel={trackPointerEnd}
+        onKeyDown={event => {
+          const viewport = scrollViewport.current;
+          if (!viewport) return;
+          const step = event.key === "ArrowDown" ? 70 : event.key === "ArrowUp" ? -70
+            : event.key === "PageDown" ? viewport.clientHeight * .8
+            : event.key === "PageUp" ? -viewport.clientHeight * .8
+            : event.key === "End" ? scrollMax
+            : event.key === "Home" ? -scrollMax : null;
+          if (step !== null) { event.preventDefault(); viewport.scrollTop += step; }
+        }}>
+        <div className="orbit-panel-scroll-thumb" style={{ height: thumbSize, transform: `translateY(${thumbTop}px)` }} />
+      </div>}
     </div>
     {footer && <footer className="orbit-dialog-footer">{footer}</footer>}
   </section></div>;

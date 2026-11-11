@@ -2631,3 +2631,64 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
     height: min(52dvh, 500px);
   }
 }
+
+/* Working scrollbar, not a decorative browser track.
+   The native Orbit panel owns a scroll host bounded by the fixed title/footer.
+   Content always flows to its intrinsic height; an interactive rail moves its
+   real scrollTop via mouse click, pointer dragging, keyboard and wheel. */
+.orbit-dialog .orbit-panel-scroll-host {
+  flex: 1 1 0%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.orbit-panel-window .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding-right: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none !important;
+  scrollbar-gutter: auto;
+}
+.orbit-panel-window .orbit-panel-scroll-host > .orbit-dialog-scroll-region::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+}
+.orbit-panel-window .orbit-panel-scroll-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  width: 14px;
+  background: var(--bg-app);
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+.orbit-panel-window .orbit-panel-scroll-thumb {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  border: 3px solid var(--bg-app);
+  border-radius: 12px;
+  background: var(--accent);
+  cursor: grab;
+  pointer-events: auto;
+}
+.orbit-panel-window .orbit-panel-scroll-track:active .orbit-panel-scroll-thumb { cursor: grabbing; }
+.orbit-panel-window .orbit-panel-scroll-track:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: -2px;
+}
