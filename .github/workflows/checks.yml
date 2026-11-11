@@ -22,7 +22,32 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
       - name: Install Tauri Linux build prerequisites
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          packages=(
+            libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev
+            libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+          )
+          # A transient Ubuntu apt mirror outage must not hang CI indefinitely.
+          # Keep the full native dependency set; never skip source checks.
+          for attempt in 1 2 3; do
+            if timeout --kill-after=15s 180s sudo apt-get update \
+                 -o Acquire::Retries=3 \
+               && timeout --kill-after=15s 300s sudo env DEBIAN_FRONTEND=noninteractive \
+                    apt-get install -y --no-install-recommends \
+                    -o Acquire::Retries=3 "${packages[@]}"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::APT mirror/setup failed on attempt $attempt; retrying"
+              sleep $((attempt * 10))
+            fi
+          done
+          echo "::error::Linux prerequisites could not be installed after three attempts"
+          exit 1
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
       - name: Typecheck and build frontend
