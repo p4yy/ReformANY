@@ -77,9 +77,12 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
   if (minimized) return <button className="minimized-orbit-dialog" onClick={() => setMinimized(false)}><OrbitMark /><span>{brand} · {title}</span><MaximizeLabel /></button>;
   return <div className="orbit-dialog-backdrop"><section className={`orbit-dialog ${wide ? 'wide' : ''} ${className}`} role="dialog" aria-modal="true" aria-label={title}>
     <header className="orbit-dialog-titlebar" onPointerDown={startDrag}><div><OrbitMark /><span>{brand}</span></div><div>{toolbar}<IconButton label={fullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</IconButton><IconButton label="Minimize" onClick={() => { if (panel) void getCurrentWindow().minimize(); else setMinimized(true); }}><Minus size={15} /></IconButton><IconButton label="Close" onClick={onClose}><X size={16} /></IconButton></div></header>
-    <div className="orbit-dialog-heading"><div className="muted-icon-chip">{icon}</div><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>
-    {file && <FileContextRow name={file.name} meta={file.pages ? `${file.pages} pages · ${formatBytes(file.size)}` : `${file.typeLabel || file.kind.toUpperCase()} · ${formatBytes(file.size)}`} />}
-    <div className="orbit-dialog-body">{children}</div>{footer && <footer className="orbit-dialog-footer">{footer}</footer>}
+    <div className="orbit-dialog-scroll-region" role="region" aria-label={`${title} panel content; scroll down for more`} tabIndex={0}>
+      <div className="orbit-dialog-heading"><div className="muted-icon-chip">{icon}</div><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>
+      {file && <FileContextRow name={file.name} meta={file.pages ? `${file.pages} pages · ${formatBytes(file.size)}` : `${file.typeLabel || file.kind.toUpperCase()} · ${formatBytes(file.size)}`} />}
+      <div className="orbit-dialog-body">{children}</div>
+    </div>
+    {footer && <footer className="orbit-dialog-footer">{footer}</footer>}
   </section></div>;
 }
 function OrbitMark() { return <span className="orbit-mark"><img src={appIcon} className="brand-logo" alt="" aria-hidden="true" /></span>; }

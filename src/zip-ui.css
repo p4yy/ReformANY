@@ -2521,3 +2521,103 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
 .brand-logo { width:22px; height:22px; }
 .orbit-panel-window .orbit-mark { width:19px; height:19px; overflow:visible; border:0; background:transparent; }
 .orbit-panel-window .orbit-mark img { width:19px; height:19px; }
+
+
+/* Unified Orbit panel scroll ownership.
+   The scrollbar belongs to the panel's far-right edge, as indicated in the
+   annotated Windows screenshot, rather than the inset PDF page grid.
+   Titlebar and action footer remain accessible at every scroll position. */
+.orbit-panel-window .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: var(--accent) var(--bg-app);
+}
+.orbit-panel-window .orbit-dialog-scroll-region::-webkit-scrollbar {
+  width: 12px;
+}
+.orbit-panel-window .orbit-dialog-scroll-region::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+.orbit-panel-window .orbit-dialog-scroll-region::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border: 2px solid var(--bg-app);
+  border-radius: 12px;
+}
+.orbit-panel-window .orbit-dialog-scroll-region:focus-visible {
+  outline: 1px solid var(--accent-bright);
+  outline-offset: -2px;
+}
+/* Its descendants must expand naturally: there is just one vertical panel
+   scroll for every Orbit tool, including all Arrange/Extract PDF thumbnails. */
+.orbit-panel-window .orbit-dialog-scroll-region > .orbit-dialog-heading,
+.orbit-panel-window .orbit-dialog-scroll-region > .file-context-row {
+  flex: none;
+}
+.orbit-panel-window .orbit-dialog-scroll-region > .orbit-dialog-body,
+.orbit-panel-window .orbit-dialog.wide .orbit-dialog-scroll-region > .orbit-dialog-body,
+.orbit-panel-window .arrange-dialog .orbit-dialog-scroll-region > .orbit-dialog-body,
+.orbit-panel-window .extract-dialog .orbit-dialog-scroll-region > .orbit-dialog-body {
+  box-sizing: border-box;
+  display: block !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .arrange-grid,
+.orbit-panel-window .orbit-dialog-scroll-region .extract-grid {
+  box-sizing: border-box;
+  display: grid;
+  flex: none !important;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-columns {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  grid-template-rows: auto;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: visible;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-scroll {
+  min-height: 320px;
+  height: min(58dvh, 600px);
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: auto;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-settings {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+.orbit-panel-window .orbit-dialog-titlebar,
+.orbit-panel-window .orbit-dialog-footer {
+  flex: 0 0 auto;
+}
+@media (max-width: 760px) {
+  .orbit-panel-window .orbit-dialog-scroll-region .watermark-columns {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+  .orbit-panel-window .orbit-dialog-scroll-region .watermark-scroll {
+    height: min(52dvh, 500px);
+  }
+}
