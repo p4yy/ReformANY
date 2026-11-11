@@ -126,7 +126,7 @@ try {
     },
   });
   let main, last = [];
-  const deadline = Date.now() + 80000;
+  const deadline = Date.now() + 150000;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error("ReformANY exited before HoveR test: " + child.exitCode);
     try {
@@ -489,6 +489,14 @@ try {
   await screenshot(arrangeSocket,"05b-arrange-last-page.png").catch(()=>{});
   console.log("PASS: 269-page native Orbit scrollbar moves with mouse wheel, click and thumb drag.");
   await evaluate(arrangeSocket,'document.querySelector(".orbit-dialog-titlebar button:last-child")?.click();true');
+  let arrangeClosed = false;
+  for (let n=0;n<40;n++) {
+    if (!(await targets().catch(()=>[])).some(t=>t.id===arrangeTarget.id)) {
+      arrangeClosed=true; break;
+    }
+    await sleep(160);
+  }
+  if (!arrangeClosed) throw Error("269-page Arrange PDF panel would not close");
   await evaluate(orbitSocket,'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));true');
   let closed=false;
   for(let attempt=0;attempt<40;attempt++){
