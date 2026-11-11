@@ -2,6 +2,7 @@
 // with an image, render the React player, and load the explicitly scoped file.
 // The debugging port is enabled only in the CI job via ephemeral WebView2 policy.
 import { spawn, execFileSync } from "node:child_process";
+import { PDFDocument } from "pdf-lib";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -60,6 +61,20 @@ async function evaluate(socket, expression) {
       id, method:"Runtime.evaluate",
       params:{ expression, returnByValue:true, awaitPromise:true },
     }));
+  });
+}
+async function cdp(socket, method, params) {
+  const id = ++cdpId;
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{socket.removeEventListener("message",listener);reject(Error(method+" timeout"))},8000);
+    const listener=(event)=>{
+      let value;try{value=JSON.parse(String(event.data))}catch{return}
+      if(value.id!==id)return;
+      clearTimeout(timer);socket.removeEventListener("message",listener);
+      value.error?reject(Error(JSON.stringify(value.error))):resolve(value.result);
+    };
+    socket.addEventListener("message",listener);
+    socket.send(JSON.stringify({id,method,params}));
   });
 }
 async function screenshot(socket, filename) {
@@ -397,6 +412,83 @@ try {
     if(!(await targets().catch(()=>[])).some(item=>item.id===panelTarget.id)){panelClosed=true;break;}
   }
   if(!panelClosed)throw Error("Closing an Orbit tool left an invisible secondary native window.");
+  // Real Windows acceptance: open a full 269-page PDF in an actual native
+  // Orbit Arrange window and physically scroll with CDP input events.
+  const pdfPath=join(temp,"reformany-scroll-269.pdf");
+  const pdf=await PDFDocument.create();
+  for(let n=1;n<=269;n++){
+    const p=pdf.addPage([300,420]);
+    if(n===1||n===269)p.drawText("ReformANY page "+n,{x:25,y:380,size:18});
+  }
+  await writeFile(pdfPath,await pdf.save());
+  await evaluate(orbitSocket,'window.__TAURI_INTERNALS__.invoke("orbit_set_context",{path:'+JSON.stringify(pdfPath)+'})');
+  await evaluate(orbitSocket,'window.__TAURI_INTERNALS__.invoke("orbit_open_panel",{kind:"arrange"})');
+  let arrangeTarget=null;
+  for(let i=0;i<65;i++){
+    arrangeTarget=(await targets().catch(()=>[])).find(t=>t.type==="page"&&
+      t.id!==main.id&&t.id!==orbitTarget.id&&
+      (t.url.includes("tauri.localhost")||t.url.startsWith("tauri://")));
+    if(arrangeTarget)break;
+    await sleep(300);
+  }
+  if(!arrangeTarget)throw Error("Arrange PDF native window never opened");
+  const arrangeSocket=await connect(arrangeTarget);
+  const state=()=>evaluate(arrangeSocket,`(()=>{
+    const s=document.querySelector(".orbit-dialog-scroll-region");
+    const rail=document.querySelector(".orbit-panel-scroll-track");
+    const thumb=document.querySelector(".orbit-panel-scroll-thumb");
+    const footer=document.querySelector(".orbit-dialog-footer");
+    const rect=e=>{const r=e?.getBoundingClientRect();return r&&{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom}};
+    return {pages:document.querySelectorAll(".arrange-page").length,
+      top:s?.scrollTop||0,total:s?.scrollHeight||0,client:s?.clientHeight||0,
+      rect:rect(s),track:rect(rail),thumb:rect(thumb),
+      footerVisible:!!footer&&rect(footer).bottom<=innerHeight+2};
+  })()`);
+  let initial=null;
+  for(let i=0;i<85;i++){
+    initial=await state();
+    if(initial.pages===269&&initial.total>initial.client+1500&&initial.track&&initial.thumb)break;
+    await sleep(260);
+  }
+  if(!initial||initial.pages!==269||initial.total<=initial.client+1500||
+     !initial.track||!initial.thumb||!initial.footerVisible)
+    throw Error("No working scroll geometry for 269-page Arrange PDF: "+JSON.stringify(initial));
+  await cdp(arrangeSocket,"Input.dispatchMouseEvent",{
+    type:"mouseWheel",x:Math.round(initial.rect.x+140),
+    y:Math.round(initial.rect.y+140),deltaX:0,deltaY:550});
+  await sleep(350);
+  const wheeled=await state();
+  if(wheeled.top<100)throw Error("Mouse wheel did not scroll Orbit: "+JSON.stringify({initial,wheeled}));
+  const x=Math.round(initial.track.x+initial.track.width/2);
+  const y=Math.round(initial.track.y+initial.track.height*.7);
+  await cdp(arrangeSocket,"Input.dispatchMouseEvent",{
+    type:"mousePressed",x,y,button:"left",clickCount:1});
+  await cdp(arrangeSocket,"Input.dispatchMouseEvent",{
+    type:"mouseReleased",x,y,button:"left",clickCount:1});
+  await sleep(350);
+  const clicked=await state();
+  if(clicked.top<wheeled.top+100)throw Error("Right-edge track click did not scroll Orbit: "+JSON.stringify({wheeled,clicked}));
+  const tx=Math.round(clicked.thumb.x+clicked.thumb.width/2);
+  const ty=Math.round(clicked.thumb.y+clicked.thumb.height/2);
+  const dest=Math.min(Math.round(initial.track.y+initial.track.height-24),ty+85);
+  await cdp(arrangeSocket,"Input.dispatchMouseEvent",{type:"mousePressed",x:tx,y:ty,button:"left",clickCount:1});
+  await cdp(arrangeSocket,"Input.dispatchMouseEvent",{type:"mouseMoved",x:tx,y:dest,button:"left",buttons:1});
+  await cdp(arrangeSocket,"Input.dispatchMouseEvent",{type:"mouseReleased",x:tx,y:dest,button:"left",clickCount:1});
+  await sleep(350);
+  const dragged=await state();
+  if(dragged.top<clicked.top+100)throw Error("Thumb drag did not scroll Orbit: "+JSON.stringify({clicked,dragged}));
+  const final=await evaluate(arrangeSocket,`(()=>{
+    const pane=document.querySelector(".orbit-dialog-scroll-region");
+    pane.scrollTop=pane.scrollHeight;
+    const last=document.querySelector(".arrange-page:last-child").getBoundingClientRect();
+    const box=pane.getBoundingClientRect();
+    return {atEnd:Math.abs(pane.scrollTop+pane.clientHeight-pane.scrollHeight)<4,
+      lastVisible:last.bottom<=box.bottom+4&&last.bottom>=box.top};
+  })()`);
+  if(!final.atEnd||!final.lastVisible)throw Error("Page 269 remains unreachable: "+JSON.stringify(final));
+  await screenshot(arrangeSocket,"05b-arrange-last-page.png").catch(()=>{});
+  console.log("PASS: 269-page native Orbit scrollbar moves with mouse wheel, click and thumb drag.");
+  await evaluate(arrangeSocket,'document.querySelector("button[aria-label="Close"]")?.click();true');
   await evaluate(orbitSocket,'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));true');
   let closed=false;
   for(let attempt=0;attempt<40;attempt++){

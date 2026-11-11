@@ -73,7 +73,7 @@ jobs:
           }
       # The real main EXE must open a new HoveR WebView and render a chosen
       # picture. Catch the user's blank-white HoveR regression before release.
-      - name: Verify HoveR opens a responsive image preview offline
+      - name: Verify 269-page Orbit scrolling and HoveR offline preview
         shell: pwsh
         timeout-minutes: 3
         run: |
@@ -85,7 +85,7 @@ jobs:
           try {
             $ffmpeg = (Resolve-Path 'src-tauri/installer/media-bundle/ffmpeg.exe').Path
             node scripts/test-hover-ui.mjs $exe $picture $ffmpeg
-            if ($LASTEXITCODE -ne 0) { throw 'HoveR image playback smoke test failed' }
+            if ($LASTEXITCODE -ne 0) { throw '269-page Orbit scrolling or HoveR playback smoke test failed' }
           } finally {
             Remove-ItemProperty -Path $policy -Name 'ReformANY.exe' -ErrorAction SilentlyContinue
           }
