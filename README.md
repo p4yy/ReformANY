@@ -1,16 +1,19 @@
 <p align="center">
-  <a href="https://raw.githubusercontent.com/p4yy/ReformANY/main/docs/media/reformany-trailer.mp4" title="Watch the ReformANY product trailer">
-    <img src="docs/media/reformany-trailer-cover.jpg" alt="Watch the ReformANY Windows app trailer — file conversion, Orbit and PDF tools" width="820">
-  </a>
-</p>
-<p align="center">
-  <a href="https://raw.githubusercontent.com/p4yy/ReformANY/main/docs/media/reformany-trailer.mp4"><strong>▶ Watch the product trailer · 1 min 14 sec</strong></a>
+  <img src="public/brand/reformany-icon.png" alt="ReformANY app icon" width="78">
 </p>
 
 <h1 align="center">ReformANY</h1>
 
 <p align="center">
   <strong>File conversion, PDF tools, and quick actions for Windows.</strong>
+</p>
+
+<p align="center">
+  <a href="https://p4yy.github.io/ReformANY/"><strong>Explore the website</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://p4yy.github.io/ReformANY/#trailer"><strong>Watch the trailer</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://www.youtube.com/watch?v=qOx84dtkdz4"><strong>Watch on YouTube</strong></a>
 </p>
 
 <p align="center">
