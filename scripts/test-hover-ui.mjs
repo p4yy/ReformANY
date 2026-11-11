@@ -448,7 +448,7 @@ try {
       backdrop:rect(document.querySelector(".orbit-dialog-backdrop")),
       host:rect(document.querySelector(".orbit-panel-scroll-host")),
       computedHostHeight:document.querySelector(".orbit-panel-scroll-host") ? getComputedStyle(document.querySelector(".orbit-panel-scroll-host")).height : null,
-      dialogDisplay:getComputedStyle(document.querySelector(".orbit-dialog")).display};
+      dialogDisplay:document.querySelector(".orbit-dialog") ? getComputedStyle(document.querySelector(".orbit-dialog")).display : null};
   })()`);
   let initial=null;
   for(let i=0;i<85;i++){
