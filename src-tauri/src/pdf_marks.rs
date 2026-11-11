@@ -205,7 +205,11 @@ mod tests{
         let original=Document::load(path).unwrap();
         assert_eq!(original.get_pages().len(),2);
         for page in original.get_pages().values(){
-            assert!(original.get_page_content(*page).unwrap().is_empty());
+            // lopdf 0.42 may join streams with padding bytes. Confirm the
+            // original page has no drawing operations, not zero raw bytes.
+            let content = original.get_page_content(*page).unwrap();
+            let decoded = lopdf::content::Content::decode(&content).unwrap();
+            assert!(decoded.operations.is_empty(), "Original PDF page was modified");
         }
     }
     #[test]
