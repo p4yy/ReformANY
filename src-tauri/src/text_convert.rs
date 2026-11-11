@@ -298,7 +298,7 @@ mod tests {
             if matches!(target,"odt"|"epub") {
                 let mut packaged = ZipArchive::new(File::open(&outputs[0]).unwrap()).unwrap();
                 let first = packaged.by_index(0).unwrap();
-                assert_eq!(first.name(),"mimetype");
+                assert_eq!(first.name().unwrap().as_ref(),"mimetype");
                 assert_eq!(first.compression(),CompressionMethod::Stored);
             }
         }
