@@ -31,7 +31,7 @@ base64 = "0.22"
 qrcodegen = "1.8.0"
 tiff = "0.11"
 walkdir = "2"
-zip = { version = "=9.0.0", default-features = false, features = ["deflate", "aes-crypto", "time"] }
+zip = { version = "=9.4.2", default-features = false, features = ["deflate", "aes-crypto", "time"] }
 lopdf = "=0.42.0"
 sha2 = "0.10"
 time = "0.3"
