@@ -2438,10 +2438,80 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
 .orbit-panel-window .orbit-dialog, .orbit-panel-window .orbit-dialog.wide { display:flex; flex-direction:column; height:100%; min-height:0; }
 .orbit-panel-window .orbit-dialog-body, .orbit-panel-window .orbit-dialog.wide .orbit-dialog-body { flex:1 1 0% !important; min-height:0; overflow-y:auto !important; overscroll-behavior-y:contain; scrollbar-gutter:stable; }
 .orbit-panel-window .orbit-dialog-titlebar, .orbit-panel-window .orbit-dialog-heading, .orbit-panel-window .orbit-dialog-footer, .orbit-panel-window .orbit-dialog > .file-context-row { flex:0 0 auto; }
-.orbit-panel-window .arrange-grid, .orbit-panel-window .extract-grid { flex:none; min-height:0; max-height:none; overflow:visible !important; }
-.orbit-panel-window .watermark-columns { height:auto !important; max-height:none; min-height:0; }
-.orbit-panel-window .watermark-settings { height:auto; max-height:none; overflow:visible !important; }
-.orbit-panel-window .watermark-scroll { max-height:min(62dvh, 610px); }
+/* Fix the scroll regression: expanding the entire 269-page grid and sidebar
+   made both panes overflow and pushed the fixed Save/Cancel footer away. */
+.orbit-panel-window .arrange-dialog .orbit-dialog-body,
+.orbit-panel-window .extract-dialog .orbit-dialog-body {
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden !important;
+}
+.orbit-panel-window .arrange-dialog .arrange-grid,
+.orbit-panel-window .extract-dialog .extract-grid {
+  flex:1 1 0%;
+  min-height:0;
+  max-height:none;
+  overflow-x:hidden !important;
+  overflow-y:scroll !important;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.orbit-panel-window :is(.arrange-toolbar,.extract-controls,.arrange-helper) {
+  flex:0 0 auto;
+}
+.orbit-panel-window .watermark-columns {
+  height:100% !important;
+  min-height:0;
+  max-height:none;
+  grid-template-rows:minmax(0,1fr);
+}
+.orbit-panel-window .watermark-preview {
+  min-height:0;
+  min-width:0;
+  overflow:hidden;
+}
+.orbit-panel-window .watermark-scroll {
+  flex:1 1 0%;
+  min-height:0;
+  max-height:none;
+  overflow:auto;
+}
+.orbit-panel-window .watermark-settings {
+  box-sizing:border-box;
+  height:100%;
+  max-height:100%;
+  min-height:0;
+  min-width:0;
+  padding-right:10px;
+  overflow-x:hidden !important;
+  overflow-y:scroll !important;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+/* Keep native Windows scrollbars discoverable and within the sage palette. */
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings) {
+  scrollbar-width:auto;
+  scrollbar-color:var(--accent) var(--bg-app);
+}
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings)::-webkit-scrollbar { width:11px; height:11px; }
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings)::-webkit-scrollbar-track { background:var(--bg-app); }
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings)::-webkit-scrollbar-thumb { border:2px solid var(--bg-app); border-radius:10px; background:var(--accent); }
+/* At narrow widths, use one outer scroll region for stacked preview + settings. */
+@media (max-width:760px) {
+  .orbit-panel-window .watermark-columns {
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto auto;
+    height:auto !important;
+  }
+  .orbit-panel-window .watermark-preview { min-height:360px; overflow:visible; }
+  .orbit-panel-window .watermark-settings {
+    height:auto;
+    max-height:none;
+    overflow-y:visible !important;
+  }
+  .orbit-panel-window .orbit-dialog:has(.watermark-columns) .orbit-dialog-body { overflow-y:auto !important; }
+}
 /* Avoid native titlebar dragging stealing button pointer clicks. */
 .orbit-panel-window .orbit-dialog-titlebar > div:last-child, .orbit-panel-window .orbit-dialog-titlebar button, .shell .titlebar button, .shell .titlebar .win-btn { -webkit-app-region:no-drag !important; pointer-events:auto; }
 .orbit-panel-window .orbit-dialog-titlebar > div:last-child { position:relative; z-index:5; }
