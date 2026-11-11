@@ -94,7 +94,7 @@ jobs:
 
       - name: Download previously verified portable EXE
         if: env.RELEASE_ALREADY_EXISTS != '1'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ env.RELEASE_RUN_ID }}
@@ -103,7 +103,7 @@ jobs:
 
       - name: Download previously verified premium setup EXE
         if: env.RELEASE_ALREADY_EXISTS != '1'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ env.RELEASE_RUN_ID }}
