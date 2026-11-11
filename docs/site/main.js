@@ -24,14 +24,4 @@
   }
   var year = document.querySelector("[data-year]");
   if (year) year.textContent = String(new Date().getFullYear());
-  var watch = document.querySelector("[data-watch]");
-  var video = document.getElementById("product-trailer");
-  if (watch && video) {
-    watch.addEventListener("click", function () {
-      var playAttempt = video.play();
-      if (playAttempt && typeof playAttempt.catch === "function") {
-        playAttempt.catch(function () { /* Browser may require using native video controls. */ });
-      }
-    });
-  }
 })();
