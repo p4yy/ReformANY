@@ -123,8 +123,10 @@ jobs:
               echo "::error::$exe is not a Windows PE executable"; exit 1;
             }
           done
+          cp release/portable/ReformANY.exe release/ReformANY-Portable.exe
+          cp release/installer/reformany-setup.exe release/reformany-setup.exe
           cd release
-          sha256sum portable/ReformANY.exe installer/reformany-setup.exe > SHA256SUMS.txt
+          sha256sum ReformANY-Portable.exe reformany-setup.exe > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Publish one tagged release containing both verified executables
@@ -138,7 +140,7 @@ jobs:
           Windows 10/11 (64-bit) file conversion and PDF utilities.
 
           **Download options**
-          - `ReformANY.exe`: standalone portable app, no installer.
+          - `ReformANY-Portable.exe`: standalone portable app, no installer.
           - `reformany-setup.exe`: premium Windows setup wizard.
           - `SHA256SUMS.txt`: hashes for checking the two downloaded EXEs.
 
@@ -149,11 +151,53 @@ jobs:
           The repository uses Acev Dev Co's proprietary source-available license.
           NOTES
           gh release create "$RELEASE_TAG" \
-            "release/portable/ReformANY.exe#ReformANY.exe" \
-            "release/installer/reformany-setup.exe#reformany-setup.exe" \
+            "release/ReformANY-Portable.exe#ReformANY-Portable.exe" \
+            "release/reformany-setup.exe#reformany-setup.exe" \
             "release/SHA256SUMS.txt#SHA256SUMS.txt" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$RELEASE_TARGET" \
             --title "ReformANY $RELEASE_TAG" \
             --notes-file release/RELEASE_NOTES.md \
             --latest
+
+  rename_current_portable:
+    # One-time, non-rebuilding correction of the already published v0.3.0
+    # asset name and flat-layout SHA256SUMS.txt. Safe to retry.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 5
+    steps:
+      - name: Rename existing portable release asset and correct checksums
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.3.0")"
+          old_id="$(jq -r '[.assets[] | select(.name == "ReformANY.exe") | .id][0] // empty' <<< "$release")"
+          if [[ -n "$old_id" ]]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$old_id" \
+              -f name='ReformANY-Portable.exe' >/dev/null
+            echo 'Renamed portable release asset without changing binary bytes'
+          fi
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.3.0")"
+          portable="$(jq -r '[.assets[] | select(.name == "ReformANY-Portable.exe") | .digest][0] // empty' <<< "$release")"
+          installer="$(jq -r '[.assets[] | select(.name == "reformany-setup.exe") | .digest][0] // empty' <<< "$release")"
+          [[ "$portable" =~ ^sha256:[[:xdigit:]]{64}$ && "$installer" =~ ^sha256:[[:xdigit:]]{64}$ ]] || {
+            echo '::error::Missing versioned release assets or verified SHA256 digests'; exit 1;
+          }
+          printf '%s  ReformANY-Portable.exe\n%s  reformany-setup.exe\n' \
+            "${portable#sha256:}" "${installer#sha256:}" > SHA256SUMS.txt
+          gh release upload 'v0.3.0' SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          old_body="$(jq -r '.body // ""' <<< "$release")"
+          new_body="${old_body//ReformANY.exe/ReformANY-Portable.exe}"
+          if [[ "$old_body" != "$new_body" ]]; then
+            release_id="$(jq -r '.id' <<< "$release")"
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              -f body="$new_body" >/dev/null
+          fi
+          gh release view v0.3.0 --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '[.assets[].name] | sort'

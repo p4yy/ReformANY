@@ -7,6 +7,10 @@ concurrency:
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - '.github/workflows/publish-versioned-release.yml'
+      - 'public/brand/reformany-banner.gif'
   pull_request:
 
 jobs:

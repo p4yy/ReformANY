@@ -47,12 +47,12 @@ Download the official [ReformANY v0.3.0 release](https://github.com/p4yy/ReformA
 
 | Package | Direct download | How to use it |
 | --- | --- | --- |
-| **Portable app** | [`ReformANY.exe`](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/ReformANY.exe) | Launch the standalone application; no setup wizard required. |
+| **Portable app** | [`ReformANY-Portable.exe`](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/ReformANY-Portable.exe) | Launch the standalone application; no setup wizard required. |
 | **Premium installer** | [`reformany-setup.exe`](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/reformany-setup.exe) | Run the Windows setup wizard. |
 
 Both executables were published from the same verified Windows CI run and have an accompanying [`SHA256SUMS.txt`](https://github.com/p4yy/ReformANY/releases/download/v0.3.0/SHA256SUMS.txt). Future versions use their own `vMAJOR.MINOR.PATCH` release tags.
 
-**Requirements:** Windows 10 or 11 (64-bit), WebView2, and adequate disk space. Optional tools require their respective local engines. Unsigned development builds may trigger Windows SmartScreen.
+**Requirements:** Windows 10 or 11 (64-bit), WebView2, and adequate disk space. Optional tools require their respective local engines. The executables are unsigned; Windows SmartScreen may show a warning.
 
 ## Orbit in File Explorer
 
