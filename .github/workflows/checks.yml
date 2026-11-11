@@ -11,50 +11,36 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # ReformANY targets Windows. Validate native Rust on the actual target OS.
+    # Ubuntu 26.04 mirrors had a DNS outage on 2026-11-11; Linux apt setup
+    # prevented the tests from even starting. Do not skip any source checks.
+    runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-      - name: Install Tauri Linux build prerequisites
-        timeout-minutes: 15
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          set -euo pipefail
-          packages=(
-            libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev
-            libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
-          )
-          # A transient Ubuntu apt mirror outage must not hang CI indefinitely.
-          # Keep the full native dependency set; never skip source checks.
-          for attempt in 1 2 3; do
-            if timeout --kill-after=15s 180s sudo apt-get update \
-                 -o Acquire::Retries=3 \
-               && timeout --kill-after=15s 300s sudo env DEBIAN_FRONTEND=noninteractive \
-                    apt-get install -y --no-install-recommends \
-                    -o Acquire::Retries=3 "${packages[@]}"; then
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "::warning::APT mirror/setup failed on attempt $attempt; retrying"
-              sleep $((attempt * 10))
-            fi
-          done
-          echo "::error::Linux prerequisites could not be installed after three attempts"
-          exit 1
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
       - name: Typecheck and build frontend
         run: npm run build
       - name: Verify offline runtime boundaries
         run: node scripts/audit-offline.mjs
-      - name: Run Rust unit tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
-      - name: Check Rust lint
+      - name: Prepare checksum-verified local media engines
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/prepare-media-bundle.ps1
+      - name: Compile Windows Rust unit tests
+        run: cargo test --no-run --manifest-path src-tauri/Cargo.toml
+      - name: Run Windows Rust unit tests with Common Controls manifest
+        shell: pwsh
+        run: ./scripts/run-windows-rust-tests.ps1
+      - name: Check Rust lint (all targets, deny warnings)
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
