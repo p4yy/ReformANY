@@ -442,7 +442,13 @@ try {
     return {pages:document.querySelectorAll(".arrange-page").length,
       top:s?.scrollTop||0,total:s?.scrollHeight||0,client:s?.clientHeight||0,
       rect:rect(s),track:rect(rail),thumb:rect(thumb),
-      footerVisible:!!footer&&rect(footer).bottom<=innerHeight+2};
+      footerVisible:!!footer&&rect(footer).bottom<=innerHeight+2,
+      windowHeight:innerHeight,
+      dialog:rect(document.querySelector(".orbit-dialog")),
+      backdrop:rect(document.querySelector(".orbit-dialog-backdrop")),
+      host:rect(document.querySelector(".orbit-panel-scroll-host")),
+      computedHostHeight:getComputedStyle(document.querySelector(".orbit-panel-scroll-host")).height,
+      dialogDisplay:getComputedStyle(document.querySelector(".orbit-dialog")).display};
   })()`);
   let initial=null;
   for(let i=0;i<85;i++){

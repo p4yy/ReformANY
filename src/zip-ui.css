@@ -2746,3 +2746,27 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
   overflow-x: hidden !important;
   overflow-y: auto !important;
 }
+
+/* Critical: WebView2 calculated the old 100%-height grid item at 14,963px
+   for a 269-page PDF. Never size the SCROLL HOST relative to document content.
+   Bind it to the actual native viewport instead, reserving titlebar & footer.
+   The rail and content now share exactly the same bounded height. */
+.orbit-panel-window .orbit-dialog > .orbit-panel-scroll-host {
+  flex: 0 0 auto !important;
+  height: calc(100vh - 106px) !important;
+  height: calc(100dvh - 106px) !important;
+  max-height: calc(100dvh - 106px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.orbit-panel-window .orbit-dialog:not(:has(> .orbit-dialog-footer)) > .orbit-panel-scroll-host {
+  height: calc(100dvh - 42px) !important;
+  max-height: calc(100dvh - 42px) !important;
+}
+.orbit-panel-window .orbit-dialog > .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  flex: 0 1 auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
