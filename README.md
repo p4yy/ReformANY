@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="public/brand/reformany-icon.png" alt="ReformANY" width="104">
-</p>
-
 <h1 align="center">ReformANY</h1>
 
 <p align="center">
