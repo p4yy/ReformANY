@@ -1,46 +1,57 @@
-# ReformANY Orbit — Windows Explorer quick conversion
+# ReformANY Orbit
 
-Orbit is a small **400 × 400 pixel**, circular, undecorated Tauri window. It is a separate window mode of the same binary, not a second processing implementation.
+Orbit is ReformANY's circular Windows file shortcut. It opens from the classic File Explorer context menu and provides **Convert**, **Tools** and **Actions** for the selected file or folder. Some operations open a separate native tool window for longer forms, PDF page previews and output settings.
 
-## Launch contract
+## Open Orbit
 
-```powershell
-& "C:\Path\To\ReformANY.exe" orbit "C:\Users\Someone\Desktop\photo with spaces.png"
-```
+1. Select a file or folder in File Explorer.
+2. Right-click and choose **ReformANY Orbit**. On Windows 11, the classic command may be under **Show more options**.
+3. Choose the action available for that source type.
+4. Review the result in its destination folder. Source files are preserved for normal conversion operations.
 
-The startup command accepts exactly two arguments: the literal `orbit` and one file path. On Windows, the panel appears near the mouse and stays within the monitor work area.
+The installed build registers Explorer integration. A source-development session does not necessarily install it. A separate portable test EXE has an optional per-user context-menu registration flow; portable operation itself does not require registration.
 
-## Right-click integration
+## File and folder Shake gesture
 
-The **NSIS installer** registers the classic Explorer verb `ReformANY Orbit` for all files. It uses a fully quoted executable path and fully quoted `%1` file path, with the app icon. It unregisters the key during uninstall. Installation scope is inherited from the NSIS installer.
+The development build includes an optional native Windows **hold-and-shake** gesture for an Explorer drag selection. The gesture detector uses the Windows shell's drag information to identify a single file or folder before asking Orbit to open; it does not intentionally copy or move the selection.
 
-**Windows 11 note:** Classic verbs often appear in **Show more options**, rather than the primary compact context menu. Implementing a native first-level Windows 11 Explorer command requires a separate, tested COM shell extension and installer registration. Orbit does not pretend that is already present.
+- Enable or disable the gesture in settings and choose a sensitivity.
+- The native listener depends on a real Explorer drag and Windows desktop interaction, so gesture behavior can vary by environment.
+- File and folder support is implemented in the listener, but **manual verification remains required** across Windows versions, DPI settings, mouse devices and Explorer views.
 
-**Important:** Launching from a development command (`npm run tauri dev`) does not install or register the Explorer menu. Install the new NSIS installer to add the context action.
+Shaking is not required to use Orbit. The right-click command is the supported fallback.
 
-## Conversion behavior
+## Available tools
 
-- Quick-choice buttons: JPEG, PNG, WebP and BMP. The full workspace additionally supports static GIF and single-page TIFF.
-- Uses the same verified Rust `convert_batch` pipeline as the main app.
-- Source is never overwritten; conversion outputs are saved alongside originals with collision suffixes.
-- Clicking a format starts conversion; hover merely highlights it.
-- A compact indeterminate progress indicator is shown; no fake percentage.
-- Success includes a real **Show file** action and an option to convert again.
-- Unsupported files display a clear message, not a deceptive conversion button.
-- Preview is generated in Rust from the selected image and sent as a small data URI.
-- Press Escape or the X to close the panel.
-- **Full app** opens the main workspace.
+Orbit adapts its choices to the selected source. Supported panels and actions include:
 
-## QA
+- Quick image conversion for available JPEG, PNG, WebP, BMP and other supported raster targets.
+- PDF page preview, ordering, extraction and page-image export, plus watermark, visible signature and protection tools.
+- File and folder actions such as rename, copy and supported archive/file utilities.
+- Local previews and selected actions through **HoveR**.
 
-- [ ] Install NSIS build over previous preview.
-- [ ] Right click a PNG on Desktop → Show more options (Win11) → ReformANY Orbit.
-- [ ] Verify Orbit opens near cursor, is circular and stays on screen at 100% and 150% DPI.
-- [ ] Choose WebP; verify output exists, opens and original remains.
-- [ ] Repeat conversion; verify a suffix is used rather than overwrite.
-- [ ] Convert file in a path with spaces / Unicode.
-- [ ] Try JPEG, PNG, WebP, BMP and unsupported PDF.
-- [ ] Verify progress does not claim fake percentages, and Show file works.
-- [ ] Test close/Escape, and launch Full app.
-- [ ] Uninstall, verify context-menu entry is removed.
-- [ ] Check Windows and Linux CI before release.
+Unsupported file/format combinations should be disabled or explained rather than presented as successful conversions.
+
+## Longer PDF panels
+
+Orbit tool windows have a **scrollable outer-right panel area**, with a separate visible footer where the action has Save/Cancel controls. The verified Windows test build scrolled a synthetic 269-page PDF using the mouse wheel, scrollbar track click, thumb drag and navigation to its last page.
+
+The automated test checks the specific Arrange PDF pages workflow. Other panels and real-world documents still need manual Windows visual and interaction tests before a stable release.
+
+## Safety
+
+- The normal conversion pipeline writes separate output files instead of silently overwriting the input.
+- Deletion and shred actions are **destructive**. SSDs, backups and cloud-sync systems may retain data despite an overwrite attempt; use appropriate device-level secure deletion procedures for sensitive media.
+- A visible PDF signature is not a certificate-based digital signature.
+- Password protection requires a valid password and does not recover forgotten owner credentials.
+- Actual supported formats and engine requirements are documented in [FORMAT_SUPPORT.md](FORMAT_SUPPORT.md).
+
+## Development checks
+
+- Test the classic Explorer menu on Windows 10 and Windows 11, including **Show more options**.
+- Test file/folder selection and the optional shake gesture with a real mouse on the desktop.
+- Verify correct previews, keyboard operation, Escape/Close, and output collision handling.
+- Test a large PDF in both normal and maximized windows and reach the last page by wheel and scrollbar drag.
+- Verify cancellation leaves no false success notification or unrequested changes to originals.
+
+See the [release checklist](RELEASE_CHECKLIST.md) and [development guide](DEVELOPMENT.md) for broader acceptance requirements.

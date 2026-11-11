@@ -36,3 +36,9 @@ See [the release checklist](RELEASE_CHECKLIST.md) for acceptance gates and delet
 The release-preparation PR removes four documentation screenshot JPEGs and their README references; no standalone video file was found in its tracked tree. The working application brand PNG/ICO files remain because its UI and Windows packaging require them. The premium installer reference ZIP also remains because the Windows build workflow extracts it. That archive must be migrated to a verified replacement before it can safely be removed.
 
 This is a normal, reversible commit, **not** Git history erasure: old commits and GitHub-hosted workflow artifacts may still contain earlier media. Any history rewrite or permanent removal needs a separate inventory, backup, assessment of open PRs, and explicit owner approval. Do not publish unreviewed chat-sourced photos, screenshots or videos.
+
+## Public documentation images
+
+The public README includes four **fresh Windows CI interface captures**, stored under `docs/product/`: Images, Orbit, Audio/Video and a synthetic 269-page PDF. These were reviewed for visible personal paths and document content. They are test evidence, not an endorsement of an approved stable release.
+
+The earlier `docs/screenshots/` reference folder remains absent; no personal chat screenshots or videos were reintroduced. The official app icon and ICO are retained as active build assets. Git history may still contain earlier asset versions; this update does not rewrite history.
