@@ -1,4 +1,4 @@
-# Supported formats — ReformANY 0.3.0 preview
+# Supported formats — ReformANY development build
 
 ReformANY is a local Windows converter with **specific, bounded routes**, not a universal file-format decoder. The table below describes what's implemented in the current source, not guaranteed fidelity for every file. Some routes need software installed separately.
 
@@ -22,7 +22,7 @@ Image conversions support downscaling without upscaling, 90°/180°/270° clockw
 
 The engine rejects animation, multiple TIFF pages and multiple ICO images instead of silently dropping them. It does **not** guarantee preservation of EXIF, ICC profiles, embedded color metadata, text layers, DPI, animation or editing history. Avoid relying on it for archival master files without checking results.
 
-## Media — locally installed FFmpeg and FFprobe required
+## Media — local FFmpeg and FFprobe required
 
 | Source | Output | Notes |
 |---|---|---|
@@ -32,7 +32,7 @@ The engine rejects animation, multiple TIFF pages and multiple ICO images instea
 
 The app passes **explicit codec/preset arguments**, not arbitrary user-provided FFmpeg commands. The separate Media tools workspace supports selected video/audio compression, audio normalization, video rotation/flips, compatible merges and metadata stripping. Media merging has format and stream constraints; it does not join arbitrary clips without re-encoding.
 
-ReformANY **does not bundle FFmpeg**, promise a particular codec license, preserve all streams/metadata, or guarantee lossless video/audio conversion.
+Verified Windows test packages include bundled offline FFmpeg/FFprobe; custom source builds may rely on local installations. ReformANY does **not** promise a particular codec/license combination, preserve all streams/metadata, or guarantee lossless media conversion.
 
 ## Archives and file parts
 

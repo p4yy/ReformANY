@@ -4,7 +4,7 @@ ReformANY conversions run on the user's own PC. The application does not require
 
 **Built in and offline:** static image conversion, PDF tools, local PDF.js document preview, ZIP creation and extraction, and local file actions.
 
-**Other offline engines:** FFmpeg/FFprobe, 7-Zip, WinRAR, LibreOffice, and Calibre must be installed locally for their respective routes unless a future release explicitly bundles them. They never upload files for conversion.
+**Other offline engines:** The verified Windows test installer and portable build bundle FFmpeg/FFprobe. Developer or customized builds can use a locally installed engine. Other optional routes may need 7-Zip, WinRAR, LibreOffice, or Calibre installed separately. Conversion commands do not upload files for remote processing.
 
 **PDF and Markdown previews:** PDF.js parses a local in-memory byte array with bundled CMaps/fonts/decoders; Markdown cannot navigate to external links or load remote images.
 

@@ -1,4 +1,6 @@
-# Product specification
+# Product specification (historical milestone 1)
+
+This file records the original milestone-one scope; it is not the present release feature matrix. For current capabilities and limitations see [FORMAT_SUPPORT.md](FORMAT_SUPPORT.md).
 
 ## What ReformANY does
 
