@@ -91,7 +91,7 @@ jobs:
           }
       - name: Upload verified main-UI screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Desktop-Screenshots', github.event.number) || 'ReformANY-Desktop-Screenshots' }}
           path: test-screenshots/*.png
@@ -177,7 +177,7 @@ jobs:
       # instead of the portable app. This is a PRIVATE PR test artifact, not a
       # GitHub Release. Publish only after its offline React UI smoke test.
       - name: Upload premium five-step setup wizard for desktop testing
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Premium-Setup-EXE-test', github.event.number) || 'ReformANY-Premium-Setup-EXE-test' }}
           path: installer/setup-shell/src-tauri/target/release/reformany-setup.exe
@@ -282,7 +282,7 @@ jobs:
       # Internal PR artifacts are a GitHub Actions transport ZIP. Final users
       # must receive only the raw portable EXE through a signed-off Release asset.
       - name: Upload one portable EXE for Windows acceptance testing
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Portable-EXE-test', github.event.number) || 'ReformANY-Portable-EXE-test' }}
           path: portable-output/ReformANY.exe
