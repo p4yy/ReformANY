@@ -1,5 +1,10 @@
 <p align="center">
-  <img src="public/brand/reformany-banner.gif" alt="ReformANY animated conversion banner" width="720">
+  <a href="https://raw.githubusercontent.com/p4yy/ReformANY/main/docs/media/reformany-trailer.mp4" title="Watch the ReformANY product trailer">
+    <img src="docs/media/reformany-trailer-cover.jpg" alt="Watch the ReformANY Windows app trailer — file conversion, Orbit and PDF tools" width="820">
+  </a>
+</p>
+<p align="center">
+  <a href="https://raw.githubusercontent.com/p4yy/ReformANY/main/docs/media/reformany-trailer.mp4"><strong>▶ Watch the product trailer · 1 min 14 sec</strong></a>
 </p>
 
 <h1 align="center">ReformANY</h1>
