@@ -2425,3 +2425,29 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
   flex:0 0 auto;
   overflow:visible;
 }
+
+
+/* Legacy Orbit Field is a label wrapper, not ZIP's 2.25rem input.field. */
+.orbit-dialog label.field { box-sizing:border-box; display:flex; flex-direction:column; align-items:stretch; flex:0 0 auto; gap:6px; width:100%; height:auto; min-height:0; padding:12px; margin:0 0 12px; overflow:visible; border:1px solid var(--border); border-radius:9px; background:var(--bg-surface); }
+.orbit-dialog label.field > .field-label { display:flex; align-items:baseline; flex:0 0 auto; min-width:0; line-height:1.35; white-space:normal; }
+.orbit-dialog label.field > :not(.field-label) { flex-shrink:0; min-width:0; max-width:100%; margin:0; }
+.orbit-dialog label.field :is(.text-input, .select-trigger, .number-stepper) { box-sizing:border-box; width:100%; min-width:0; min-height:36px; margin:0; }
+.orbit-dialog label.field .select { position:relative; width:100%; }
+.orbit-dialog .field-grid > label.field { margin-bottom:0; }
+/* One scrolling panel body for multi-page tools; always keep actions reachable. */
+.orbit-panel-window .orbit-dialog, .orbit-panel-window .orbit-dialog.wide { display:flex; flex-direction:column; height:100%; min-height:0; }
+.orbit-panel-window .orbit-dialog-body, .orbit-panel-window .orbit-dialog.wide .orbit-dialog-body { flex:1 1 0% !important; min-height:0; overflow-y:auto !important; overscroll-behavior-y:contain; scrollbar-gutter:stable; }
+.orbit-panel-window .orbit-dialog-titlebar, .orbit-panel-window .orbit-dialog-heading, .orbit-panel-window .orbit-dialog-footer, .orbit-panel-window .orbit-dialog > .file-context-row { flex:0 0 auto; }
+.orbit-panel-window .arrange-grid, .orbit-panel-window .extract-grid { flex:none; min-height:0; max-height:none; overflow:visible !important; }
+.orbit-panel-window .watermark-columns { height:auto !important; max-height:none; min-height:0; }
+.orbit-panel-window .watermark-settings { height:auto; max-height:none; overflow:visible !important; }
+.orbit-panel-window .watermark-scroll { max-height:min(62dvh, 610px); }
+/* Avoid native titlebar dragging stealing button pointer clicks. */
+.orbit-panel-window .orbit-dialog-titlebar > div:last-child, .orbit-panel-window .orbit-dialog-titlebar button, .shell .titlebar button, .shell .titlebar .win-btn { -webkit-app-region:no-drag !important; pointer-events:auto; }
+.orbit-panel-window .orbit-dialog-titlebar > div:last-child { position:relative; z-index:5; }
+.shell .titlebar button, .shell .titlebar .win-btn { position:relative; z-index:2; }
+/* Use the existing green app artwork without another square frame. */
+.brand-logo, .orbit-brand-image { display:block; flex:none; border:0; background:transparent; object-fit:contain; mix-blend-mode:screen; -webkit-mask-image:radial-gradient(circle, #000 55%, transparent 75%); mask-image:radial-gradient(circle, #000 55%, transparent 75%); }
+.brand-logo { width:22px; height:22px; }
+.orbit-panel-window .orbit-mark { width:19px; height:19px; overflow:visible; border:0; background:transparent; }
+.orbit-panel-window .orbit-mark img { width:19px; height:19px; }

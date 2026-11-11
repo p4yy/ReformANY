@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type WheelEvent } from "react";
-import { LogoMark, Segmented } from "../components/ui";
+import { Segmented } from "../components/ui";
+import { appIcon } from "../../brand";
 import { MOD_LABEL, SECTIONS, SECTION_LABEL, useSettings, type Section } from "../lib/settings";
 import { play } from "../lib/sound";
 import { formatBytes, reducedMotion } from "../lib/util";
@@ -286,7 +287,7 @@ export function OrbitHUD({
           >
             <circle className="hub-bg" r={HUB} />
             <circle className="hub-glow" r={54} fill="url(#orbit-hub-glow)" />
-            <LogoMark size={40} x={-20} y={-20} />
+            <image href={appIcon} className="orbit-brand-image" x={-30} y={-30} width={60} height={60} aria-hidden="true" />
           </g>
         </svg>
       </div>

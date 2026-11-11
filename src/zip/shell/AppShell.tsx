@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Monitor, Moon, Orbit, PanelLeft, Sun, Volume2 } from "lucide-react";
-import { ToastViewport } from "../components/Toasts";
+import { ToastViewport, toast } from "../components/Toasts";
 import { LogoMark } from "../components/ui";
 import { useActivity } from "../lib/activity";
 import { installCloseToTray, isTauri, win, pickPaths, invoke } from "../lib/bridge";
@@ -195,7 +195,8 @@ export default function AppShell() {
   }, []);
 
   const onClose = () => {
-    if (isTauri) void (settings.closeToTray ? win.hide() : win.quit());
+    if (isTauri) void (settings.closeToTray ? win.hide() : win.quit())
+      .catch(error => toast({ tone: "danger", title: "Could not close window", body: String(error) }));
     else setAway(settings.closeToTray ? "tray" : "closed");
   };
 

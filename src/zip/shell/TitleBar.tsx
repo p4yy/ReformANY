@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Menu, Minus, Moon, Orbit, Search, Square, Sun, X } from "lucide-react";
 import { toast } from "../components/Toasts";
-import { LogoMark } from "../components/ui";
+import { appIcon } from "../../brand";
 import { isTauri, win } from "../lib/bridge";
 import { useSettings } from "../lib/settings";
 
@@ -46,7 +46,7 @@ export function TitleBar({
       <button type="button" className="btn btn-icon min-[720px]:hidden" aria-label="Open navigation" onClick={onMenu}>
         <Menu size={16} />
       </button>
-      <LogoMark size={20} />
+      <img src={appIcon} className="brand-logo" width={22} height={22} alt="" aria-hidden="true" />
       <span className="brand" aria-label="ReformANY">
         Reform<b>ANY</b>
       </span>
@@ -75,7 +75,7 @@ export function TitleBar({
           className="win-btn max-[520px]:hidden"
           aria-label={max ? "Restore" : "Maximize"}
           title={max ? "Restore" : "Maximize"}
-          onClick={() => void win.toggleMaximize()}
+          onClick={() => { void win.toggleMaximize().then(() => { if (!isTauri) setMax(!!document.fullscreenElement); }).catch(e => toast({ tone: "danger", title: "Cannot change window size", body: String(e) })); }}
         >
           {max ? <Copy size={14} /> : <Square size={14} />}
         </button>

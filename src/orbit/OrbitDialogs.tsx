@@ -7,7 +7,7 @@ import type { OrbitFile, ToastMessage } from '../types';
 import { arrangePdf, createZip, downloadBlob, ext, formatBytes, generateQrSvg, middleEllipsis, splitBinary, splitPdf, watermarkPdf } from '../lib/files';
 import { native as desktop, nativeShred, nativeReveal, runNative, pathOf } from '../native/bridge';
 import { CopyButton, Field, FileContextRow, IconButton, InlineNote, KineticButton, NumberStepper, ProgressBar, Select, SpringSlider } from '../components/UI';
-import ReformanyMark from '../components/ReformanyMark';
+import { appIcon } from '../brand';
 
 const BrowserFile = globalThis.File;
 
@@ -31,8 +31,8 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
     let active = true;
     let unlisten: (() => void) | undefined;
     const windowHandle = getCurrentWindow();
-    const sync = () => void windowHandle.isFullscreen()
-      .then(value => { if (active) setFullscreen(value); })
+    const sync = () => void Promise.all([windowHandle.isMaximized(), windowHandle.isFullscreen()])
+      .then(([maximized, full]) => { if (active) setFullscreen(maximized || full); })
       .catch(() => {});
     sync();
     void windowHandle.onResized(sync)
@@ -54,8 +54,10 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
   const toggleFullscreen = async () => {
     try {
       if (panel) {
-        const next = !await getCurrentWindow().isFullscreen();
-        await getCurrentWindow().setFullscreen(next);
+        const windowHandle = getCurrentWindow();
+        const next = !(await windowHandle.isMaximized());
+        if (next) await windowHandle.maximize();
+        else await windowHandle.unmaximize();
         setFullscreen(next);
       } else if (document.fullscreenElement) {
         await document.exitFullscreen();
@@ -80,7 +82,7 @@ export function OrbitDialogFrame({ title, subtitle, icon, file, children, footer
     <div className="orbit-dialog-body">{children}</div>{footer && <footer className="orbit-dialog-footer">{footer}</footer>}
   </section></div>;
 }
-function OrbitMark() { return <span className="orbit-mark"><ReformanyMark size={16} /></span>; }
+function OrbitMark() { return <span className="orbit-mark"><img src={appIcon} className="brand-logo" alt="" aria-hidden="true" /></span>; }
 function MaximizeLabel() { return <ExternalLink size={14} />; }
 
 export function ShredDialog({ file, onClose, notify, onShred }: DialogProps) {

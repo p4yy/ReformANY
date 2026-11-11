@@ -61,7 +61,7 @@ const MEDIA: OrbitItem[] = [
 ];
 
 const CONVERT: Record<Kind, OrbitItem[]> = {
-  image: fmt(["TIFF", "PDF", "JPEG", "ICO", "TGA", "WebP", "BMP", "GIF", "QOI", "AVIF"]),
+  image: fmt(["PNG", "TIFF", "PDF", "JPEG", "ICO", "TGA", "WebP", "BMP", "GIF", "QOI", "AVIF"]),
   video: MEDIA,
   audio: MEDIA,
   pdf: fmt(["DOCX|Editable", "TXT", "MD", "HTML", "DOCX|Layout", "PNG", "JPG"]),
