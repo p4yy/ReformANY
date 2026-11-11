@@ -1,148 +1,98 @@
 <p align="center">
-  <img src="public/brand/reformany-icon.png" alt="ReformANY — official sage-green application icon" width="116" />
+  <img src="public/brand/reformany-icon.png" alt="ReformANY" width="104">
 </p>
 
 <h1 align="center">ReformANY</h1>
 
 <p align="center">
-  <strong>File conversion and document tools, built for your Windows desktop.</strong><br>
-  Convert locally. Work from File Explorer. Keep the originals.
+  <strong>File conversion, PDF tools, and quick actions for Windows.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml"><img alt="Source verification" src="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml"><img alt="Windows build" src="https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml/badge.svg?branch=main"></a>
-  <a href="LICENSE"><img alt="License: proprietary, source available" src="https://img.shields.io/badge/license-source--available-829773"></a>
-  <a href="https://github.com/p4yy/ReformANY/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/p4yy/ReformANY?style=flat"></a>
+  <a href="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml"><img src="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml/badge.svg?branch=main" alt="Source verification"></a>
+  <a href="https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml"><img src="https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml/badge.svg?branch=main" alt="Windows build"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-source--available-829773" alt="Source-available license"></a>
+  <a href="https://github.com/p4yy/ReformANY/stargazers"><img src="https://img.shields.io/github/stars/p4yy/ReformANY?style=flat" alt="GitHub stars"></a>
 </p>
 
-ReformANY is a Windows application for converting supported images, PDFs, documents, audio, video, archives and structured data. It combines a full desktop workspace with **ReformANY Orbit**, a circular File Explorer shortcut for quick file actions. Conversion runs on your PC, without a ReformANY account or a remote conversion service.
+ReformANY brings file conversion and document utilities into one Windows desktop app. Work in the main interface or open **ReformANY Orbit** from File Explorer for quick, file-specific actions. Supported conversions run locally, without an account or cloud upload.
 
-**Project status:** Actively developed. The latest Windows builds are **private test builds**, not an approved or published v1.0.0 release. Format coverage and conversion quality vary by source file and installed engine. See the [format support matrix](docs/FORMAT_SUPPORT.md) and [release checklist](docs/RELEASE_CHECKLIST.md).
+> **Development status:** Windows test builds are available through [GitHub Actions](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml). An official stable release has not been published.
 
-## The application
+## Features
 
-These are **actual captures from the Windows CI test build**, using synthetic test data. They are not personal desktop screenshots, chat reference images or product mockups.
+- **ReformANY Orbit** — a compact circular menu in File Explorer with conversion, tool, and file actions.
+- **Shake to Orbit** — an optional file-or-folder drag gesture to open Orbit. Configurable in settings; availability depends on Windows Explorer behavior.
+- **HoveR** — preview supported files and access relevant actions without opening the full workspace.
+- **Image tools** — batch conversion, resize, rotation, grayscale, quality, and transparency options.
+- **PDF tools** — page arrangement and extraction, page-image export, watermarking, visible signatures, and password-protected copies.
+- **Audio and video** — local FFmpeg-based conversion, compression, trimming, and selected media tools.
+- **Documents and data** — supported Office, e-book, spreadsheet, table, text, and subtitle conversion routes.
+- **Archives and files** — ZIP creation/extraction, encrypted ZIP, supported external archive formats, and file split/join tools.
 
-<p align="center">
-  <a href="docs/product/images-workspace.jpg"><img src="docs/product/images-workspace.jpg" alt="ReformANY Images workspace with sage-green controls" width="660"></a>
-</p>
-<p align="center"><sub>Images workspace · local processing · the dark sage-green interface</sub></p>
+## Formats
 
-<table>
-  <tr>
-    <td align="center" width="45%">
-      <a href="docs/product/orbit-wheel.jpg"><img src="docs/product/orbit-wheel.jpg" alt="Circular ReformANY Orbit menu with the green brand icon" width="310"></a><br>
-      <sub>Orbit · circular file-action menu</sub>
-    </td>
-    <td align="center" width="55%">
-      <a href="docs/product/pdf-arrange-269.jpg"><img src="docs/product/pdf-arrange-269.jpg" alt="Arrange PDF pages panel scrolled to the last page of a synthetic 269-page PDF" width="480"></a><br>
-      <sub>PDF pages · scroll through large documents</sub>
-    </td>
-  </tr>
-</table>
-
-<p align="center">
-  <a href="docs/product/audio-video.jpg"><img src="docs/product/audio-video.jpg" alt="ReformANY Audio and Video conversion workspace" width="600"></a>
-</p>
-<p align="center"><sub>Audio and video · format-specific conversion controls</sub></p>
-
-## What ReformANY does
-
-| Workspace or feature | Included capabilities |
+| Category | Formats |
 | --- | --- |
-| **Orbit** | Right-click a file or folder in File Explorer to open a compact circular menu with Convert, Tools and Actions. Windows 11 may show this under **Show more options**. |
-| **Shake to Orbit** | Optional hold-and-shake gesture for files or folders in Windows Explorer; enabled and tuned through Orbit settings. The native detector exists in the development build, but real-device behavior still needs wider Windows QA. |
-| **HoveR** | Quick local file preview and actions from Orbit, where supported. |
-| **Images** | Batch conversion, resizing, rotation, grayscale, quality selection and transparency handling for supported raster formats. |
-| **PDF** | View pages, arrange and extract pages, export page images, add watermarks, apply visible signatures and create password-protected copies. Visible signatures are **not** cryptographic digital signatures. |
-| **Documents and data** | Text-based PDF extraction, selected Office and e-book conversion routes, spreadsheet/table conversion and subtitle conversion. Some operations need external engines. |
-| **Audio and video** | FFmpeg-based transcode, compression, trim and selected media tools, with available codecs depending on the engine. |
-| **Archives and file tools** | ZIP creation/extraction (including encrypted ZIP), format-dependent external archive tools, file splitting and joining with integrity checks. |
+| Images | PNG, JPG/JPEG, WebP, BMP, GIF (static), TIFF (single-page), TGA, QOI, ICO; SVG rasterization |
+| PDF | PDF, PNG/JPG page images, TXT, Markdown, HTML |
+| Audio | MP3, M4A, WAV, FLAC, OGG, Opus |
+| Video | MP4, WebM, MKV, MOV, AVI |
+| Archives | ZIP, 7z, RAR, TAR, GZip, BZip2, XZ, WIM |
+| Tables | CSV, TSV, JSON, XLSX; selected XLS/ODS imports |
+| Subtitles | SRT, WebVTT |
+| Documents and e-books | Selected DOC, DOCX, PPT, PPTX, EPUB, MOBI, FB2, AZW3 routes |
 
-The application creates separate outputs for supported operations; keep your source files until you verify the results in another viewer.
+Support is **operation-specific**; not every listed input converts to every listed output. Optional routes may require LibreOffice, Calibre, 7-Zip, or WinRAR. Media conversion requires FFmpeg/FFprobe, which are included in verified Windows test packages. See the [full format matrix](docs/FORMAT_SUPPORT.md) for directions, limits, and exclusions.
 
-## Supported formats
+## Installation
 
-These are **format families and available routes**, not a promise that every input can be converted to every output.
+ReformANY currently provides Windows **test builds** rather than a published stable release. Open the [Windows build workflow](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml) and select the artifacts from a successful run.
 
-| Category | Common supported formats | Important detail |
-| --- | --- | --- |
-| Raster images | PNG, JPG/JPEG, WebP, BMP, static GIF, single-page TIFF, TGA, QOI, ICO | Animation, multipage variants and some metadata are not preserved or supported. |
-| Vector images | SVG → supported raster outputs | Only self-contained SVG; input limits and active-content checks apply. |
-| PDF | PDF, JPG/PNG page images, TXT, Markdown, HTML | Image rendering, page tools and text extraction are different operations. Scanned-PDF text needs OCR, which is not built in. |
-| Audio | MP3, M4A, WAV, FLAC, OGG, Opus | Requires a compatible local FFmpeg/FFprobe engine and codecs. |
-| Video | MP4, WebM, MKV, MOV, AVI | Available video/audio profiles determine actual output compatibility. |
-| Archives | ZIP, 7z, RAR, TAR, GZip, BZip2, XZ, WIM | ZIP is built in; other routes require compatible local 7-Zip or WinRAR tools. |
-| Spreadsheets and tables | CSV, TSV, JSON, XLSX; XLS/ODS import | Values-only conversion; advanced formulas, styling and multi-sheet fidelity are not guaranteed. |
-| Subtitles | SRT ↔ WebVTT | Selected timing and text features only. |
-| Office documents and e-books | Selected DOC/DOCX/PPT/PPTX and EPUB/MOBI/FB2/AZW3 routes | LibreOffice or Calibre may be required. DRM is not bypassed. |
+| Package | How to use it |
+| --- | --- |
+| **Portable** — `ReformANY.exe` | Download the **Portable-EXE-test** ZIP, extract it, and launch `ReformANY.exe`. No setup wizard required. |
+| **Installer** — `reformany-setup.exe` | Download the **Premium-Setup-EXE-test** ZIP, extract it, and run the setup executable. |
 
-For exact read/write directions, source-size limits and unsupported combinations, read **[Supported formats and limitations](docs/FORMAT_SUPPORT.md)**. Not general-purpose: HEIC/HEIF, PSD, RAW camera files, animated-image preservation, PDF OCR or arbitrary DRM removal.
+**Requirements:** Windows 10 or 11 (64-bit), WebView2, and adequate disk space. Optional tools require their respective local engines. Unsigned development builds may trigger Windows SmartScreen.
 
-## Download and installation
+## Orbit in File Explorer
 
-An official stable v1.0.0 release is **not yet published**. For development testing, use the [Windows build workflow](https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml) and select an artifact built from the commit you intend to test. GitHub Actions artifacts are temporary and may require sign-in.
+1. Right-click a supported file or folder and choose **ReformANY Orbit**. On Windows 11, use **Show more options** if needed.
+2. Choose an action from **Convert**, **Tools**, or **Actions**.
+3. Adjust settings in the tool panel, then save the output.
 
-**Portable — `ReformANY.exe`**
+The optional **Shake to Orbit** gesture provides another way to open the menu while dragging a file or folder. The right-click menu remains available without the gesture.
 
-1. Download the separately named **Portable-EXE-test** ZIP from a successful Windows build.
-2. Extract the ZIP and run `ReformANY.exe`. The portable executable does **not** require the setup wizard.
-3. If you enable optional Explorer integration, local settings or per-user registry entries may be created. Portable does not mean zero persistence.
-
-**Installer — `reformany-setup.exe`**
-
-Download the separately named **Premium-Setup-EXE-test** ZIP, extract it, and run `reformany-setup.exe`. It provides an offline setup UI. **Do not confuse the installer with the portable app.**
-
-**Requirements:** Windows 10/11 (64-bit), WebView2, sufficient storage for originals and output files. Some optional conversions depend on installed LibreOffice, Calibre, 7-Zip or WinRAR. Verified Windows test packages include offline FFmpeg/FFprobe; source builds can use a locally installed engine. Unsigned test executables may trigger SmartScreen; verify the source before running them.
-
-## Using Orbit
-
-1. Select a supported file or folder in File Explorer.
-2. Right-click and choose **ReformANY Orbit** (possibly under **Show more options** on Windows 11).
-3. Choose **Convert**, **Tools** or **Actions**, then select an available operation.
-4. Use the dedicated tool window for settings or PDF pages; scroll the **outer-right scrollbar** to reach long forms and page collections.
-5. Check the created output before deleting or moving the original.
-
-**Shake to Orbit** is an optional Windows drag gesture; its availability depends on the native listener, Windows Explorer behavior and your Orbit settings. It is under ongoing hands-on compatibility testing. [Orbit details](docs/ORBIT.md).
+[More about Orbit](docs/ORBIT.md)
 
 ## Build from source
 
-This public repository is **source-available, not open source**. Review [LICENSE](LICENSE) before copying, modifying, building or redistributing the first-party code.
-
-Prerequisites: Node.js 22+, current stable Rust, the [Tauri 2 Windows prerequisites](https://v2.tauri.app/start/prerequisites/) and Windows build tools.
+ReformANY uses **Tauri 2, Rust, React, and TypeScript**. Install Node.js 22+, stable Rust, and the [Tauri prerequisites for Windows](https://v2.tauri.app/start/prerequisites/).
 
 ```powershell
 npm install
 npm run typecheck
-npm run privacy:check
 cargo test --manifest-path src-tauri/Cargo.toml
 npm run tauri dev
 ```
 
-The Windows CI workflow builds the native executable, premium setup and standalone portable test artifact through additional packaging steps. For project-specific commands and checks, see [Development](docs/DEVELOPMENT.md).
+See the [development guide](docs/DEVELOPMENT.md) for packaging, tests, and optional engines.
 
-## Privacy, security and release status
+## Project
 
-- Core conversion and preview operations run locally. ReformANY does not require a cloud account or upload documents to a ReformANY server.
-- Some optional format routes invoke software installed on the device. See the [privacy contract](docs/PRIVACY.md) for settings, local storage and engine details.
-- **Dependency audit cleared on the verified build.** npm and RustSec audits, Linux source tests, Windows installer tests, the 269-page Orbit scrolling test and portable offline checks passed on commit [`1da3e05`](https://github.com/p4yy/ReformANY/commit/1da3e05411c99ce0eb2726a2adcaaf8989c4e477). This is a development build, not a stable-release certification. Manual clean-Windows acceptance, signing and release review remain open.
-- Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md), not a public issue.
+[Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Security](SECURITY.md)
 
-## Project information
+Conversion happens locally. As with any conversion tool, check output files before discarding originals. The [privacy policy](docs/PRIVACY.md) explains local settings and processing behavior.
 
-[Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Release readiness](docs/RELEASE_CHECKLIST.md)
-
-## Support development
-
-ReformANY is independently developed. Donations are optional and do not grant redistribution rights or preferential support.
+## Support
 
 <p align="center">
-  <a href="https://www.paypal.com/paypalme/aceevisuals"><img src="https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Support ReformANY on PayPal" height="32"></a>
+  <a href="https://www.paypal.com/paypalme/aceevisuals"><img src="https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Support on PayPal" height="32"></a>
   &nbsp;
-  <a href="https://ko-fi.com/acevisualsco"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support ReformANY on Ko-fi" height="32"></a>
+  <a href="https://ko-fi.com/acevisualsco"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support on Ko-fi" height="32"></a>
 </p>
 
 ## License
 
-Copyright © 2026 **Acev Dev Co**. All rights reserved. ReformANY is publicly viewable under a **proprietary, source-available license**; it is not released under MIT or GPL. Any permissions to evaluate, modify or redistribute the software are governed by [LICENSE](LICENSE). Third-party components retain their own licenses.
+© 2026 Acev Dev Co. All rights reserved. ReformANY is **proprietary, source-available software**. Viewing the source does not grant permission to redistribute or relicense it. See [LICENSE](LICENSE) for the applicable terms.

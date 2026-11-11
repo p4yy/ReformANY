@@ -42,6 +42,7 @@ yarn-error.log*
 # These exclusions do not remove files that were already committed.
 test-screenshots/
 docs/screenshots/
+docs/product/
 docs/videos/
 docs/reference-media/
 design/references/

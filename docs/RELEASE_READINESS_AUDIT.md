@@ -45,6 +45,6 @@ This is a normal, reversible commit, **not** Git history erasure: old commits an
 
 ## Public documentation images
 
-The public README includes four **fresh Windows CI interface captures**, stored under `docs/product/`: Images, Orbit, Audio/Video and a synthetic 269-page PDF. These were reviewed for visible personal paths and document content. They are test evidence, not an endorsement of an approved stable release.
+The unapproved Windows CI screenshot gallery previously tracked under `docs/product/` was removed from the current `main` tree. No application icon, runtime asset, code, or installer input was removed. README presentation remains text-first until a curated, owner-approved product gallery is available.
 
-The earlier `docs/screenshots/` reference folder remains absent; no personal chat screenshots or videos were reintroduced. The official app icon and ICO are retained as active build assets. Git history may still contain earlier asset versions; this update does not rewrite history.
+Deleting tracked JPEG files on the branch does not erase copies in existing Git history, workflow artifacts, or third-party caches. Any irreversible history rewrite requires a separate backup and explicit approval.
