@@ -43,6 +43,10 @@ ReformANY brings file conversion and document utilities into one Windows desktop
 - **Documents and data** — supported Office, e-book, spreadsheet, table, text, and subtitle conversion routes.
 - **Archives and files** — ZIP creation/extraction, encrypted ZIP, supported external archive formats, and file split/join tools.
 
+<p align="center">
+  <img src="public/brand/reformany-banner.gif" alt="ReformANY animated format-conversion banner" width="440">
+</p>
+
 ## Formats
 
 | Category | Formats |
