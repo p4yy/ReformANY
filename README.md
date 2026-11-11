@@ -9,8 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml"><img src="https://github.com/p4yy/ReformANY/actions/workflows/checks.yml/badge.svg?branch=main" alt="Source verification"></a>
-  <a href="https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml"><img src="https://github.com/p4yy/ReformANY/actions/workflows/windows-release.yml/badge.svg?branch=main" alt="Windows build"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-source--available-829773" alt="Source-available license"></a>
   <a href="https://github.com/p4yy/ReformANY/stargazers"><img src="https://img.shields.io/github/stars/p4yy/ReformANY?style=flat" alt="GitHub stars"></a>
 </p>
