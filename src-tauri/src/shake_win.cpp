@@ -254,7 +254,7 @@ public:
         g_dropPath.clear();
         std::wstring actual;
         const POINT position{point.x,point.y};
-        if(inside_circle(position)&&exact_single_file(data,actual)){
+        if(inside_circle(position)&&exact_single_file_or_folder(data,actual)){
             // This is the authoritative dropped file, not the Shell selection.
             g_dropPath=std::move(actual);
             g_invalidDrop=false;
