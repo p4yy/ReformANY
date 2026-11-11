@@ -2562,6 +2562,16 @@ html.orbit-window, html.orbit-window body, html.orbit-window #root {
 .orbit-panel-window .orbit-dialog-scroll-region > .file-context-row {
   flex: none;
 }
+/* The header's file card moved into the shared scroll region, so retain its
+   original horizontal inset rather than letting it touch the panel edge. */
+.orbit-panel-window .orbit-dialog-scroll-region > .file-context-row {
+  margin: 0 24px 5px;
+}
+@media (max-width: 760px) {
+  .orbit-panel-window .orbit-dialog-scroll-region > .file-context-row {
+    margin: 0 17px 5px;
+  }
+}
 .orbit-panel-window .orbit-dialog-scroll-region > .orbit-dialog-body,
 .orbit-panel-window .orbit-dialog.wide .orbit-dialog-scroll-region > .orbit-dialog-body,
 .orbit-panel-window .arrange-dialog .orbit-dialog-scroll-region > .orbit-dialog-body,
