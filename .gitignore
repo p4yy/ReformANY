@@ -1,0 +1,56 @@
+# Frontend dependencies and generated output
+**/node_modules/
+**/dist/
+**/.vite/
+**/coverage/
+**/.turbo/
+**/.cache/
+
+# Rust / Tauri outputs
+**/target/
+src-tauri/gen/
+
+# Local environment; commit an explicit template if required
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Editor / operating system
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Runtime and local diagnostics
+*.log
+*.tmp
+*.temp
+*.bak
+*.old
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Keep private design references and recordings out of source history.
+# These exclusions do not remove files that were already committed.
+test-screenshots/
+docs/screenshots/
+docs/product/
+docs/videos/
+docs/reference-media/
+design/references/
+reference-media/
+reference-images/
+reference-videos/
+
+# Installer packaging outputs (do not ignore required tracked reference fixtures)
+installer/setup-shell/frontend/
+installer/setup-shell/node_modules/
+installer/setup-shell/dist/

@@ -1,0 +1,83 @@
+
+html[data-mode="hover"],html[data-mode="hover"] body,html[data-mode="hover"] #root {
+  width:100%;height:100%;margin:0;min-width:0;min-height:0;overflow:hidden;
+}
+.hover-shell{
+  --hover-bg:#1a1f14;--hover-surface:#232a1c;--hover-surface-raised:#2d3524;
+  --hover-border:rgba(200,212,162,.13);--hover-text:#c8d4a2;--hover-muted:#a3b27a;
+  height:100%;display:flex;flex-direction:column;overflow:hidden;
+  font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  color:var(--hover-text);background:var(--hover-bg);
+}
+.hover-topbar{
+  height:52px;flex:0 0 52px;display:flex;align-items:center;gap:10px;
+  padding:0 17px;border-bottom:1px solid var(--hover-border);
+  background:var(--hover-surface);
+}
+.hover-logo{width:23px;height:23px;object-fit:contain;border-radius:6px}
+.hover-topbar strong{font-size:12px;letter-spacing:-.15px}
+.hover-pin{color:var(--hover-muted);margin-inline-start:auto}
+.hover-topbar button{border:0;background:transparent;color:var(--hover-muted);display:grid;place-items:center;padding:6px;border-radius:7px}
+.hover-topbar button:hover{color:#edf2df;background:rgba(200,212,162,.08)}
+.hover-content{flex:1;min-height:0;padding:20px;display:flex;align-items:center;flex-direction:column;gap:9px}
+.hover-preview{
+  width:min(100%,220px);height:190px;display:grid;place-items:center;
+  background:var(--hover-surface-raised);color:var(--hover-muted);
+  border:1px solid var(--hover-border);border-radius:17px;overflow:hidden;
+}
+.hover-preview img{width:100%;height:100%;object-fit:contain}
+.hover-content strong{font-size:13px;font-weight:700;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.hover-content small{font-size:11px;color:var(--hover-muted)}
+.hover-content p{font-size:10px;color:#7d8c5c;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hover-actions{display:flex;gap:9px;padding:13px;border-top:1px solid var(--hover-border)}
+.hover-actions button{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  border-radius:10px;height:37px;border:1px solid rgba(200,212,162,.18);
+  background:var(--hover-surface-raised);color:var(--hover-text);
+  font-weight:600;font-size:11px;transition:background .16s,transform .16s;
+}
+.hover-actions button:hover:not(:disabled){background:#363f2c;transform:translateY(-1px)}
+.hover-actions button:disabled{opacity:.5}
+.hover-error,.hover-note{font-size:10px;line-height:1.4;padding:5px 13px 11px}
+.hover-error{color:#e29a91}.hover-note{color:#c8d4a2}
+
+/* Actual offline QR workspace: real encoding, preview and native Save dialog. */
+.hover-tabs{height:43px;display:flex;align-items:center;gap:5px;padding:5px 14px;border-bottom:1px solid var(--hover-border);background:var(--hover-bg)}
+.hover-tabs button{display:flex;align-items:center;justify-content:center;gap:7px;flex:1;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--hover-muted);height:31px;font-size:11px;font-weight:600;cursor:pointer}
+.hover-tabs button[aria-current="page"]{background:var(--hover-surface-raised);border-color:var(--hover-border);color:var(--hover-text)}
+.hover-tabs button:focus-visible,.hover-actions button:focus-visible,.hover-qr-actions button:focus-visible{outline:2px solid #c8d4a2;outline-offset:2px}
+.hover-qr-content{flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:16px 17px;overflow:auto}
+.hover-qr-content label{color:var(--hover-text);font-size:11px;font-weight:600}
+.hover-qr-content textarea{width:100%;flex:0 0 auto;resize:vertical;min-height:52px;max-height:100px;box-sizing:border-box;padding:9px 10px;background:#171d15;border:1px solid var(--hover-border);border-radius:9px;color:#edf2df;font-size:11px;font-family:inherit;line-height:1.4}
+.hover-qr-content textarea:focus{outline:2px solid #8cb369;outline-offset:1px}
+.hover-qr-actions{display:flex;gap:8px}
+.hover-qr-actions button{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-height:36px;padding:0 8px;border:1px solid var(--hover-border);border-radius:9px;background:var(--hover-surface-raised);color:var(--hover-text);font-size:11px;font-weight:600;cursor:pointer}
+.hover-qr-actions button:first-child{background:#3a4a2b}
+.hover-qr-actions button:disabled{cursor:not-allowed;opacity:.45}
+.hover-qr-image{align-self:center;display:grid;place-items:center;flex:1;min-height:110px;width:100%;max-width:190px}
+.hover-qr-image img{display:block;width:100%;height:auto;max-height:190px;aspect-ratio:1}
+.hover-qr-empty{flex:1;min-height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:9px;border:1px dashed var(--hover-border);border-radius:12px;color:var(--hover-muted);font-size:10px}
+.hover-qr-content small{font-size:10px;line-height:1.45;color:var(--hover-muted)}
+
+/* Native HoveR media playback: local asset URLs are granted per-file in Rust. */
+.hover-preview{width:100%;height:min(52vh,300px);min-height:175px}
+.hover-preview video,.hover-preview iframe{display:block;width:100%;height:100%;border:0;background:#0d110d;object-fit:contain}
+.hover-preview video{max-height:100%}
+.hover-audio,.hover-unavailable{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;text-align:center;padding:18px;box-sizing:border-box}
+.hover-audio audio{width:100%;max-width:290px}
+.hover-unavailable span{max-width:240px;font-size:12px;line-height:1.4;color:var(--hover-muted)}
+
+/* Frameless HoveR. QR stays in normal flow and each control remains reachable. */
+.hover-shell{overflow:hidden}
+.hover-topbar{user-select:none;-webkit-user-select:none;cursor:move}
+.hover-topbar button{cursor:pointer}
+.hover-topbar button[aria-pressed="true"]{color:#d8e8af}
+.hover-qr-content{min-height:0;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto}
+.hover-qr-image{flex:none;align-self:center;width:min(100%,185px);max-width:185px;min-height:0;height:auto;padding:8px 0}
+.hover-qr-image img{display:block;width:100%;height:auto;max-height:185px;aspect-ratio:1;object-fit:contain}
+.hover-qr-content small{position:relative;flex:none;display:block;white-space:normal;overflow-wrap:anywhere}
+.hover-content,.hover-qr-content,.hover-shell{scrollbar-width:thin;scrollbar-color:rgba(178,192,142,.35) transparent}
+.hover-content::-webkit-scrollbar,.hover-qr-content::-webkit-scrollbar{width:5px}
+.hover-content::-webkit-scrollbar-thumb,.hover-qr-content::-webkit-scrollbar-thumb{background:rgba(178,192,142,.32);border-radius:9px}
+.hover-actions{flex-shrink:0}
+@media (max-height:480px){.hover-qr-image{max-width:125px}.hover-qr-image img{max-height:125px}.hover-content{overflow-y:auto}}

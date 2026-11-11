@@ -1,0 +1,41 @@
+name: Dependency audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - '.github/workflows/dependency-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve production dependencies for advisory audit
+        run: npm install --package-lock-only --ignore-scripts --no-fund
+      - name: Block known high-severity production vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+  rust-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Generate resolved Cargo lockfile for auditing
+        run: cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+      - name: Install RustSec audit CLI
+        run: cargo install cargo-audit --locked
+      - name: Scan resolved Rust dependencies
+        run: cargo audit --file src-tauri/Cargo.lock

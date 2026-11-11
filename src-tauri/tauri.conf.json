@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ReformANY",
+  "version": "0.3.0",
+  "identifier": "app.reformany.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build && node scripts/prepare-installer.mjs",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src ipc: http://ipc.localhost; media-src 'self' asset: http://asset.localhost; frame-src 'self' asset: http://asset.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh",
+        "template": "./windows/installer.nsi",
+        "headerImage": "./windows/installer-header.bmp",
+        "sidebarImage": "./windows/installer-sidebar.bmp",
+        "installerIcon": "./icons/icon.ico"
+      },
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      }
+    },
+    "resources": {
+      "installer/install-media-engines.ps1": "installer/install-media-engines.ps1",
+      "installer/media-bundle/": "installer/media-bundle/"
+    }
+  }
+}

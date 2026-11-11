@@ -1,0 +1,21 @@
+[package]
+name = "reformany-setup"
+version = "0.3.0"
+edition = "2021"
+rust-version = "1.90"
+build = "build.rs"
+
+# Cargo-built premium setup MUST embed the production React frontend. Without
+# this feature, Tauri loads build.devUrl (localhost) even in --release builds.
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

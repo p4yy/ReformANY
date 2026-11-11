@@ -1,0 +1,333 @@
+name: Windows build
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - 'SECURITY.md'
+      - '.github/workflows/publish-versioned-release.yml'
+      - 'public/brand/reformany-banner.gif'
+  pull_request:
+    branches: [main, design/desktop-orbit-ui-refinement]
+  workflow_dispatch:
+    inputs:
+      all_20_acceptance_checks_signed_off:
+        description: "Release only after all 20 regression requirements have been independently verified"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    # Produce test installers only for branches owned by this repository.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Enforce HoveR naming across tracked source and documents
+        run: node scripts/check-hover-terminology.mjs
+      - name: Build frontend
+        run: npm run build
+      # Stage the real FFmpeg and FFprobe executables BEFORE any Tauri/Rust build.
+      # The user-facing setup EXE and runtime operate entirely offline.
+      - name: Prepare verified bundled FFmpeg and FFprobe
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/prepare-media-bundle.ps1
+      # Tauri's Windows unit test EXEs lack Common Controls v6 by default.
+      # Compile, embed the test-only manifest, then run the actual tests.
+      - name: Compile Windows Rust tests
+        run: cargo test --no-run --manifest-path src-tauri/Cargo.toml
+      - name: Run Windows Rust tests with Common Controls manifest
+        shell: pwsh
+        run: ./scripts/run-windows-rust-tests.ps1
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          # NSIS is fetched by Tauri during packaging. Retry only the known
+          # transient upstream NSIS HTTP 504 failure, never compiler/test errors.
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            $log = Join-Path $env:RUNNER_TEMP "reformany-tauri-build-$attempt.log"
+            & cmd.exe /d /s /c "npm run tauri build > `"$log`" 2>&1"
+            $exitCode = $LASTEXITCODE
+            Get-Content -LiteralPath $log
+            if ($exitCode -eq 0) { break }
+            $output = Get-Content -LiteralPath $log -Raw
+            if ($attempt -eq 3 -or $output -notmatch '(?is)(NSIS.{0,300}(504|Gateway Timeout)|(504|Gateway Timeout).{0,300}NSIS)') {
+              throw "Tauri build failed (exit $exitCode); no further retries."
+            }
+            Write-Warning "Transient NSIS HTTP 504 on attempt $attempt; retrying in 30 seconds."
+            Start-Sleep -Seconds 30
+          }
+      # The real main EXE must open a new HoveR WebView and render a chosen
+      # picture. Catch the user's blank-white HoveR regression before release.
+      - name: Verify 269-page Orbit scrolling and HoveR offline preview
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $exe = (Resolve-Path 'src-tauri/target/release/reformany.exe').Path
+          $picture = (Resolve-Path 'src-tauri/icons/icon.png').Path
+          $policy = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments'
+          New-Item -Path $policy -Force | Out-Null
+          New-ItemProperty -Path $policy -Name 'ReformANY.exe' -Value '--remote-debugging-port=19376 --remote-allow-origins=*' -PropertyType String -Force | Out-Null
+          try {
+            $ffmpeg = (Resolve-Path 'src-tauri/installer/media-bundle/ffmpeg.exe').Path
+            node scripts/test-hover-ui.mjs $exe $picture $ffmpeg
+            if ($LASTEXITCODE -ne 0) { throw '269-page Orbit scrolling or HoveR playback smoke test failed' }
+          } finally {
+            Remove-ItemProperty -Path $policy -Name 'ReformANY.exe' -ErrorAction SilentlyContinue
+          }
+      - name: Upload verified main-UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Desktop-Screenshots', github.event.number) || 'ReformANY-Desktop-Screenshots' }}
+          path: test-screenshots/*.png
+          if-no-files-found: warn
+      # The user-supplied ZIP is the authoritative React design.
+      # NSIS continues as a completely silent backend (invoked only with /S).
+      - name: Prepare original five-step premium installer UI
+        shell: pwsh
+        run: |
+          $reference = Join-Path $env:RUNNER_TEMP 'ReformANY-Premium-Reference'
+          $frontend = Join-Path $PWD 'installer/setup-shell/frontend'
+          $overrides = Join-Path $PWD 'installer/setup-shell/frontend-overrides'
+          Expand-Archive -LiteralPath 'installer/reference/premium-installer-ui-prompt.zip' -DestinationPath $reference -Force
+          New-Item -ItemType Directory -Path $frontend -Force | Out-Null
+          Copy-Item -Path (Join-Path $reference '*') -Destination $frontend -Recurse -Force
+          Get-ChildItem -LiteralPath $overrides -File -Recurse | ForEach-Object {
+            $relative = $_.FullName.Substring($overrides.Length).TrimStart([char]92, [char]47)
+            $target = Join-Path $frontend $relative
+            New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+            Copy-Item -LiteralPath $_.FullName -Destination $target -Force
+          }
+          # Remove the reference playground app; only the real installer is shipped.
+          Remove-Item -LiteralPath (Join-Path $frontend 'src/App.tsx') -Force
+          New-Item -ItemType Directory -Path (Join-Path $frontend 'public') -Force | Out-Null
+          Copy-Item 'src-tauri/icons/icon.png' (Join-Path $frontend 'public/brand.png') -Force
+          $icons = 'installer/setup-shell/src-tauri/icons'
+          New-Item -ItemType Directory -Path $icons -Force | Out-Null
+          Copy-Item 'src-tauri/icons/icon.ico' (Join-Path $icons 'icon.ico') -Force
+          Copy-Item 'src-tauri/icons/icon.png' (Join-Path $icons 'icon.png') -Force
+      - name: Compile actual premium React installer UI
+        shell: pwsh
+        run: |
+          Push-Location 'installer/setup-shell/frontend'
+          try {
+            npm install --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend npm install failed' }
+            npx tsc --noEmit
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend TypeScript failed' }
+            npm run build
+            if ($LASTEXITCODE -ne 0) { throw 'Premium frontend Vite build failed' }
+          } finally { Pop-Location }
+      - name: Build frameless Windows premium setup executable
+        shell: pwsh
+        timeout-minutes: 35
+        run: |
+          $native = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (-not $native) { throw 'No real NSIS engine was built' }
+          $env:REFORMANY_NSIS_PAYLOAD = $native.FullName
+          $frontendHtml = 'installer/setup-shell/frontend/dist/index.html'
+          if (-not (Test-Path -LiteralPath $frontendHtml -PathType Leaf)) {
+            throw 'The premium React frontend was not built. Refusing to compile an empty setup EXE.'
+          }
+          cargo build --release --features custom-protocol --manifest-path 'installer/setup-shell/src-tauri/Cargo.toml'
+          if ($LASTEXITCODE -ne 0) { throw 'Premium Tauri setup compilation failed' }
+          $premium = 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe'
+          if (-not (Test-Path -LiteralPath $premium)) { throw 'Premium setup exe missing' }
+          & $premium --verify-payload
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled NSIS engine verification failed' }
+          Write-Host "Premium installer binary: $premium"
+      # The old setup launched localhost:1421 instead of embedded React because
+      # its cargo release build lacked Tauri's custom-protocol feature. This
+      # startup test is mandatory: no broken UI gets published as an artifact.
+      - name: Verify actual premium EXE opens bundled React UI offline
+        shell: pwsh
+        timeout-minutes: 4
+        run: |
+          # WebView2 Runtime 150 can ignore the remote-debugging environment
+          # variable in elevated hosts. The GitHub runner is elevated, so use
+          # a scoped Microsoft-documented WebView2 policy only during this test.
+          # It is NEVER embedded in, installed by, or applied on users' PCs.
+          $premium = (Resolve-Path 'installer/setup-shell/src-tauri/target/release/reformany-setup.exe').Path
+          $policy = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments'
+          $exeName = 'reformany-setup.exe'
+          New-Item -Path $policy -Force | Out-Null
+          New-ItemProperty -Path $policy -Name $exeName -Value '--remote-debugging-port=19375 --remote-allow-origins=*' -PropertyType String -Force | Out-Null
+          try {
+            node scripts/test-premium-setup-ui.mjs $premium
+            if ($LASTEXITCODE -ne 0) { throw 'Premium setup UI failed startup smoke test' }
+          } finally {
+            Remove-ItemProperty -Path $policy -Name $exeName -ErrorAction SilentlyContinue
+          }
+      # The user explicitly requested the original five-step premium installer
+      # instead of the portable app. This is a PRIVATE PR test artifact, not a
+      # GitHub Release. Publish only after its offline React UI smoke test.
+      - name: Upload premium five-step setup wizard for desktop testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Premium-Setup-EXE-test', github.event.number) || 'ReformANY-Premium-Setup-EXE-test' }}
+          path: installer/setup-shell/src-tauri/target/release/reformany-setup.exe
+          if-no-files-found: error
+      - name: Verify real NSIS opt-out flags
+        shell: pwsh
+        run: |
+          $native = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (-not $native) { throw 'No real NSIS engine was built' }
+          ./scripts/test-setup-flags.ps1 -Installer $native.FullName
+      - name: Verify installed Orbit context-menu entries
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (!$installer) { throw "No installer was produced" }
+          ./scripts/test-orbit-installer.ps1 -Installer $installer.FullName
+      - name: Verify optional FFmpeg install and real transcodes
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (!$installer) { throw "No installer was produced" }
+          ./scripts/test-media-installer.ps1 -Installer $installer.FullName
+      # Build the single distributable EXE. The normal NSIS and premium setup
+      # builds above are verification fixtures only; neither is published.
+      - name: Build standalone ReformANY EXE with embedded offline media engines
+        shell: pwsh
+        timeout-minutes: 45
+        run: |
+          foreach ($engine in @('ffmpeg.exe', 'ffprobe.exe')) {
+            if (!(Test-Path -LiteralPath "src-tauri/installer/media-bundle/$engine")) {
+              throw "Cannot build portable EXE without embedded $engine"
+            }
+          }
+          cargo build --release --features "custom-protocol,portable-media" --manifest-path "src-tauri/Cargo.toml"
+          if ($LASTEXITCODE -ne 0) { throw 'Portable native compilation failed' }
+          $source = 'src-tauri/target/release/reformany.exe'
+          if (!(Test-Path -LiteralPath $source)) { throw 'Portable EXE was not created' }
+          New-Item -ItemType Directory -Path 'portable-output' -Force | Out-Null
+          Copy-Item -LiteralPath $source -Destination 'portable-output/ReformANY.exe' -Force
+          $products = @(Get-ChildItem -LiteralPath 'portable-output' -File)
+          if ($products.Count -ne 1 -or $products[0].Name -ne 'ReformANY.exe') {
+            throw 'Portable output contains extra files; exactly one EXE is required'
+          }
+      - name: Verify portable EXE offline with clean user profile and actual media transcode
+        shell: pwsh
+        timeout-minutes: 6
+        run: |
+          $exe = (Resolve-Path 'portable-output/ReformANY.exe').Path
+          $clean = Join-Path $env:RUNNER_TEMP 'ReformANY-Clean-Portable-Profile'
+          New-Item -ItemType Directory -Path $clean -Force | Out-Null
+          $oldLocalAppData = $env:LOCALAPPDATA
+          $oldPath = $env:PATH
+          try {
+            $env:LOCALAPPDATA = $clean
+            # Reject accidental fallback to globally installed media tools.
+            $env:PATH = "$env:SystemRoot\\System32;$env:SystemRoot"
+            # A Windows GUI-subsystem executable is launched asynchronously by
+            # PowerShell's call operator. Wait for the *actual* process exit
+            # instead of reading a stale $LASTEXITCODE before it finishes.
+            $selfTest = Start-Process -FilePath $exe -ArgumentList '--portable-self-test' -PassThru -Wait
+            if ($selfTest.ExitCode -ne 0) {
+              throw "Standalone EXE failed offline encode/probe self-test (exit $($selfTest.ExitCode))"
+            }
+            foreach ($engine in @('ffmpeg.exe', 'ffprobe.exe')) {
+              if (!(Test-Path -LiteralPath (Join-Path $clean "ReformANY/portable-engines/0.3.0/$engine"))) {
+                throw "Single-file EXE did not extract its embedded $engine into clean profile"
+              }
+            }
+          } finally {
+            $env:LOCALAPPDATA = $oldLocalAppData
+            $env:PATH = $oldPath
+          }
+      - name: Verify portable Explorer context menus without NSIS or admin rights
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $exe = (Resolve-Path 'portable-output/ReformANY.exe').Path
+          try {
+            $register = Start-Process -FilePath $exe -ArgumentList '--portable-register-context' -Wait -PassThru
+            if ($register.ExitCode -ne 0) { throw "Portable shell registration exited $($register.ExitCode)" }
+            foreach ($kind in @('*', 'Directory')) {
+              $path = "HKCU:\Software\Classes\$kind\shell\ReformANYOrbit"
+              $item = Get-Item -LiteralPath $path -ErrorAction Stop
+              $verb = $item.GetValue('MUIVerb')
+              $icon = $item.GetValue('Icon')
+              $command = (Get-Item -LiteralPath "$path\command" -ErrorAction Stop).GetValue('')
+              $expected = '"' + $exe + '" orbit "%1"'
+              if ($verb -ne 'ReformANY Orbit' -or $icon -ne "$exe,0" -or $command -ne $expected) {
+                throw "Invalid portable Explorer $kind menu: verb=$verb icon=$icon cmd=$command"
+              }
+            }
+          } finally {
+            $remove = Start-Process -FilePath $exe -ArgumentList '--portable-remove-context' -Wait -PassThru
+            if ($remove.ExitCode -ne 0) { throw "Portable registry cleanup exited $($remove.ExitCode)" }
+            foreach ($kind in @('*','Directory')) {
+              if (Test-Path -LiteralPath "HKCU:\Software\Classes\$kind\shell\ReformANYOrbit") {
+                throw "Portable Explorer $kind context menu was not unregistered"
+              }
+            }
+          }
+      # Internal PR artifacts are a GitHub Actions transport ZIP. Final users
+      # must receive only the raw portable EXE through a signed-off Release asset.
+      - name: Upload one portable EXE for Windows acceptance testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('ReformANY-PR-{0}-Portable-EXE-test', github.event.number) || 'ReformANY-Portable-EXE-test' }}
+          path: portable-output/ReformANY.exe
+          if-no-files-found: error
+
+  # Actions artifacts are ZIP transport envelopes; final release users get
+  # exactly ONE raw .exe, not an artifact ZIP, a folder or an installer.
+  # This gate deliberately requires main + successful Windows job + explicit
+  # confirmation of the full 20-item acceptance checklist.
+  publish_portable:
+    needs: windows
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.all_20_acceptance_checks_signed_off == true }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Retrieve verified single-file portable executable
+        uses: actions/download-artifact@v4
+        with:
+          name: ReformANY-Portable-EXE-test
+          path: release-output
+      - name: Confirm EXACTLY one executable with no installers or ZIP files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find release-output -maxdepth 1 -type f | wc -l)" -eq 1
+          test -f release-output/ReformANY.exe
+          test "$(head -c 2 release-output/ReformANY.exe)" = "MZ"
+          sha256sum release-output/ReformANY.exe
+      - name: Publish direct-download Windows EXE as one GitHub Release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="v0.3.0-portable"
+          gh release create "$version" "release-output/ReformANY.exe#ReformANY.exe" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ReformANY $version — verified portable Windows EXE" \
+            --notes "Single-file offline ReformANY EXE. All 20 release acceptance checks must be signed off before the publish workflow is dispatched." \
+            --target "$GITHUB_SHA"

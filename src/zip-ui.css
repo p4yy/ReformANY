@@ -1,0 +1,2772 @@
+/* Tailwind is loaded once by the pre-existing main stylesheet. */
+
+/* ───────────────────────── Fonts (bundled, offline) ───────────────────────── */
+@font-face {
+  font-family: "Hanken Grotesk Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../node_modules/@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 400;
+  src: url("../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2") format("woff2");
+}
+
+/* ───────────────────────── Design tokens ───────────────────────── */
+:root {
+  color-scheme: dark;
+  --bg-app: #11140e;
+  --bg-surface: #1a1e15;
+  --bg-elevated: #22281c;
+  --border: #2a3222;
+  --text-muted: #7a876b;
+  --text-primary: #e1e6d9;
+  --accent: #8b9d77;
+  --accent-bright: #b4c99f;
+  --accent-dim: #4e8f72;
+  --danger: #c4886e;
+
+  /* derived, same family */
+  --text-secondary: #aeb8a1;
+  --text-label: color-mix(in srgb, var(--text-muted) 68%, var(--text-primary));
+  --on-accent: #11140e;
+  --paper: #e1e6d9;
+  --halo: color-mix(in srgb, var(--accent-bright) 16%, transparent);
+  --halo-danger: color-mix(in srgb, var(--danger) 20%, transparent);
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-app: #e4e8da;
+  --bg-surface: #edf0e5;
+  --bg-elevated: #f5f7ef;
+  --border: #cad1bc;
+  --text-muted: #5f6b52;
+  --text-primary: #1b2014;
+  --accent: #5e7349;
+  --accent-bright: #455a33;
+  --accent-dim: #3f7a60;
+  --danger: #a55e3c;
+  --text-secondary: #3f4935;
+  --on-accent: #f1f4ea;
+  --paper: #fbfcf7;
+}
+
+@theme inline {
+  --color-app: var(--bg-app);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-line: var(--border);
+  --color-muted: var(--text-muted);
+  --color-soft: var(--text-secondary);
+  --color-label: var(--text-label);
+  --color-ink: var(--text-primary);
+  --color-accent: var(--accent);
+  --color-bright: var(--accent-bright);
+  --color-dim: var(--accent-dim);
+  --color-danger: var(--danger);
+  --color-onaccent: var(--on-accent);
+  --font-sans: "Hanken Grotesk Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --font-serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+}
+
+/* ───────────────────────── Base ───────────────────────── */
+@layer base {
+  html {
+    font-size: 16px;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.84375rem;
+    line-height: 1.45;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  html.orbit-window,
+  html.orbit-window body {
+    background: transparent !important;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent-bright);
+    outline-offset: 2px;
+  }
+  button {
+    cursor: pointer;
+    font: inherit;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+/* ───────────────────────── Components ───────────────────────── */
+@layer components {
+  /* App shell */
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 2.5rem minmax(0, 1fr);
+    height: 100dvh;
+    background: var(--bg-app);
+    transition: opacity 240ms var(--ease), scale 240ms var(--ease);
+  }
+  .shell[data-hidden="true"] {
+    opacity: 0;
+    scale: 0.985;
+    pointer-events: none;
+  }
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 0.75rem;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+    -webkit-app-region: drag;
+    app-region: drag;
+    position: relative;
+    z-index: 30;
+  }
+  .titlebar button,
+  .no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  .brand {
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    font-size: 0.8125rem;
+  }
+  .brand b {
+    font: 600 0.71875rem var(--font-mono);
+    letter-spacing: 0.08em;
+    color: var(--accent-bright);
+    margin-left: 1px;
+  }
+  .palette-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 1.75rem;
+    width: min(24rem, 100%);
+    padding: 0 0.5rem 0 0.625rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--bg-app);
+    color: var(--text-muted);
+    font-size: 0.78125rem;
+    transition: border-color 160ms, color 160ms;
+  }
+  .palette-trigger:hover {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    color: var(--text-secondary);
+  }
+  .win-btn {
+    width: 2.875rem;
+    height: 2.5rem;
+    display: grid;
+    place-items: center;
+    color: var(--text-muted);
+    transition: background-color 140ms, color 140ms;
+  }
+  .win-btn:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  .win-btn.is-close:hover {
+    background: var(--danger);
+    color: var(--on-accent);
+  }
+  .win-btn:focus-visible {
+    outline-offset: -3px;
+  }
+  .body {
+    --sb: 16.25rem;
+    display: grid;
+    grid-template-columns: var(--sb) minmax(0, 1fr);
+    min-height: 0;
+    transition: grid-template-columns 320ms var(--ease);
+  }
+  .body[data-collapsed="true"] {
+    --sb: 4rem;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .nav {
+    position: relative;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.5rem 0.625rem 0.75rem;
+  }
+  .nav-group {
+    display: flex;
+    align-items: center;
+    height: 1.75rem;
+    margin-top: 0.375rem;
+    padding: 0 0.6875rem;
+    font: 500 0.65625rem/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+    transition: opacity 200ms;
+  }
+  .nav-rule {
+    height: 1px;
+    margin: 0.5rem 0.6875rem 0.125rem;
+    background: var(--border);
+  }
+  .nav-item {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    border-radius: 0.625rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+    text-align: left;
+    transition: color 160ms;
+  }
+  .nav-item > svg {
+    flex: none;
+    color: var(--text-muted);
+    transition: color 160ms, transform 360ms var(--spring);
+  }
+  .nav-item:hover {
+    color: var(--text-primary);
+  }
+  .nav-item:hover > svg {
+    color: var(--accent);
+    transform: scale(1.1);
+  }
+  .nav-item[aria-current="page"] {
+    color: var(--text-primary);
+  }
+  .nav-item[aria-current="page"] > svg {
+    color: var(--accent-bright);
+  }
+  .nav-item:focus-visible {
+    outline-offset: -2px;
+  }
+  .nav-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 180ms;
+  }
+  .nav-ind {
+    position: absolute;
+    left: 0.625rem;
+    right: 0.625rem;
+    top: 0;
+    border-radius: 0.625rem;
+    background: var(--bg-elevated);
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+    transition: transform 420ms var(--ease), height 200ms var(--ease);
+    will-change: transform;
+    pointer-events: none;
+  }
+  .nav-ind::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 28%;
+    bottom: 28%;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--accent-bright);
+  }
+  .nav-badge {
+    min-width: 1.25rem;
+    height: 1.125rem;
+    padding: 0 0.3125rem;
+    border-radius: 99px;
+    background: color-mix(in srgb, var(--accent-bright) 18%, transparent);
+    color: var(--accent-bright);
+    font: 600 0.65625rem/1.125rem var(--font-mono);
+    text-align: center;
+  }
+  .body[data-collapsed="true"] .nav-label,
+  .body[data-collapsed="true"] .nav-group,
+  .body[data-collapsed="true"] .foot-label {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .body[data-collapsed="true"] .nav-badge,
+  .body[data-collapsed="true"] .alt-hint {
+    position: absolute;
+    top: 0.125rem;
+    right: 0.125rem;
+    min-width: 0.9375rem;
+    height: 0.9375rem;
+    line-height: 0.9375rem;
+    padding: 0 0.1875rem;
+    font-size: 0.5625rem;
+  }
+  .alt-hint {
+    font: 600 0.625rem/1 var(--font-mono);
+    padding: 0.1875rem 0.3125rem;
+    border-radius: 0.3125rem;
+    background: var(--accent-bright);
+    color: var(--on-accent);
+    animation: pop 260ms var(--spring) backwards;
+  }
+  .sidebar-foot {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    height: 2.75rem;
+    padding: 0 0.625rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Main + pages */
+  .main {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    container: main / inline-size;
+  }
+  .page {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .page-in {
+    animation: page-in 200ms var(--ease) both;
+  }
+  .page-out {
+    animation: page-out 200ms var(--ease) both;
+    pointer-events: none;
+  }
+  .page-inner {
+    --pad: clamp(1rem, 3cqw, 2.25rem);
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.125rem;
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: 1.5rem var(--pad) 0;
+  }
+  .page-inner > :last-child:not(.jobbar) {
+    margin-bottom: 2rem;
+  }
+  .crumb {
+    display: flex;
+    gap: 0.5rem;
+    font: 500 0.65625rem/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .page-title {
+    margin-top: 0.5rem;
+    font: 400 2.375rem/1.05 var(--font-serif);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .page-lead {
+    margin-top: 0.375rem;
+    max-width: 62ch;
+    color: var(--text-secondary);
+    text-wrap: pretty;
+  }
+  .local-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 1.75rem;
+    padding: 0 0.75rem 0 0.625rem;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  .local-badge i {
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 50%;
+    background: var(--accent-bright);
+    box-shadow: 0 0 0 0 var(--halo);
+    animation: dot-pulse 2.6s ease-out infinite;
+  }
+
+  /* Layout helpers */
+  .bento {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .grid-3,
+  .grid-2 {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @container main (min-width: 560px) {
+    .grid-3,
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @container main (min-width: 820px) {
+    .bento {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    }
+    .bento.is-even {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .stack {
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+    min-width: 0;
+  }
+
+  /* Surfaces */
+  .card {
+    min-width: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    padding: 1rem;
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 1.5rem;
+    margin-bottom: 0.875rem;
+  }
+  .card-title {
+    font-weight: 620;
+    font-size: 0.84375rem;
+    letter-spacing: 0.005em;
+  }
+  .label {
+    font: 500 0.65625rem/1.2 var(--font-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-label);
+  }
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .readout {
+    flex: none;
+    min-width: 3.25rem;
+    text-align: right;
+    font: 550 0.75rem/1 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-bright);
+  }
+  .kbd {
+    display: inline-block;
+    font: 500 0.65625rem/1 var(--font-mono);
+    padding: 0.1875rem 0.375rem;
+    border-radius: 0.3125rem;
+    border: 1px solid var(--border);
+    background: var(--bg-app);
+    color: var(--text-label);
+    white-space: nowrap;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--border);
+  }
+  .row:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .row:last-child {
+    padding-bottom: 0;
+  }
+  .note {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    color: var(--text-secondary);
+    font-size: 0.78125rem;
+    text-wrap: pretty;
+  }
+  .note > svg {
+    flex: none;
+    margin-top: 0.125rem;
+    color: var(--text-muted);
+  }
+  .note.is-warn > svg,
+  .note.is-warn {
+    color: var(--danger);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.25rem;
+    padding: 0 0.875rem;
+    border-radius: 0.625rem;
+    border: 1px solid transparent;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    user-select: none;
+    transition: transform 240ms var(--ease), box-shadow 240ms var(--ease), background-color 160ms, border-color 160ms,
+      color 160ms, opacity 160ms;
+  }
+  .btn > svg {
+    flex: none;
+  }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 4px var(--halo);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
+    transition-duration: 120ms;
+  }
+  .btn:disabled {
+    opacity: 0.42;
+  }
+  .btn-primary {
+    background: var(--accent-bright);
+    color: var(--on-accent);
+  }
+  .btn-ghost {
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  }
+  .btn-quiet {
+    color: var(--text-secondary);
+    padding: 0 0.625rem;
+  }
+  .btn-quiet:hover:not(:disabled) {
+    transform: none;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--text-primary);
+  }
+  .btn-danger {
+    background: var(--danger);
+    color: var(--on-accent);
+  }
+  .btn-danger:hover:not(:disabled) {
+    box-shadow: 0 0 0 4px var(--halo-danger);
+  }
+  .btn-sm {
+    height: 1.75rem;
+    padding: 0 0.625rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    gap: 0.375rem;
+  }
+  .btn-lg {
+    height: 2.625rem;
+    padding: 0 1.125rem;
+    font-size: 0.875rem;
+  }
+  .btn-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border-radius: 0.5rem;
+    color: var(--text-muted);
+  }
+  .btn-icon:hover:not(:disabled) {
+    transform: none;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--text-primary);
+  }
+  .btn-icon.is-danger:hover:not(:disabled) {
+    background: var(--halo-danger);
+    color: var(--danger);
+  }
+  .btn-icon[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--accent-bright) 18%, transparent);
+    color: var(--accent-bright);
+  }
+
+  /* Fields */
+  .field {
+    width: 100%;
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    border-radius: 0.5625rem;
+    background: var(--bg-app);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+    transition: border-color 160ms, box-shadow 200ms;
+  }
+  textarea.field {
+    height: auto;
+    padding: 0.625rem 0.75rem;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  .field::placeholder {
+    color: var(--text-muted);
+  }
+  .field:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+  .field:focus,
+  .field:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--halo);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px var(--halo-danger);
+  }
+  select.field {
+    appearance: none;
+    padding-right: 2rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237A876B' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5M7 9l5-5 5 5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    cursor: pointer;
+  }
+
+  /* Format chips */
+  .chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.875rem;
+    padding: 0 0.625rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--bg-app);
+    color: var(--text-secondary);
+    font: 550 0.71875rem/1 var(--font-mono);
+    letter-spacing: 0.04em;
+    transition: transform 240ms var(--ease), background-color 160ms, color 160ms, border-color 160ms, box-shadow 240ms var(--ease);
+  }
+  .chip:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    color: var(--text-primary);
+    box-shadow: 0 0 0 3px var(--halo);
+  }
+  .chip:active:not(:disabled) {
+    transform: scale(0.98);
+    transition-duration: 120ms;
+  }
+  .chip[aria-checked="true"],
+  .chip[aria-pressed="true"] {
+    background: var(--accent-bright);
+    border-color: var(--accent-bright);
+    color: var(--on-accent);
+  }
+  .chip-dot {
+    width: 0.3125rem;
+    height: 0.3125rem;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.55;
+  }
+
+  /* Segmented / tabs with shared-layout indicator */
+  .seg {
+    position: relative;
+    display: inline-flex;
+    max-width: 100%;
+    padding: 3px;
+    gap: 2px;
+    border-radius: 0.6875rem;
+    background: var(--bg-app);
+    border: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .seg::-webkit-scrollbar {
+    display: none;
+  }
+  .seg-full {
+    display: flex;
+  }
+  .seg-full .seg-item {
+    flex: 1;
+  }
+  .seg-ind {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 0;
+    border-radius: 0.5rem;
+    background: var(--accent-bright);
+    transition: transform 420ms var(--ease), width 420ms var(--ease);
+    will-change: transform;
+  }
+  .seg-item {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4375rem;
+    height: 1.875rem;
+    padding: 0 0.75rem;
+    border-radius: 0.5rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.78125rem;
+    white-space: nowrap;
+    transition: color 200ms;
+  }
+  .seg-item:hover {
+    color: var(--text-primary);
+  }
+  .seg-item[aria-checked="true"] {
+    color: var(--on-accent);
+  }
+  .seg-item[aria-checked="true"] .kbd {
+    background: color-mix(in srgb, var(--on-accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--on-accent) 30%, transparent);
+    color: var(--on-accent);
+  }
+  .seg-sm .seg-item {
+    height: 1.5rem;
+    padding: 0 0.5625rem;
+    font-size: 0.71875rem;
+  }
+
+  /* Range */
+  .range {
+    --v: 50%;
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    height: 1.25rem;
+    background: transparent;
+    cursor: pointer;
+  }
+  .range::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 99px;
+    background: linear-gradient(to right, var(--accent-bright) var(--v), var(--border) var(--v));
+  }
+  .range::-moz-range-track {
+    height: 4px;
+    border-radius: 99px;
+    background: var(--border);
+  }
+  .range::-moz-range-progress {
+    height: 4px;
+    border-radius: 99px;
+    background: var(--accent-bright);
+  }
+  .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.9375rem;
+    height: 0.9375rem;
+    margin-top: -5.5px;
+    border-radius: 50%;
+    background: var(--bg-app);
+    border: 2px solid var(--accent-bright);
+    transition: transform 320ms var(--spring), box-shadow 200ms;
+  }
+  .range::-moz-range-thumb {
+    width: 0.6875rem;
+    height: 0.6875rem;
+    border-radius: 50%;
+    background: var(--bg-app);
+    border: 2px solid var(--accent-bright);
+    transition: transform 320ms var(--spring), box-shadow 200ms;
+  }
+  .range:hover::-webkit-slider-thumb,
+  .range:focus-visible::-webkit-slider-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 5px var(--halo);
+  }
+  .range:hover::-moz-range-thumb,
+  .range:focus-visible::-moz-range-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 5px var(--halo);
+  }
+  .range:active::-webkit-slider-thumb {
+    transform: scale(0.94);
+  }
+  .range:focus-visible {
+    outline: none;
+  }
+
+  /* Switch + checkbox */
+  .switch {
+    position: relative;
+    flex: none;
+    width: 2.25rem;
+    height: 1.25rem;
+    border-radius: 99px;
+    background: var(--border);
+    transition: background-color 220ms var(--ease);
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 360ms var(--spring), background-color 200ms;
+  }
+  .switch[aria-checked="true"] {
+    background: var(--accent-bright);
+  }
+  .switch[aria-checked="true"]::after {
+    transform: translateX(1rem);
+    background: var(--on-accent);
+  }
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .check-box {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 0.3125rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+    background: var(--bg-app);
+    color: var(--on-accent);
+    transition: background-color 160ms, border-color 160ms, transform 320ms var(--spring);
+  }
+  .check-box svg {
+    transform: scale(0);
+    transition: transform 320ms var(--spring);
+  }
+  .check input:checked + .check-box {
+    background: var(--accent-bright);
+    border-color: var(--accent-bright);
+  }
+  .check input:checked + .check-box svg {
+    transform: scale(1);
+  }
+  .check input:focus-visible + .check-box {
+    outline: 2px solid var(--accent-bright);
+    outline-offset: 2px;
+  }
+  .check:active .check-box {
+    transform: scale(0.9);
+  }
+
+  /* Tags, pills, swatches */
+  .tag {
+    --tone: var(--accent);
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.75rem;
+    height: 1.375rem;
+    padding: 0 0.375rem;
+    border-radius: 0.375rem;
+    font: 600 0.625rem/1 var(--font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--tone) 72%, var(--text-primary));
+    background: color-mix(in srgb, var(--tone) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tone) 32%, transparent);
+  }
+  .tag[data-family="image"] {
+    --tone: var(--accent-bright);
+  }
+  .tag[data-family="video"] {
+    --tone: var(--accent-dim);
+  }
+  .tag[data-family="doc"] {
+    --tone: var(--text-primary);
+  }
+  .tag[data-family="archive"] {
+    --tone: var(--danger);
+  }
+  .tag[data-family="data"] {
+    --tone: color-mix(in srgb, var(--accent-bright) 50%, var(--danger));
+  }
+  .pill {
+    --tone: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.375rem;
+    padding: 0 0.5rem;
+    border-radius: 99px;
+    font-size: 0.6875rem;
+    font-weight: 550;
+    white-space: nowrap;
+    color: color-mix(in srgb, var(--tone) 70%, var(--text-primary));
+    background: color-mix(in srgb, var(--tone) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tone) 30%, transparent);
+  }
+  .pill[data-tone="ok"] {
+    --tone: var(--accent-bright);
+  }
+  .pill[data-tone="info"] {
+    --tone: var(--accent-dim);
+  }
+  .pill[data-tone="warn"] {
+    --tone: var(--danger);
+  }
+  .swatch {
+    position: relative;
+    width: 1.625rem;
+    height: 1.625rem;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    transition: transform 320ms var(--spring), box-shadow 200ms;
+  }
+  .swatch:hover {
+    transform: scale(1.12);
+  }
+  .swatch[aria-checked="true"] {
+    box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 4px var(--accent-bright);
+  }
+  .swatch.is-alpha {
+    background: repeating-conic-gradient(var(--border) 0 25%, var(--bg-app) 0 50%) 0 0 / 10px 10px;
+  }
+
+  /* Progress */
+  .progress {
+    position: relative;
+    height: 6px;
+    border-radius: 99px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .progress-fill {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--accent-dim), var(--accent-bright));
+    transition: transform 360ms var(--ease);
+    will-change: transform;
+  }
+  .progress[data-active="true"] .progress-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--paper) 55%, transparent) 50%, transparent 70%);
+    background-size: 220% 100%;
+    animation: sheen 1.25s linear infinite;
+  }
+  .jobbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin-top: auto;
+    margin-inline: calc(-1 * var(--pad));
+    padding: 0.75rem var(--pad) 0.875rem;
+    background: color-mix(in srgb, var(--bg-app) 86%, transparent);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border);
+  }
+  .spin {
+    animation: spin 0.9s linear infinite;
+  }
+
+  /* Drop zone */
+  .dropzone {
+    position: relative;
+    min-width: 0;
+    border-radius: 1rem;
+    border: 1px dashed color-mix(in srgb, var(--accent) 48%, var(--border));
+    background: radial-gradient(110% 80% at 50% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%), var(--bg-surface);
+    overflow: hidden;
+    transition: border-color 220ms, background-color 220ms;
+  }
+  .dropzone[data-state="over"] {
+    border-style: solid;
+    border-color: var(--accent-bright);
+  }
+  .dropzone[data-state="reject"] {
+    border-color: var(--danger);
+    animation: reject 440ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .dz-target {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.875rem;
+    padding: 2.25rem 1.25rem 1.75rem;
+  }
+  .dropzone[data-filled="true"] .dz-target,
+  .dropzone[data-compact="true"] .dz-target {
+    flex-direction: row;
+    text-align: left;
+    gap: 1rem;
+    padding: 1rem 1.125rem;
+    flex-wrap: wrap;
+  }
+  .dz-rings {
+    position: relative;
+    flex: none;
+    width: 5.5rem;
+    height: 5.5rem;
+    display: grid;
+    place-items: center;
+    color: var(--accent-bright);
+    transition: width 320ms var(--ease), height 320ms var(--ease);
+  }
+  .dropzone[data-filled="true"] .dz-rings,
+  .dropzone[data-compact="true"] .dz-rings {
+    width: 3rem;
+    height: 3rem;
+  }
+  .dz-rings i {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    animation: breathe 4.8s ease-in-out infinite;
+  }
+  .dz-rings i:nth-child(2) {
+    inset: 18%;
+    border-style: dashed;
+    animation-delay: -1.6s;
+  }
+  .dz-rings i:nth-child(3) {
+    inset: 36%;
+    animation-delay: -3.2s;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .dz-rings svg {
+    position: relative;
+    transition: transform 360ms var(--spring);
+  }
+  .dropzone[data-state="over"] .dz-rings svg {
+    transform: translateY(3px) scale(1.15);
+  }
+  .dz-ripple {
+    position: absolute;
+    left: var(--mx, 50%);
+    top: var(--my, 40%);
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+  .dropzone[data-state="over"] .dz-ripple {
+    opacity: 1;
+  }
+  .dz-ripple i {
+    position: absolute;
+    left: -10rem;
+    top: -10rem;
+    width: 20rem;
+    height: 20rem;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--accent-bright) 70%, transparent);
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent-bright) 15%, transparent), transparent 64%);
+    opacity: 0;
+    animation: ripple 1.5s var(--ease) infinite;
+    will-change: transform, opacity;
+  }
+  .dz-ripple i:nth-child(2) {
+    animation-delay: 0.5s;
+  }
+  .dz-ripple i:nth-child(3) {
+    animation-delay: 1s;
+  }
+  .dz-title {
+    font: 400 1.5rem/1.15 var(--font-serif);
+    text-wrap: balance;
+  }
+  .dropzone[data-filled="true"] .dz-title,
+  .dropzone[data-compact="true"] .dz-title {
+    font: 620 0.875rem/1.3 var(--font-sans);
+  }
+  .file-list {
+    border-top: 1px solid var(--border);
+    max-height: 19rem;
+    overflow-y: auto;
+  }
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-height: 2.625rem;
+    padding: 0.375rem 0.625rem 0.375rem 0.375rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    animation: arc-drop 520ms var(--spring) backwards;
+    animation-delay: calc(min(var(--i, 0), 10) * 40ms);
+    transition: background-color 160ms;
+  }
+  .file-row:last-child {
+    border-bottom: 0;
+  }
+  .file-row:hover {
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+  .file-row[data-drop="true"] {
+    box-shadow: inset 0 2px 0 var(--accent-bright);
+  }
+  .grip {
+    display: grid;
+    place-items: center;
+    width: 1.25rem;
+    height: 1.75rem;
+    border-radius: 0.375rem;
+    color: var(--text-muted);
+    cursor: grab;
+  }
+  .grip:active {
+    cursor: grabbing;
+  }
+
+  /* Tiles (Media Tools, radio cards) */
+  .tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.875rem;
+    text-align: left;
+    border-radius: 0.875rem;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    transition: transform 280ms var(--ease), border-color 180ms, box-shadow 280ms var(--ease), background-color 180ms;
+  }
+  .tile:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    box-shadow: 0 0 0 4px var(--halo);
+  }
+  .tile:active {
+    transform: scale(0.98);
+    transition-duration: 120ms;
+  }
+  .tile[aria-pressed="true"],
+  .tile[aria-checked="true"] {
+    border-color: var(--accent-bright);
+    background: color-mix(in srgb, var(--accent-bright) 9%, var(--bg-elevated));
+  }
+  .tile-icon {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5625rem;
+    background: var(--bg-app);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: color 180ms, transform 360ms var(--spring);
+  }
+  .tile:hover .tile-icon,
+  .tile[aria-pressed="true"] .tile-icon,
+  .tile[aria-checked="true"] .tile-icon {
+    color: var(--accent-bright);
+  }
+  .tile:hover .tile-icon {
+    transform: rotate(-6deg) scale(1.06);
+  }
+
+  /* Empty state */
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+    padding: 3rem 1.5rem;
+    border: 1px dashed var(--border);
+    border-radius: 1rem;
+    color: var(--text-secondary);
+  }
+  .empty h3 {
+    font: 400 1.5rem/1.15 var(--font-serif);
+    color: var(--text-primary);
+  }
+
+  /* Toasts */
+  .toast-viewport {
+    position: fixed;
+    z-index: 90;
+    top: 3.25rem;
+    right: 0.875rem;
+    display: grid;
+    gap: 0.5rem;
+    width: min(22rem, calc(100vw - 1.75rem));
+    pointer-events: none;
+  }
+  .toast {
+    --tone: var(--accent-bright);
+    pointer-events: auto;
+    display: flex;
+    gap: 0.625rem;
+    padding: 0.6875rem 0.5rem 0.6875rem 0.75rem;
+    border-radius: 0.75rem;
+    background: var(--bg-elevated);
+    border: 1px solid color-mix(in srgb, var(--tone) 36%, var(--border));
+    animation: toast-in 460ms var(--spring) both;
+  }
+  .toast[data-tone="info"] {
+    --tone: var(--accent-dim);
+  }
+  .toast[data-tone="warn"],
+  .toast[data-tone="danger"] {
+    --tone: var(--danger);
+  }
+  .toast[data-leaving="true"] {
+    animation: toast-out 180ms var(--ease) both;
+  }
+  .toast > svg {
+    flex: none;
+    margin-top: 0.0625rem;
+    color: color-mix(in srgb, var(--tone) 80%, var(--text-primary));
+  }
+
+  /* Command palette + overlays */
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    justify-items: center;
+    align-items: start;
+    padding: 12vh 1rem 1rem;
+    background: color-mix(in srgb, var(--bg-app) 66%, transparent);
+    backdrop-filter: blur(6px);
+    animation: fade-in 160ms ease both;
+  }
+  .palette {
+    width: min(35rem, 100%);
+    max-height: min(28rem, 70vh);
+    display: flex;
+    flex-direction: column;
+    border-radius: 0.875rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    animation: palette-in 260ms var(--ease) both;
+  }
+  .palette-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    border-radius: 0.5rem;
+    color: var(--text-secondary);
+    text-align: left;
+  }
+  .palette-item > svg {
+    color: var(--text-muted);
+  }
+  .palette-item[aria-selected="true"] {
+    background: color-mix(in srgb, var(--accent-bright) 14%, transparent);
+    color: var(--text-primary);
+  }
+  .palette-item[aria-selected="true"] > svg {
+    color: var(--accent-bright);
+  }
+  .alt-overlay {
+    position: fixed;
+    z-index: 60;
+    left: 50%;
+    bottom: 1.25rem;
+    translate: -50% 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.25rem;
+    max-width: calc(100vw - 2rem);
+    padding: 0.625rem 1rem;
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    animation: rise 260ms var(--ease) both;
+  }
+  .tray-state {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    animation: fade-in 260ms ease both;
+  }
+  .pointer-ring {
+    position: fixed;
+    z-index: 95;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: -1.375rem 0 0 -1.375rem;
+    pointer-events: none;
+  }
+  .pointer-ring circle {
+    fill: none;
+    stroke: var(--accent-bright);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 113;
+    stroke-dashoffset: 113;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    animation: ring-fill 340ms linear forwards;
+  }
+  .drawer-scrim {
+    display: none;
+  }
+
+  /* Reading surfaces */
+  .viewer {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 26rem;
+  }
+  .viewer:fullscreen {
+    border-radius: 0;
+    border: 0;
+  }
+  .viewer-stage {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--bg-app);
+  }
+  .viewer-stage canvas {
+    display: block;
+    margin: 1.25rem auto;
+    border-radius: 2px;
+    max-width: none;
+  }
+  .prose {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 1.75rem 1.5rem 3rem;
+    font-size: 1em;
+    line-height: 1.65;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+  }
+  .prose h1,
+  .prose h2,
+  .prose h3 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    line-height: 1.15;
+    margin: 1.4em 0 0.5em;
+    text-wrap: balance;
+  }
+  .prose h1 {
+    font-size: 2.1em;
+    margin-top: 0;
+  }
+  .prose h2 {
+    font-size: 1.6em;
+  }
+  .prose h3 {
+    font-size: 1.3em;
+  }
+  .prose p,
+  .prose ul,
+  .prose ol,
+  .prose pre,
+  .prose table,
+  .prose blockquote {
+    margin: 0 0 1em;
+  }
+  .prose ul {
+    list-style: disc;
+    padding-left: 1.4em;
+  }
+  .prose ol {
+    list-style: decimal;
+    padding-left: 1.4em;
+  }
+  .prose a {
+    color: var(--accent-bright);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose code {
+    font: 0.88em var(--font-mono);
+    padding: 0.1em 0.35em;
+    border-radius: 0.3em;
+    background: var(--bg-elevated);
+  }
+  .prose pre {
+    padding: 0.875rem 1rem;
+    border-radius: 0.625rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .prose pre code {
+    padding: 0;
+    background: none;
+  }
+  .prose blockquote {
+    padding-left: 1em;
+    border-left: 2px solid var(--accent);
+    color: var(--text-secondary);
+  }
+  .prose table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+  }
+  .prose th,
+  .prose td {
+    padding: 0.4em 0.7em;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+  .prose th {
+    background: var(--bg-elevated);
+  }
+  .prose hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 1.75em 0;
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font: 0.75rem var(--font-mono);
+  }
+  .data-table th,
+  .data-table td {
+    max-width: 12rem;
+    padding: 0.4375rem 0.625rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .data-table th {
+    color: var(--accent-bright);
+    font-weight: 600;
+    background: var(--bg-app);
+  }
+
+  /* ───────── Orbit ───────── */
+  .orbit-stage {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .orbit-scrim {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--bg-app) 74%, transparent);
+    backdrop-filter: blur(5px) saturate(0.85);
+    animation: fade-in 200ms ease both;
+  }
+  .stage-top {
+    position: absolute;
+    top: 0.875rem;
+    left: 50%;
+    translate: -50% 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem 0.75rem;
+    width: max-content;
+    max-width: calc(100vw - 1.5rem);
+    padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+    border-radius: 0.875rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    animation: rise 320ms var(--ease) both;
+  }
+  .orbit-root {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 3rem;
+    animation: orbit-open 260ms var(--ease) both;
+  }
+  .orbit-disc {
+    position: relative;
+    width: min(31rem, 92vw, calc(100dvh - 15.5rem));
+    min-width: 16rem;
+    aspect-ratio: 1;
+  }
+  .orbit-disc::before {
+    content: "";
+    position: absolute;
+    inset: 7%;
+    border-radius: 50%;
+    backdrop-filter: blur(16px);
+  }
+  .orbit-disc svg.orbit-svg {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .disc-base {
+    fill: var(--bg-surface);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .orbit-wedge {
+    cursor: pointer;
+    outline: none;
+    transition: transform 200ms var(--ease);
+    will-change: transform;
+  }
+  .orbit-wedge .w-bg {
+    fill: color-mix(in srgb, var(--bg-surface) 96%, transparent);
+    stroke: var(--border);
+    stroke-width: 1;
+    transition: fill 150ms, stroke 150ms;
+  }
+  .orbit-wedge .w-icon {
+    color: var(--text-muted);
+    transition: color 150ms;
+  }
+  .orbit-wedge .w-label {
+    fill: var(--text-primary);
+    font: 600 11.5px var(--font-sans);
+    letter-spacing: 0.01em;
+    transition: fill 150ms;
+    pointer-events: none;
+    user-select: none;
+  }
+  .orbit-wedge .w-label.is-code {
+    font: 600 12.5px var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+  .orbit-wedge .w-sub {
+    fill: var(--text-muted);
+    font: 500 8.5px var(--font-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+  }
+  .orbit-wedge:hover,
+  .orbit-wedge:focus-visible {
+    transform: translate(var(--lx), var(--ly));
+  }
+  .orbit-wedge:hover .w-bg,
+  .orbit-wedge:focus-visible .w-bg {
+    fill: color-mix(in srgb, var(--accent-bright) 17%, var(--bg-elevated));
+    stroke: color-mix(in srgb, var(--accent-bright) 55%, var(--border));
+  }
+  .orbit-wedge:focus-visible .w-bg {
+    stroke: var(--accent-bright);
+    stroke-width: 2;
+  }
+  .orbit-wedge:hover .w-icon,
+  .orbit-wedge:focus-visible .w-icon,
+  .orbit-wedge:hover .w-sub,
+  .orbit-wedge:focus-visible .w-sub {
+    color: var(--accent-bright);
+    fill: var(--accent-bright);
+  }
+  .orbit-wedge:hover .w-label,
+  .orbit-wedge:focus-visible .w-label {
+    fill: var(--accent-bright);
+  }
+  .orbit-wedge:active .w-bg {
+    fill: color-mix(in srgb, var(--accent-bright) 30%, var(--bg-elevated));
+  }
+  .orbit-wedge[data-danger="true"]:hover .w-bg,
+  .orbit-wedge[data-danger="true"]:focus-visible .w-bg {
+    fill: color-mix(in srgb, var(--danger) 24%, var(--bg-elevated));
+    stroke: var(--danger);
+  }
+  .orbit-wedge[data-danger="true"]:hover .w-icon,
+  .orbit-wedge[data-danger="true"]:focus-visible .w-icon {
+    color: var(--danger);
+  }
+  .orbit-wedge[data-danger="true"]:hover .w-label,
+  .orbit-wedge[data-danger="true"]:focus-visible .w-label {
+    fill: var(--danger);
+  }
+  .orbit-ring[data-phase="in"] .orbit-wedge {
+    animation: wedge-in 240ms var(--ease) backwards;
+    animation-delay: calc(60ms + var(--i) * 30ms);
+  }
+  .orbit-ring[data-phase="fan"] .orbit-wedge {
+    animation: wedge-in 150ms var(--ease) backwards;
+    animation-delay: calc(var(--i) * 7ms);
+  }
+  .orbit-ring[data-phase="out"] .orbit-wedge {
+    animation: wedge-out 90ms ease-in forwards;
+  }
+  .orbit-hub {
+    cursor: pointer;
+    outline: none;
+  }
+  .hub-bg {
+    fill: var(--bg-surface);
+    stroke: var(--border);
+    stroke-width: 1;
+    transition: stroke 160ms;
+  }
+  .orbit-hub:hover .hub-bg,
+  .orbit-hub:focus-visible .hub-bg {
+    stroke: var(--accent);
+  }
+  .hub-glow {
+    animation: hub-glow 3.2s ease-in-out infinite;
+  }
+  .orbit-root[data-closing="true"] {
+    pointer-events: none;
+  }
+  .orbit-root[data-closing="true"] .orbit-wedge {
+    animation: wedge-out 140ms ease-in forwards;
+  }
+  .orbit-root[data-closing="true"] .orbit-hub,
+  .orbit-root[data-closing="true"] .disc-base {
+    animation: hub-implode 180ms ease-in forwards;
+  }
+  .orbit-root[data-closing="true"] .orbit-foot {
+    animation: fade-out 140ms ease-in forwards;
+  }
+  .orbit-foot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .orbit-bar.seg {
+    padding: 4px;
+    border-radius: 99px;
+    background: var(--bg-surface);
+  }
+  .orbit-bar .seg-ind {
+    top: 4px;
+    bottom: 4px;
+    border-radius: 99px;
+  }
+  .orbit-bar .seg-item {
+    height: 2rem;
+    padding: 0 0.625rem 0 0.875rem;
+    border-radius: 99px;
+    gap: 0.5rem;
+  }
+  .orbit-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 1.5rem;
+    padding: 0 0.75rem;
+    border-radius: 99px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    font: 500 0.6875rem/1 var(--font-mono);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    max-width: 92vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .orbit-meta em {
+    font-style: normal;
+    color: var(--border);
+  }
+
+  /* ───────── Panels (Orbit dialogs): opaque, frameless, no halo ───────── */
+  .panel-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    pointer-events: none;
+  }
+  .panel {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    width: min(var(--panel-w, 30rem), 100%);
+    max-height: min(46rem, calc(100dvh - 2rem));
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    box-shadow: none;
+    overflow: hidden;
+    animation: panel-in 240ms var(--ease) backwards;
+  }
+  .panel[data-full="true"] {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+    transform: none !important;
+  }
+  .panel[data-danger="true"] {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0.625rem 0.75rem 0.875rem;
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+    touch-action: none;
+    cursor: grab;
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .panel-header:active {
+    cursor: grabbing;
+  }
+  .panel-header button {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  .panel-chip {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5625rem;
+    background: color-mix(in srgb, var(--accent-bright) 13%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-bright) 28%, transparent);
+    color: var(--accent-bright);
+  }
+  .panel[data-danger="true"] .panel-chip {
+    background: var(--halo-danger);
+    border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+    color: var(--danger);
+  }
+  .panel-file {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5625rem 0.875rem;
+    background: var(--bg-app);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78125rem;
+  }
+  .panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1rem 0.875rem;
+  }
+  .panel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 0.875rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-surface);
+  }
+  .faux-page {
+    position: relative;
+    aspect-ratio: 1 / 1.414;
+    background: var(--paper);
+    border-radius: 2px;
+    overflow: hidden;
+    container-type: inline-size;
+  }
+  .faux-page > span {
+    position: absolute;
+    left: 11%;
+    height: 1.5cqw;
+    min-height: 1px;
+    border-radius: 1px;
+    background: #7a876b;
+    opacity: 0.42;
+  }
+  .faux-page > span.is-head {
+    height: 3.4cqw;
+    background: #2a3222;
+    opacity: 0.8;
+  }
+  .faux-page > span.is-fig {
+    background: #8b9d77;
+    opacity: 0.3;
+    border-radius: 2px;
+  }
+  .thumb {
+    position: relative;
+    padding: 0.5rem 0.5rem 0.375rem;
+    border-radius: 0.625rem;
+    border: 1px solid transparent;
+    background: var(--bg-app);
+    transition: border-color 160ms, transform 240ms var(--ease), background-color 160ms;
+    cursor: grab;
+  }
+  .thumb:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  }
+  .thumb[aria-selected="true"] {
+    border-color: var(--accent-bright);
+    background: color-mix(in srgb, var(--accent-bright) 12%, var(--bg-app));
+  }
+  .thumb[data-drop="true"] {
+    box-shadow: -3px 0 0 var(--accent-bright);
+  }
+  .thumb .faux-page {
+    transition: rotate 320ms var(--ease), scale 320ms var(--ease);
+  }
+  .shake-icon .m {
+    transform-origin: 12px 12px;
+  }
+  .shake-icon[data-on="true"] .m {
+    animation: mouse-shake 1.8s ease-in-out infinite;
+  }
+  .shake-icon[data-on="true"] .w {
+    animation: wave-blink 1.8s ease-in-out infinite;
+  }
+
+  /* Stagger reveal (~40ms) */
+  .stagger > * {
+    animation: rise 460ms var(--ease) backwards;
+  }
+  .stagger > :nth-child(2) { animation-delay: 40ms; }
+  .stagger > :nth-child(3) { animation-delay: 80ms; }
+  .stagger > :nth-child(4) { animation-delay: 120ms; }
+  .stagger > :nth-child(5) { animation-delay: 160ms; }
+  .stagger > :nth-child(6) { animation-delay: 200ms; }
+  .stagger > :nth-child(7) { animation-delay: 240ms; }
+  .stagger > :nth-child(8) { animation-delay: 280ms; }
+  .stagger > :nth-child(9) { animation-delay: 320ms; }
+  .stagger > :nth-child(n + 10) { animation-delay: 360ms; }
+}
+
+@layer base {
+  /* lucide icons: one stroke weight everywhere */
+  .lucide {
+    stroke-width: 1.5;
+  }
+}
+@layer components {
+  .dropzone {
+    display: flex;
+    flex-direction: column;
+  }
+  .dz-target {
+    flex: 1;
+    justify-content: center;
+  }
+  .dropzone[data-filled="true"] .dz-target,
+  .dropzone[data-compact="true"] .dz-target {
+    flex: none;
+    justify-content: flex-start;
+  }
+  .stack.is-fill {
+    display: flex;
+    flex-direction: column;
+  }
+  .stack.is-fill > .dropzone {
+    flex: 1;
+  }
+  .seg-item:disabled {
+    opacity: 0.4;
+  }
+  .dz-text {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .dz-formats {
+    margin-top: 0.375rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    text-wrap: balance;
+  }
+  .dropzone[data-filled="true"] .dz-text,
+  .dropzone[data-compact="true"] .dz-text {
+    flex: 1;
+  }
+  .dropzone[data-filled="true"] .dz-formats,
+  .dropzone[data-compact="true"] .dz-formats {
+    margin-top: 0.125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dz-target {
+    padding: 2.5rem 1.25rem 2.25rem;
+  }
+  /* Orbit pieces scale/translate about the disc centre (viewBox origin). */
+  .orbit-svg g,
+  .orbit-svg > circle {
+    transform-box: view-box;
+    transform-origin: 0px 0px;
+  }
+}
+
+/* ───────────────────────── Responsive shell ───────────────────────── */
+@media (max-width: 719px) {
+  .body,
+  .body[data-collapsed="true"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar {
+    position: fixed;
+    z-index: 40;
+    top: 2.5rem;
+    bottom: 0;
+    left: 0;
+    width: 16.25rem;
+    transform: translateX(-102%);
+    transition: transform 320ms var(--ease);
+  }
+  .body[data-drawer="true"] .sidebar {
+    transform: none;
+  }
+  .body[data-drawer="true"] .drawer-scrim {
+    display: block;
+    position: fixed;
+    inset: 2.5rem 0 0 0;
+    z-index: 39;
+    background: color-mix(in srgb, var(--bg-app) 70%, transparent);
+    animation: fade-in 200ms ease both;
+  }
+  .page-title {
+    font-size: 2rem;
+  }
+  .toast-viewport {
+    top: 3rem;
+  }
+}
+
+/* ───────────────────────── Keyframes ───────────────────────── */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes page-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sheen {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+@keyframes dot-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-bright) 45%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 7px transparent; }
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.07); opacity: 1; }
+}
+@keyframes ripple {
+  0% { transform: scale(0.12); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 0; }
+}
+@keyframes reject {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+@keyframes arc-drop {
+  0% { opacity: 0; transform: translate(-22px, -30px) rotate(-5deg) scale(0.94); }
+  55% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(28px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateX(16px); }
+}
+@keyframes palette-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes panel-in {
+  from { opacity: 0; scale: 0.97; }
+  to { opacity: 1; scale: 1; }
+}
+@keyframes ring-fill {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes orbit-open {
+  from { opacity: 0; scale: 0.9; }
+  to { opacity: 1; scale: 1; }
+}
+@keyframes wedge-in {
+  from { opacity: 0; transform: scale(0.74); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes wedge-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.8); }
+}
+@keyframes hub-implode {
+  to { opacity: 0; transform: scale(0.35); }
+}
+@keyframes hub-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes mouse-shake {
+  0%, 40%, 100% { transform: rotate(0); }
+  8%, 24% { transform: rotate(-11deg); }
+  16%, 32% { transform: rotate(11deg); }
+}
+@keyframes wave-blink {
+  0%, 40%, 100% { opacity: 0.25; }
+  8%, 32% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ZIP visual system — native Orbit tool windows retain complete content. */
+.orbit-panel-window .orbit-dialog,
+.orbit-panel-window .orbit-dialog.wide { min-height: 0; display: flex; flex-direction: column; }
+.orbit-panel-window .orbit-dialog-titlebar,
+.orbit-panel-window .orbit-dialog-heading,
+.orbit-panel-window .orbit-dialog-footer { flex-shrink: 0; }
+.orbit-panel-window .orbit-dialog-body,
+.orbit-panel-window .orbit-dialog.wide .orbit-dialog-body {
+  flex: 1 1 auto !important; min-height: 0 !important;
+  overflow-x: auto !important; overflow-y: auto !important;
+  overscroll-behavior: contain; scrollbar-gutter: stable;
+}
+.orbit-panel-window .watermark-columns { height: auto !important; max-height: none !important; min-height: 0 !important; }
+.orbit-panel-window .watermark-settings,
+.orbit-panel-window .watermark-scroll,
+.orbit-panel-window .extract-grid,
+.orbit-panel-window .arrange-grid { overflow-y: auto !important; min-height: 0 !important; }
+.orbit-panel-window .orbit-dialog-titlebar { position: sticky; top: 0; z-index: 4; }
+.orbit-panel-window .orbit-dialog-footer { position: sticky; bottom: 0; z-index: 4; }
+/* ZIP panel Chrome is square, flat, opaque and without floating duplicates. */
+.orbit-panel-window .orbit-dialog { border-color: var(--border); box-shadow: none !important; }
+.orbit-panel-window .orbit-dialog-titlebar { background: var(--bg-surface); }
+.orbit-panel-window .orbit-dialog-footer { background: var(--bg-surface); }
+
+/* Native ZIP Orbit: truly transparent Windows host, even before theme changes. */
+html.orbit-window, html.orbit-window body, html.orbit-window #root {
+  background: transparent !important;
+}
+.native-orbit-loading { max-width: 23rem; padding: 1rem; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-primary); text-align: center; }
+.native-orbit-loading p { overflow-wrap: anywhere; }
+/* Always expose the working document rather than clipping content in a short
+   panel; all PDF previews and their options have independent vertical scroll. */
+.orbit-panel-window .orbit-dialog-body { scrollbar-width: auto; }
+.orbit-panel-window .watermark-preview { min-height: 0; }
+.orbit-panel-window .extract-grid, .orbit-panel-window .arrange-grid { overscroll-behavior: contain; }
+
+/* ZIP navigation: use explicit grid tracks for the two actual sidebar states.
+   A custom-property-only grid track could leave WebView2 at the expanded
+   260px width despite data-collapsed=true. Keep the 320ms layout transition. */
+@media (min-width: 720px) {
+  .shell > .body[data-collapsed="true"] {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+  .shell > .body[data-collapsed="false"] {
+    grid-template-columns: 16.25rem minmax(0, 1fr);
+  }
+}
+
+/* The preserved legacy HoveR stylesheet sets .sidebar { width:260px }.
+   The ZIP shell uses a grid rail instead; make its child fill the track so
+   collapsed navigation cannot overflow or cover the workspace. */
+@media (min-width: 720px) {
+  .shell > .body > .sidebar {
+    width: 100%;
+    max-width: 100%;
+    flex: 0 1 auto;
+  }
+}
+
+/* The legacy stylesheet is retained for independent HoveR and native PDF
+   windows. Its unlayered .sidebar selector sets width:260px; unlike the new
+   @layer components rules this wins the cascade even after the grid switches
+   to 64px. Explicitly reset the legacy fixed width in the ZIP shell. */
+@media (min-width: 720px) {
+  .shell .body > .sidebar {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex: none;
+  }
+  .shell .body[data-collapsed="true"] > .sidebar {
+    width: 4rem;
+    max-width: 4rem;
+  }
+}
+
+
+/* Nov 10 P0/P2: compatibility boundary between the legacy unlayered styles
+   and the redesigned ZIP UI.  The older src/index.css uses generic .field,
+   .brand and .orbit-hub rules; they must not reshape ZIP primitives. */
+.shell :is(input.field, select.field, textarea.field),
+.orbit-stage :is(input.field, select.field, textarea.field),
+.panel-layer :is(input.field, select.field, textarea.field) {
+  box-sizing:border-box;
+  display:block;
+  flex-direction:initial;
+  min-width:0;
+  width:100%;
+  margin:0;
+  gap:0;
+  line-height:1.2;
+}
+.shell select.field,
+.orbit-stage select.field,
+.panel-layer select.field {
+  display:inline-flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:2.25rem;
+  height:2.25rem;
+  padding:0 2rem 0 .75rem;
+  vertical-align:middle;
+  line-height:1;
+  background-position:right .625rem center;
+}
+.shell :is(input.field,select.field),
+.orbit-stage :is(input.field,select.field),
+.panel-layer :is(input.field,select.field) {
+  height:2.25rem;
+  min-height:2.25rem;
+}
+.shell textarea.field,
+.orbit-stage textarea.field,
+.panel-layer textarea.field {
+  height:auto;
+  min-height:5rem;
+  padding:.625rem .75rem;
+  line-height:1.5;
+}
+.shell .titlebar .brand {
+  display:inline-flex;
+  align-items:baseline;
+  flex:0 0 auto;
+  min-width:0;
+  gap:2px;
+  margin:0;
+  font-size:.8125rem;
+  font-weight:650;
+  letter-spacing:-.01em;
+  line-height:1.2;
+  white-space:nowrap;
+}
+.shell .titlebar .brand b {
+  display:inline-block;
+  margin:0 0 0 2px;
+  font-size:.71875rem;
+  font-weight:600;
+  letter-spacing:.04em;
+}
+/* Active sage surfaces use the real on-accent token; keep disabled CTAs
+   readable without allowing them to look actionable. */
+.shell :is(.btn-primary,.chip[aria-checked="true"],.chip[aria-pressed="true"],.seg-item[aria-checked="true"]),
+.orbit-stage :is(.btn-primary,.chip[aria-checked="true"],.chip[aria-pressed="true"],.seg-item[aria-checked="true"]) {
+  color:var(--on-accent);
+}
+.shell .btn:disabled,
+.orbit-stage .btn:disabled,
+.orbit-panel-window .btn:disabled {
+  opacity:1;
+  color:var(--text-secondary);
+  background:var(--bg-elevated);
+  border-color:var(--border);
+  cursor:not-allowed;
+}
+/* Legacy native Orbit styles position an HTML div named .orbit-hub.
+   The new Orbit uses an SVG <g> with that name.  Never apply HTML positioning
+   or translate() to the SVG group: it detaches the central mark. */
+.orbit-stage .orbit-disc svg.orbit-svg .orbit-hub {
+  position:static;
+  display:inline;
+  top:auto;
+  left:auto;
+  right:auto;
+  bottom:auto;
+  width:auto;
+  height:auto;
+  margin:0;
+  transform:none;
+  flex-direction:initial;
+  pointer-events:auto;
+}
+/* The native 520px disc selector must not force a square backplate or
+   override the responsive SVG wheel geometry. */
+.orbit-stage .orbit-disc {
+  width:min(31rem,92vw,calc(100dvh - 15.5rem));
+  height:auto;
+  min-width:16rem;
+  aspect-ratio:1;
+  background:transparent;
+  backdrop-filter:none;
+  overflow:visible;
+  animation:none;
+}
+.orbit-stage .orbit-disc svg.orbit-svg {
+  position:relative;
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+/* Editable native PDF panels must keep their control wrappers intrinsic and
+   provide scrollable content all the way down, including Extract Pages. */
+.orbit-panel-window .orbit-dialog {
+  min-width:0;
+  min-height:0;
+  max-height:100dvh;
+}
+.orbit-panel-window .extract-controls {
+  min-width:0;
+  height:auto;
+  overflow:visible;
+}
+.orbit-panel-window .extract-controls .field {
+  box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:8px;
+  min-width:0;
+  width:100%;
+  height:auto;
+  min-height:0;
+  margin:0;
+  overflow:visible;
+}
+.orbit-panel-window .extract-controls .text-input {
+  box-sizing:border-box;
+  display:block;
+  width:100%;
+  min-width:0;
+  min-height:38px;
+  height:38px;
+  margin:0;
+  line-height:1.2;
+}
+.orbit-panel-window .orbit-dialog-body,
+.orbit-panel-window .orbit-dialog.wide .orbit-dialog-body {
+  min-height:0;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.orbit-panel-window .watermark-settings,
+.orbit-panel-window .extract-grid,
+.orbit-panel-window .arrange-grid {
+  min-height:0;
+  overflow-y:auto;
+}
+
+
+/* P4: the Orbit titlebar symbol is the artwork itself, not a framed tile. */
+.orbit-panel-window .orbit-dialog-titlebar .orbit-mark,
+.orbit-dialog-titlebar .orbit-mark {
+  display:inline-flex;
+  box-sizing:border-box;
+  align-items:center;
+  justify-content:center;
+  width:16px;
+  height:16px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  overflow:visible;
+}
+.orbit-dialog-titlebar .orbit-mark svg {
+  display:block;
+  flex:0 0 auto;
+  overflow:visible;
+}
+
+
+/* Legacy Orbit Field is a label wrapper, not ZIP's 2.25rem input.field. */
+.orbit-dialog label.field { box-sizing:border-box; display:flex; flex-direction:column; align-items:stretch; flex:0 0 auto; gap:6px; width:100%; height:auto; min-height:0; padding:12px; margin:0 0 12px; overflow:visible; border:1px solid var(--border); border-radius:9px; background:var(--bg-surface); }
+.orbit-dialog label.field > .field-label { display:flex; align-items:baseline; flex:0 0 auto; min-width:0; line-height:1.35; white-space:normal; }
+.orbit-dialog label.field > :not(.field-label) { flex-shrink:0; min-width:0; max-width:100%; margin:0; }
+.orbit-dialog label.field :is(.text-input, .select-trigger, .number-stepper) { box-sizing:border-box; width:100%; min-width:0; min-height:36px; margin:0; }
+.orbit-dialog label.field .select { position:relative; width:100%; }
+.orbit-dialog .field-grid > label.field { margin-bottom:0; }
+/* One scrolling panel body for multi-page tools; always keep actions reachable. */
+.orbit-panel-window .orbit-dialog, .orbit-panel-window .orbit-dialog.wide { display:flex; flex-direction:column; height:100%; min-height:0; }
+.orbit-panel-window .orbit-dialog-body, .orbit-panel-window .orbit-dialog.wide .orbit-dialog-body { flex:1 1 0% !important; min-height:0; overflow-y:auto !important; overscroll-behavior-y:contain; scrollbar-gutter:stable; }
+.orbit-panel-window .orbit-dialog-titlebar, .orbit-panel-window .orbit-dialog-heading, .orbit-panel-window .orbit-dialog-footer, .orbit-panel-window .orbit-dialog > .file-context-row { flex:0 0 auto; }
+/* Fix the scroll regression: expanding the entire 269-page grid and sidebar
+   made both panes overflow and pushed the fixed Save/Cancel footer away. */
+.orbit-panel-window .arrange-dialog .orbit-dialog-body,
+.orbit-panel-window .extract-dialog .orbit-dialog-body {
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden !important;
+}
+.orbit-panel-window .arrange-dialog .arrange-grid,
+.orbit-panel-window .extract-dialog .extract-grid {
+  flex:1 1 0%;
+  min-height:0;
+  max-height:none;
+  overflow-x:hidden !important;
+  overflow-y:scroll !important;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.orbit-panel-window :is(.arrange-toolbar,.extract-controls,.arrange-helper) {
+  flex:0 0 auto;
+}
+.orbit-panel-window .watermark-columns {
+  height:100% !important;
+  min-height:0;
+  max-height:none;
+  grid-template-rows:minmax(0,1fr);
+}
+.orbit-panel-window .watermark-preview {
+  min-height:0;
+  min-width:0;
+  overflow:hidden;
+}
+.orbit-panel-window .watermark-scroll {
+  flex:1 1 0%;
+  min-height:0;
+  max-height:none;
+  overflow:auto;
+}
+.orbit-panel-window .watermark-settings {
+  box-sizing:border-box;
+  height:100%;
+  max-height:100%;
+  min-height:0;
+  min-width:0;
+  padding-right:10px;
+  overflow-x:hidden !important;
+  overflow-y:scroll !important;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+/* Keep native Windows scrollbars discoverable and within the sage palette. */
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings) {
+  scrollbar-width:auto;
+  scrollbar-color:var(--accent) var(--bg-app);
+}
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings)::-webkit-scrollbar { width:11px; height:11px; }
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings)::-webkit-scrollbar-track { background:var(--bg-app); }
+.orbit-panel-window :is(.orbit-dialog-body,.arrange-grid,.extract-grid,.watermark-scroll,.watermark-settings)::-webkit-scrollbar-thumb { border:2px solid var(--bg-app); border-radius:10px; background:var(--accent); }
+/* At narrow widths, use one outer scroll region for stacked preview + settings. */
+@media (max-width:760px) {
+  .orbit-panel-window .watermark-columns {
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto auto;
+    height:auto !important;
+  }
+  .orbit-panel-window .watermark-preview { min-height:360px; overflow:visible; }
+  .orbit-panel-window .watermark-settings {
+    height:auto;
+    max-height:none;
+    overflow-y:visible !important;
+  }
+  .orbit-panel-window .orbit-dialog:has(.watermark-columns) .orbit-dialog-body { overflow-y:auto !important; }
+}
+/* Avoid native titlebar dragging stealing button pointer clicks. */
+.orbit-panel-window .orbit-dialog-titlebar > div:last-child, .orbit-panel-window .orbit-dialog-titlebar button, .shell .titlebar button, .shell .titlebar .win-btn { -webkit-app-region:no-drag !important; pointer-events:auto; }
+.orbit-panel-window .orbit-dialog-titlebar > div:last-child { position:relative; z-index:5; }
+.shell .titlebar button, .shell .titlebar .win-btn { position:relative; z-index:2; }
+/* Use the existing green app artwork without another square frame. */
+.brand-logo, .orbit-brand-image { display:block; flex:none; border:0; background:transparent; object-fit:contain; mix-blend-mode:screen; -webkit-mask-image:radial-gradient(circle, #000 55%, transparent 75%); mask-image:radial-gradient(circle, #000 55%, transparent 75%); }
+.brand-logo { width:22px; height:22px; }
+.orbit-panel-window .orbit-mark { width:19px; height:19px; overflow:visible; border:0; background:transparent; }
+.orbit-panel-window .orbit-mark img { width:19px; height:19px; }
+
+
+/* Unified Orbit panel scroll ownership.
+   The scrollbar belongs to the panel's far-right edge, as indicated in the
+   annotated Windows screenshot, rather than the inset PDF page grid.
+   Titlebar and action footer remain accessible at every scroll position. */
+.orbit-panel-window .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: var(--accent) var(--bg-app);
+}
+.orbit-panel-window .orbit-dialog-scroll-region::-webkit-scrollbar {
+  width: 12px;
+}
+.orbit-panel-window .orbit-dialog-scroll-region::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+.orbit-panel-window .orbit-dialog-scroll-region::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border: 2px solid var(--bg-app);
+  border-radius: 12px;
+}
+.orbit-panel-window .orbit-dialog-scroll-region:focus-visible {
+  outline: 1px solid var(--accent-bright);
+  outline-offset: -2px;
+}
+/* Its descendants must expand naturally: there is just one vertical panel
+   scroll for every Orbit tool, including all Arrange/Extract PDF thumbnails. */
+.orbit-panel-window .orbit-dialog-scroll-region > .orbit-dialog-heading,
+.orbit-panel-window .orbit-dialog-scroll-region > .file-context-row {
+  flex: none;
+}
+/* The header's file card moved into the shared scroll region, so retain its
+   original horizontal inset rather than letting it touch the panel edge. */
+.orbit-panel-window .orbit-dialog-scroll-region > .file-context-row {
+  margin: 0 24px 5px;
+}
+@media (max-width: 760px) {
+  .orbit-panel-window .orbit-dialog-scroll-region > .file-context-row {
+    margin: 0 17px 5px;
+  }
+}
+.orbit-panel-window .orbit-dialog-scroll-region > .orbit-dialog-body,
+.orbit-panel-window .orbit-dialog.wide .orbit-dialog-scroll-region > .orbit-dialog-body,
+.orbit-panel-window .arrange-dialog .orbit-dialog-scroll-region > .orbit-dialog-body,
+.orbit-panel-window .extract-dialog .orbit-dialog-scroll-region > .orbit-dialog-body {
+  box-sizing: border-box;
+  display: block !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .arrange-grid,
+.orbit-panel-window .orbit-dialog-scroll-region .extract-grid {
+  box-sizing: border-box;
+  display: grid;
+  flex: none !important;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-columns {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  grid-template-rows: auto;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: visible;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-scroll {
+  min-height: 320px;
+  height: min(58dvh, 600px);
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: auto;
+}
+.orbit-panel-window .orbit-dialog-scroll-region .watermark-settings {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+.orbit-panel-window .orbit-dialog-titlebar,
+.orbit-panel-window .orbit-dialog-footer {
+  flex: 0 0 auto;
+}
+@media (max-width: 760px) {
+  .orbit-panel-window .orbit-dialog-scroll-region .watermark-columns {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+  .orbit-panel-window .orbit-dialog-scroll-region .watermark-scroll {
+    height: min(52dvh, 500px);
+  }
+}
+
+/* Working scrollbar, not a decorative browser track.
+   The native Orbit panel owns a scroll host bounded by the fixed title/footer.
+   Content always flows to its intrinsic height; an interactive rail moves its
+   real scrollTop via mouse click, pointer dragging, keyboard and wheel. */
+.orbit-dialog .orbit-panel-scroll-host {
+  flex: 1 1 0%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+/* The same dialog component also renders as a non-native modal; preserve
+   scrolling there rather than relying on native-only selectors. */
+.orbit-dialog .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.orbit-panel-window .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding-right: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none !important;
+  scrollbar-gutter: auto;
+}
+.orbit-panel-window .orbit-panel-scroll-host > .orbit-dialog-scroll-region::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+}
+.orbit-panel-window .orbit-panel-scroll-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  width: 14px;
+  background: var(--bg-app);
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+.orbit-panel-window .orbit-panel-scroll-thumb {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  border: 3px solid var(--bg-app);
+  border-radius: 12px;
+  background: var(--accent);
+  cursor: grab;
+  pointer-events: auto;
+}
+.orbit-panel-window .orbit-panel-scroll-track:active .orbit-panel-scroll-thumb { cursor: grabbing; }
+.orbit-panel-window .orbit-panel-scroll-track:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: -2px;
+}
+
+
+/* Windows verified 269-page fix: an unconstrained flex percentage height let
+   the outer viewport grow to the entire 14,963px document. Use definite grid
+   rows so the scrollbar's clientHeight is the *window*, not document height.
+   The last row always reserves the real Save/Cancel footer. */
+.orbit-panel-window .orbit-dialog,
+.orbit-panel-window .orbit-dialog.wide {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 40px minmax(0, 1fr) auto;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+.orbit-panel-window .orbit-dialog > .orbit-dialog-titlebar {
+  grid-row: 1;
+  min-height: 0;
+}
+.orbit-panel-window .orbit-dialog > .orbit-panel-scroll-host {
+  box-sizing: border-box;
+  grid-row: 2;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  min-width: 0;
+  overflow: hidden !important;
+}
+.orbit-panel-window .orbit-dialog > .orbit-dialog-footer {
+  grid-row: 3;
+  min-height: 0;
+}
+.orbit-panel-window .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  display: block;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+/* Critical: WebView2 calculated the old 100%-height grid item at 14,963px
+   for a 269-page PDF. Never size the SCROLL HOST relative to document content.
+   Bind it to the actual native viewport instead, reserving titlebar & footer.
+   The rail and content now share exactly the same bounded height. */
+.orbit-panel-window .orbit-dialog > .orbit-panel-scroll-host {
+  flex: 0 0 auto !important;
+  height: calc(100vh - 106px) !important;
+  height: calc(100dvh - 106px) !important;
+  max-height: calc(100dvh - 106px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.orbit-panel-window .orbit-dialog:not(:has(> .orbit-dialog-footer)) > .orbit-panel-scroll-host {
+  height: calc(100dvh - 42px) !important;
+  max-height: calc(100dvh - 42px) !important;
+}
+.orbit-panel-window .orbit-dialog > .orbit-panel-scroll-host > .orbit-dialog-scroll-region {
+  flex: 0 1 auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
