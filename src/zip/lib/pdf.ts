@@ -2,6 +2,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 
 type PdfJs = typeof import("pdfjs-dist");
 let lib: Promise<PdfJs> | null = null;
+const documentTasks = new WeakMap<PDFDocumentProxy, { destroy: () => Promise<void> }>();
 
 /**
  * pdf.js, loaded on first use. The worker module is attached to the main thread
@@ -24,7 +25,21 @@ export function loadPdfJs(): Promise<PdfJs> {
 
 export async function openPdf(file: Blob): Promise<PDFDocumentProxy> {
   const pdfjs = await loadPdfJs();
-  return pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), enableScripting: false }).promise;
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false });
+  const document = await task.promise;
+  documentTasks.set(document, task);
+  return document;
+}
+
+/** PDF.js 6 moved worker termination from the PDF proxy to the loading task. */
+export async function closePdf(document: PDFDocumentProxy): Promise<void> {
+  const task = documentTasks.get(document);
+  if (task) {
+    documentTasks.delete(document);
+    await task.destroy();
+  } else {
+    await document.cleanup();
+  }
 }
 
 export async function pdfToText(
@@ -44,7 +59,7 @@ export async function pdfToText(
     onProgress(i / doc.numPages, `Page ${i} of ${doc.numPages}`);
   }
   const pages = doc.numPages;
-  await doc.destroy();
+  await closePdf(doc);
   return { text: out.join("\n\n\f\n\n"), pages };
 }
 
@@ -96,7 +111,7 @@ export async function renderPdfPageImages(file: Blob, target: "png" | "jpg"): Pr
     }
     return images;
   } finally {
-    await document.destroy();
+    await closePdf(document);
   }
 }
 
@@ -126,6 +141,6 @@ export async function renderPdfPageImageBatches(
       await onBatch(images, startPage, document.numPages);
     }
   } finally {
-    await document.destroy();
+    await closePdf(document);
   }
 }

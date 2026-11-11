@@ -33,16 +33,23 @@ export function DocumentsModule(props: ConverterProps) {
   useEffect(() => {
     if (tab !== 'extract' || !file) { setExtractCount(0); return; }
     let live = true;
+    let countTask: ReturnType<typeof getDocument> | null = null;
     if (native) {
       void runNative<number>('pdf_page_count', { path: requireNativePath(file) })
         .then(count => { if (live) setExtractCount(count); })
         .catch(error => { if (live) props.notify('Could not inspect PDF pages', String(error), 'danger'); });
     } else {
-      void file.arrayBuffer().then(bytes => getDocument({ data: new Uint8Array(bytes) }).promise)
-        .then(pdf => { if (live) setExtractCount(pdf.numPages); void pdf.destroy(); })
-        .catch(error => { if (live) props.notify('Could not inspect PDF pages', String(error), 'danger'); });
+      void file.arrayBuffer().then(async bytes => {
+        if (!live) return;
+        const task = getDocument({ data: new Uint8Array(bytes), isEvalSupported: false });
+        countTask = task;
+        const pdf = await task.promise;
+        if (live) setExtractCount(pdf.numPages);
+        if (countTask === task) countTask = null;
+        await task.destroy();
+      }).catch(error => { if (live) props.notify('Could not inspect PDF pages', String(error), 'danger'); });
     }
-    return () => { live = false; };
+    return () => { live = false; if (countTask) void countTask.destroy(); };
   }, [file, tab]);
   const run = async () => {
     setBusy(true); setProgress(10);
@@ -223,13 +230,17 @@ function PdfCanvas({ file, pageNumber, zoom, onPages }: { file: File; pageNumber
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
-    let active = true; let loaded: PDFDocumentProxy | null = null;
+    let active = true;
+    let loadingTask: ReturnType<typeof getDocument> | null = null;
     setError(''); setPdf(null);
-    void file.arrayBuffer().then(data => getDocument({ data: new Uint8Array(data) }).promise).then(document => {
-      if (!active) { void document.destroy(); return; }
-      loaded = document; setPdf(document); onPages(document.numPages);
+    void file.arrayBuffer().then(async data => {
+      if (!active) return;
+      const task = getDocument({ data: new Uint8Array(data), isEvalSupported: false });
+      loadingTask = task;
+      const document = await task.promise;
+      if (active) { setPdf(document); onPages(document.numPages); }
     }).catch(() => { if (active) setError('This PDF could not be rendered.'); });
-    return () => { active = false; if (loaded) void loaded.destroy(); };
+    return () => { active = false; if (loadingTask) void loadingTask.destroy(); };
   }, [file, onPages]);
   useEffect(() => {
     let active = true;

@@ -7,7 +7,7 @@ import { DropZone, type QueueItem } from "../components/DropZone";
 import { toast } from "../components/Toasts";
 import { PageHeader } from "../components/ui";
 import { isTauri } from "../lib/bridge";
-import { openPdf } from "../lib/pdf";
+import { closePdf, openPdf } from "../lib/pdf";
 import { clamp, extOf, formatBytes } from "../lib/util";
 import { MB } from "./formats";
 
@@ -54,10 +54,10 @@ export default function Preview() {
       if (kind === "pdf") nextDoc = await openPdf(f);
       else nextText = await f.text();
       if (dead) {
-        void nextDoc?.destroy();
+        if (nextDoc) void closePdf(nextDoc);
         return;
       }
-      void docRef.current?.destroy();
+      if (docRef.current) void closePdf(docRef.current);
       docRef.current = nextDoc;
       setDoc(nextDoc);
       setText(nextText);
@@ -76,7 +76,7 @@ export default function Preview() {
     };
   }, [item]);
 
-  useEffect(() => () => void docRef.current?.destroy(), []);
+  useEffect(() => () => { if (docRef.current) void closePdf(docRef.current); }, []);
 
   // Render the current PDF page into a fresh canvas, then swap it in.
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function Preview() {
     setOpen(null);
     setText("");
     setDoc(null);
-    void docRef.current?.destroy();
+    if (docRef.current) void closePdf(docRef.current);
     docRef.current = null;
     setError(null);
   };

@@ -239,11 +239,21 @@ export function RenameDialog({ file, onClose, onRename, notify }: DialogProps) {
 function usePdf(file?: File) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null); const [error, setError] = useState('');
   useEffect(() => {
-    let active = true; let loaded: PDFDocumentProxy | null = null;
+    let active = true;
+    let loadingTask: ReturnType<typeof getDocument> | null = null;
     setPdf(null); setError('');
     if (!file || ext(file.name) !== 'pdf') return;
-    void file.arrayBuffer().then(data => getDocument({ data: new Uint8Array(data) }).promise).then(document => { if (!active) { void document.destroy(); return; } loaded = document; setPdf(document); }).catch(() => active && setError('PDF preview unavailable'));
-    return () => { active = false; if (loaded) void loaded.destroy(); };
+    void file.arrayBuffer().then(async data => {
+      if (!active) return;
+      const task = getDocument({ data: new Uint8Array(data), isEvalSupported: false });
+      loadingTask = task;
+      const document = await task.promise;
+      if (active) setPdf(document);
+    }).catch(() => { if (active) setError('PDF preview unavailable'); });
+    return () => {
+      active = false;
+      if (loadingTask) void loadingTask.destroy();
+    };
   }, [file]);
   return { pdf, error };
 }
