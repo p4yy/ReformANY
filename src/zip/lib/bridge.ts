@@ -5,7 +5,7 @@
  */
 import { sleep, uid } from './util';
 import { loadNativeFile, nativeConvertImages } from '../../native/bridge';
-import { renderPdfPageImages } from './pdf';
+import { renderPdfPageImageBatches, renderPdfPageImages } from './pdf';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 export const CMD = {
@@ -200,10 +200,21 @@ async function orbitAction(args: Record<string, unknown>): Promise<unknown> {
       if (target === 'docx-layout' || target === 'png' || target === 'jpg') {
         const file = await loadNativeFile(path);
         if (!file.nativeBytesLoaded) throw new Error('The selected PDF is too large to render in the local editor.');
-        const outputFormat = target === 'jpg' ? 'jpg' : 'png';
-        const images = await renderPdfPageImages(file, outputFormat);
-        if (target === 'docx-layout') return raw('pdf_docx_layout', { path, images, destination: null });
-        return raw('pdf_save_rendered_pages', { path, target, images, destination: null });
+        if (target === 'docx-layout') {
+          const images = await renderPdfPageImages(file, 'png');
+          return raw('pdf_docx_layout', { path, images, destination: null });
+        }
+        const outputs: string[] = [];
+        await renderPdfPageImageBatches(file, target, async (images, startPage, totalPages) => {
+          const published = await raw<string[]>('pdf_save_rendered_page_batch', {
+            path, target, images, startPage, totalPages, destination: null,
+          });
+          if (published.length !== images.length) {
+            throw new Error(`PDF page image export only saved ${published.length} of ${images.length} pages in batch ${startPage}.`);
+          }
+          outputs.push(...published);
+        });
+        return outputs;
       }
       if (['txt', 'md', 'html'].includes(target)) {
         return raw('pdf_to_text_format', { path, target, destination: null });

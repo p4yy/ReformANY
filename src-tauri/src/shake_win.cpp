@@ -56,7 +56,7 @@ constexpr UINT kTraceMsg=WM_APP+0x6b;
 constexpr int kDiameter=148;
 constexpr int kRadius=kDiameter/2;
 constexpr unsigned int kFallbackMs=350;
-constexpr unsigned int kPollMs=20;
+constexpr unsigned int kPollMs=16;
 
 HWND g_source=nullptr;
 HWND g_target=nullptr;
@@ -121,7 +121,7 @@ bool visible_shell_drag_image(){
     const HWND image=FindWindowW(L"SysDragImage",nullptr);
     return image&&IsWindow(image)&&IsWindowVisible(image);
 }
-bool exact_single_file(IDataObject* data,std::wstring& result){
+bool exact_single_file_or_folder(IDataObject* data,std::wstring& result){
     result.clear();
     if(!data)return false;
     FORMATETC format{CF_HDROP,nullptr,DVASPECT_CONTENT,-1,TYMED_HGLOBAL};
@@ -136,7 +136,7 @@ bool exact_single_file(IDataObject* data,std::wstring& result){
             if(DragQueryFileW(handle,0,buffer.data(),n+1)==n){
                 const DWORD attributes=GetFileAttributesW(buffer.data());
                 if(attributes!=INVALID_FILE_ATTRIBUTES&&
-                   (attributes&(FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DIRECTORY))==0){
+                   (attributes&FILE_ATTRIBUTE_REPARSE_POINT)==0){
                     result.assign(buffer.data(),n);
                     valid=true;
                 }
@@ -222,7 +222,7 @@ public:
         if(!effect)return E_INVALIDARG;
         *effect=DROPEFFECT_NONE;
         std::wstring path;
-        if(source_active(g_source)&&exact_single_file(data,path)){
+        if(source_active(g_source)&&exact_single_file_or_folder(data,path)){
             g_dragEnterPath=std::move(path);
             active_=true;
             trace_stage(7);

@@ -54,7 +54,7 @@ use engine_progress::{cancel_engine_job, JobRegistry};
 use file_parts::{file_split, file_join};
 use pdf_split::pdf_split;
 use pdf_ops::{pdf_page_count, pdf_extract_pages, pdf_rotate_pages};
-use pdf_raster::pdf_save_rendered_pages;
+use pdf_raster::{pdf_save_rendered_pages,pdf_save_rendered_page_batch};
 use pdf_images::pdf_extract_images;
 use pdf_marks::pdf_add_mark;
 use pdf_arrange::pdf_arrange_pages;
@@ -269,6 +269,7 @@ pub fn run() {
             pdf_extract_pages,
             pdf_rotate_pages,
             pdf_save_rendered_pages,
+            pdf_save_rendered_page_batch,
             pdf_extract_images,
             pdf_add_mark,
             pdf_arrange_pages,

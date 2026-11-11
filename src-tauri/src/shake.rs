@@ -321,7 +321,7 @@ extern "C" fn open_orbit(wide:*const u16,tab:u8){
     let file=std::ffi::OsString::from_wide(chars);
     let path=PathBuf::from(&file);
     let Ok(metadata)=fs::symlink_metadata(&path) else{return;};
-    if !metadata.is_file() || metadata.file_type().is_symlink(){return;}
+    if !(metadata.is_file() || metadata.is_dir()) || metadata.file_type().is_symlink(){return;}
     if let Ok(exe)=std::env::current_exe(){
         let mut command=std::process::Command::new(exe);
         command.arg("orbit").arg(&path).arg("--from-shake");
@@ -510,7 +510,7 @@ mod tests {
         }
         assert_eq!(unsafe{reformany_native_primary_button_vk(0)},0x01);
         assert_eq!(unsafe{reformany_native_primary_button_vk(1)},0x02);
-        assert_eq!(unsafe{reformany_native_poll_interval_ms()},20);
+        assert_eq!(unsafe{reformany_native_poll_interval_ms()},16);
         assert_eq!(unsafe{reformany_native_fallback_ms()},350);
     }
     #[test]

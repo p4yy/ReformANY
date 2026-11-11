@@ -85,8 +85,10 @@ fn extract(path:&str,destination:Option<&str>) -> Result<ExtractedPdfImages,Stri
             "No supported embedded images found. This PDF uses image color spaces or codecs that require a different extractor."
         }else{"No embedded raster images were found in this PDF."}.into());
     }
-    let folder=output_dir(input,destination)?;
+    let root=output_dir(input,destination)?;
     let name=format_name(input)?;
+    let folder=root.join(format!("{name}_images"));
+    fs::create_dir_all(&folder).map_err(|e|format!("Cannot create PDF image output folder: {e}"))?;
     let stage=tempfile::Builder::new().prefix(".reformany-pdf-images-")
         .tempdir_in(&folder).map_err(|e|e.to_string())?;
     let mut ready=Vec::<(PathBuf,String)>::new();
