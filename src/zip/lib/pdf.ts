@@ -24,7 +24,7 @@ export function loadPdfJs(): Promise<PdfJs> {
 
 export async function openPdf(file: Blob): Promise<PDFDocumentProxy> {
   const pdfjs = await loadPdfJs();
-  return pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  return pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), enableScripting: false }).promise;
 }
 
 export async function pdfToText(
