@@ -135,10 +135,13 @@ The Windows CI workflow builds the native executable, premium setup and standalo
 
 ## Support development
 
-ReformANY is independently developed. Contributions are optional and do not grant rights to redistribute its source or artwork.
+ReformANY is independently developed. Donations are optional and do not grant redistribution rights or preferential support.
 
-- **PayPal:** https://www.paypal.com/paypalme/aceevisuals
-- **Ko-fi:** https://ko-fi.com/acevisualsco
+<p align="center">
+  <a href="https://www.paypal.com/paypalme/aceevisuals"><img src="https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Support ReformANY on PayPal" height="32"></a>
+  &nbsp;
+  <a href="https://ko-fi.com/acevisualsco"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support ReformANY on Ko-fi" height="32"></a>
+</p>
 
 ## License
 
