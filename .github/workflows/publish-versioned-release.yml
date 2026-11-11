@@ -1,0 +1,154 @@
+name: Publish versioned ReformANY release
+
+# First publication uses previously completed, successful Windows CI artifacts;
+# no new app build is required. Later versions use the SAME procedure with
+# the verified Windows run and exact source commit specified by the owner.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-versioned-release.yml
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer release tag matching the app version, e.g. v0.3.1"
+        type: string
+        required: true
+      windows_run_id:
+        description: "Successful Windows build run containing BOTH verified executables"
+        type: string
+        required: true
+      source_commit:
+        description: "Full 40-character commit SHA used by that Windows build"
+        type: string
+        required: true
+
+concurrency:
+  group: reformany-release-publish
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Resolve version, tag target, and prior successful build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANUAL_VERSION: ${{ inputs.version }}
+          MANUAL_RUN_ID: ${{ inputs.windows_run_id }}
+          MANUAL_SHA: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            # Original v0.3.0 executable set. All build, offline media,
+            # installer, Orbit and Rust checks passed in this run.
+            tag='v0.3.0'
+            run_id='43058867815'
+            target='862cafd6a62b2d57f9e2ad1773380eb4e88bf8d7'
+          else
+            tag="$MANUAL_VERSION"
+            run_id="$MANUAL_RUN_ID"
+            target="$MANUAL_SHA"
+          fi
+          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo '::error::Use a vMAJOR.MINOR.PATCH tag (for example, v0.3.1)'; exit 1;
+          }
+          [[ "$run_id" =~ ^[1-9][0-9]*$ && "$target" =~ ^[a-f0-9]{40}$ ]] || {
+            echo '::error::Invalid Windows run ID or source commit SHA'; exit 1;
+          }
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Release $tag already exists; leaving its files untouched."
+            exit 0
+          fi
+          # Prevent tagging the same version a second time or picking a
+          # build from another branch/revision.
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Tag $tag already exists without a release; inspect it manually."
+            exit 1
+          fi
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+            --jq '[.name,.conclusion,.head_branch,.head_sha] | join("|")')"
+          expected="Windows build|success|main|$target"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Windows CI provenance mismatch: $actual (expected $expected)"
+            exit 1
+          fi
+          app_version="$(gh api "repos/$GITHUB_REPOSITORY/contents/src-tauri/tauri.conf.json?ref=$target" --jq '.content' \
+            | base64 -d | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
+          if [[ "$tag" != "v$app_version" ]]; then
+            echo "::error::Release $tag disagrees with binary source version $app_version"
+            exit 1
+          fi
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          echo "RELEASE_RUN_ID=$run_id" >> "$GITHUB_ENV"
+          echo "RELEASE_TARGET=$target" >> "$GITHUB_ENV"
+          echo "Validated tag $tag and successful Windows build $run_id from $target"
+
+      - name: Download previously verified portable EXE
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.RELEASE_RUN_ID }}
+          name: ReformANY-Portable-EXE-test
+          path: release/portable
+
+      - name: Download previously verified premium setup EXE
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.RELEASE_RUN_ID }}
+          name: ReformANY-Premium-Setup-EXE-test
+          path: release/installer
+
+      - name: Confirm two genuine Windows executables and generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f release/portable/ReformANY.exe
+          test -f release/installer/reformany-setup.exe
+          test "$(find release/portable release/installer -type f | wc -l)" -eq 2
+          for exe in release/portable/ReformANY.exe release/installer/reformany-setup.exe; do
+            test "$(head -c 2 "$exe" | od -An -tx1 | tr -d ' \n')" = '4d5a' || {
+              echo "::error::$exe is not a Windows PE executable"; exit 1;
+            }
+          done
+          cd release
+          sha256sum portable/ReformANY.exe installer/reformany-setup.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish one tagged release containing both verified executables
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cat > release/RELEASE_NOTES.md <<'NOTES'
+          Windows 10/11 (64-bit) file conversion and PDF utilities.
+
+          **Download options**
+          - `ReformANY.exe`: standalone portable app, no installer.
+          - `reformany-setup.exe`: premium Windows setup wizard.
+          - `SHA256SUMS.txt`: hashes for checking the two downloaded EXEs.
+
+          Both executables come from the same successful Windows CI run and
+          passed automated UI, offline-media, Rust, installer and Orbit checks.
+          Some optional format routes require other locally installed tools.
+          The binaries are not code signed; Windows SmartScreen may warn.
+          The repository uses Acev Dev Co's proprietary source-available license.
+          NOTES
+          gh release create "$RELEASE_TAG" \
+            "release/portable/ReformANY.exe#ReformANY.exe" \
+            "release/installer/reformany-setup.exe#reformany-setup.exe" \
+            "release/SHA256SUMS.txt#SHA256SUMS.txt" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_TARGET" \
+            --title "ReformANY $RELEASE_TAG" \
+            --notes-file release/RELEASE_NOTES.md \
+            --latest
