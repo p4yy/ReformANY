@@ -488,7 +488,7 @@ try {
   if(!final.atEnd||!final.lastVisible)throw Error("Page 269 remains unreachable: "+JSON.stringify(final));
   await screenshot(arrangeSocket,"05b-arrange-last-page.png").catch(()=>{});
   console.log("PASS: 269-page native Orbit scrollbar moves with mouse wheel, click and thumb drag.");
-  await evaluate(arrangeSocket,'document.querySelector("button[aria-label="Close"]")?.click();true');
+  await evaluate(arrangeSocket,'document.querySelector(".orbit-dialog-titlebar button:last-child")?.click();true');
   await evaluate(orbitSocket,'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));true');
   let closed=false;
   for(let attempt=0;attempt<40;attempt++){
