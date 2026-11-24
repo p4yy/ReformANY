@@ -351,12 +351,12 @@ mod tests {
         let extracted=temp.path().join("WindowsExtract");
         let mut cmd=std::process::Command::new("powershell.exe");
         cmd.args(["-NoProfile","-NonInteractive","-Command",
-            "Expand-Archive -LiteralPath $env:REFORMANY_TEST_ZIP -DestinationPath $env:REFORMANY_TEST_OUT -Force -PassThru"])
+            "$ErrorActionPreference = 'Stop'; $zip = $env:REFORMANY_TEST_ZIP; $out = $env:REFORMANY_TEST_OUT; Write-Output \"ZIP=$zip OUT=$out\"; if (!(Test-Path -LiteralPath $zip -PathType Leaf)) { throw 'Test ZIP path is missing' }; New-Item -ItemType Directory -Path $out -Force | Out-Null; $items = @(Expand-Archive -LiteralPath $zip -DestinationPath $out -Force -PassThru -ErrorAction Stop); if ($items.Count -ne 2) { throw \"Expected two extracted files, got $($items.Count)\" }; $items | ForEach-Object { Write-Output $_.FullName }"])
             .env("REFORMANY_TEST_ZIP",&archive)
             .env("REFORMANY_TEST_OUT",&extracted);
         let result=cmd.output().unwrap();
-        assert!(result.status.success(),"Windows ZIP extractor rejected normal archive: {}",
-            String::from_utf8_lossy(&result.stderr));
+        assert!(result.status.success(),"Windows ZIP extractor rejected normal archive; stdout: {}; stderr: {}",
+            String::from_utf8_lossy(&result.stdout),String::from_utf8_lossy(&result.stderr));
 
         // Expand-Archive may report files at different relative depths depending
         // on the PowerShell version and destination semantics. Verify the two
