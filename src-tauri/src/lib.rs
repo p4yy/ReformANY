@@ -186,10 +186,19 @@ pub fn run() {
             if !outcome.status.success() || !String::from_utf8_lossy(&outcome.stdout).contains("pcm_s16le") {
                 return Err("Bundled FFprobe could not inspect encoded audio".into());
             }
+            archives::portable_archive_self_test()?;
+            let image = dir.path().join("sample.png");
+            image::RgbImage::from_pixel(12, 8, image::Rgb([35, 100, 190])).save(&image).map_err(|e| e.to_string())?;
+            for target in ["jpeg", "webp", "bmp", "tiff"] {
+                let result = conversion::convert_watched_image(&image, target, None)?;
+                if image::image_dimensions(&result).map_err(|e| e.to_string())? != (12, 8) {
+                    return Err(format!("Invalid dimensions in {target} output"));
+                }
+            }
             Ok(())
         })();
         match success {
-            Ok(()) => { println!("PASS: portable EXE encodes and probes real audio offline."); return; }
+            Ok(()) => { println!("PASS: portable EXE verifies real audio, image and folder archive conversions offline."); return; }
             Err(error) => { eprintln!("FAIL: portable EXE: {error}"); std::process::exit(1); }
         }
     }

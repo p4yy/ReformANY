@@ -77,3 +77,7 @@ For plain text extracted from PDFs, scanned pages require separate OCR software;
 **Not yet general-purpose:** HEIC/HEIF, PSD, RAW photo files, animated or multipage image conversion, PDF OCR, professional metadata fidelity, arbitrary compressed file types, DRM removal, and a promise of converting any source into any output.
 
 See the [engineering roadmap](ROADMAP.md), [privacy policy](PRIVACY.md) and [development verification](DEVELOPMENT.md) for future work and testing boundaries.
+
+### Archive engine packaging and regression checks
+
+Windows build preparation pins the official 7-Zip 26.06 MSI by SHA-256 and stages its matching CLI, DLL, license and source notice. The portable Windows build embeds those assets; installed builds use the staged application resource. ZIP creation does not need 7-Zip. RAR creation still needs a separately installed licensed WinRAR/Rar.exe; 7-Zip can extract RAR but cannot write it. The portable self-test now round-trips a nested folder through ZIP, 7Z and TAR and decodes JPEG, WebP, BMP and TIFF outputs in addition to media tests. Archive destinations inside a selected source folder are rejected to avoid archiving the output itself.

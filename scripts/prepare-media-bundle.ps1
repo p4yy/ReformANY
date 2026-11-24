@@ -82,7 +82,38 @@ try {
     'FFmpeg and FFprobe are third-party programs; ReformANY is not affiliated with the FFmpeg project.',
     'Bundled binaries are installed locally. No download is required during app setup or media conversion.'
   ) | Set-Content -LiteralPath (Join-Path $bundle 'SOURCE.txt') -Encoding UTF8
-  Write-Host 'Verified private FFmpeg/FFprobe bundle staged for the offline Windows installer.'
+  # Stage the full 64-bit 7-Zip command-line engine and its matching DLL.
+  # Administrative MSI extraction copies files only; it does not install 7-Zip.
+  $sevenMsi = Join-Path $workspace '7zip-x64.msi'
+  $sevenExtracted = Join-Path $workspace '7zip-extracted'
+  $sevenUrl = 'https://github.com/ip7z/7zip/releases/download/26.06/7z2606-x64.msi'
+  $sevenSha = '6dc822569e777d9a3ecd5ffcbc22b55600af87e6c5d9810a64e8566cf5a4af9f'
+  Invoke-WebRequest -Uri $sevenUrl -OutFile $sevenMsi -TimeoutSec 120 -UseBasicParsing
+  if ((Get-FileHash -LiteralPath $sevenMsi -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sevenSha) {
+    throw '7-Zip MSI SHA256 mismatch'
+  }
+  New-Item -ItemType Directory -Path $sevenExtracted -Force | Out-Null
+  $msi = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/a', ('"' + $sevenMsi + '"'), '/qn', ('TARGETDIR="' + $sevenExtracted + '"')) -Wait -PassThru
+  if ($msi.ExitCode -ne 0) { throw "7-Zip administrative extraction failed: $($msi.ExitCode)" }
+  $seven = @(Get-ChildItem -LiteralPath $sevenExtracted -Filter '7z.exe' -File -Recurse)
+  if ($seven.Count -ne 1) { throw 'Expected exactly one 7-Zip executable in pinned MSI' }
+  $sevenDir = $seven[0].Directory.FullName
+  foreach ($name in @('7z.exe', '7z.dll', 'License.txt')) {
+    $source = Join-Path $sevenDir $name
+    if (!(Test-Path -LiteralPath $source -PathType Leaf)) { throw "7-Zip distribution missing $name" }
+    $target = if ($name -eq 'License.txt') { '7zip-LICENSE.txt' } else { $name }
+    Copy-Item -LiteralPath $source -Destination (Join-Path $bundle $target) -Force
+  }
+  @(
+    '7-Zip 26.06 by Igor Pavlov; see 7zip-LICENSE.txt.',
+    "Source binary: $sevenUrl",
+    "SHA256: $sevenSha",
+    'Corresponding source: https://github.com/ip7z/7zip/releases/download/26.06/7z2606-src.tar.xz',
+    '7-Zip project: https://www.7-zip.org/'
+  ) | Set-Content -LiteralPath (Join-Path $bundle '7zip-SOURCE.txt') -Encoding UTF8
+  $sevenCheck = Start-Process -FilePath (Join-Path $bundle '7z.exe') -ArgumentList 'i' -Wait -PassThru -NoNewWindow
+  if ($sevenCheck.ExitCode -ne 0) { throw 'Bundled 7-Zip failed execution test' }
+  Write-Host 'Verified FFmpeg, FFprobe and 7-Zip staged for offline Windows conversion.'
 } finally {
   Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
 }

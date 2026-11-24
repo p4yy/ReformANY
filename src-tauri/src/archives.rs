@@ -101,8 +101,11 @@ fn creation_args(job: &ArchiveCreate, output: &Path) -> Result<(PathBuf, Vec<OsS
     } else {
         args.extend([
             format!("-t{}", job.format).into(),
-            format!("-mx={}", job.level).into(),
         ]);
+        if job.format != "tar" {
+            args.push(format!("-mx={}", job.level).into());
+        }
+
         if job.format == "zip" && job.password.is_some() {
             args.push("-mem=AES256".into());
         }
@@ -186,6 +189,10 @@ fn create(job: ArchiveCreate) -> Result<ArchiveCreated, String> {
     }
     let total: u64 = staged.iter().map(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0)).sum();
     if total == 0 { return Err("Archive engine created empty outputs".into()); }
+    let mut test_args: Vec<OsString> = vec!["t".into()];
+    if let Some(password) = &job.password { test_args.push(format!("-p{password}").into()); }
+    test_args.push(staged[0].as_os_str().to_os_string());
+    crate::external::run(&tool, &test_args, Some(staging.path()))?;
     // Ensure every part shares one collision-free base name. Each created file
     // is published exclusively; a conflict rolls back all parts from this job.
     for attempt in 0..1000 {
@@ -448,6 +455,31 @@ pub async fn archive_repack(path: String, target: String, destination: Option<St
     tauri::async_runtime::spawn_blocking(move || {
         repack(&path, &target, destination.as_deref())
     }).await.map_err(|_| "Archive repack worker failed unexpectedly".to_owned())?
+}
+
+/// Exercise the same production create/extract functions from a standalone EXE.
+pub(crate) fn portable_archive_self_test() -> Result<(), String> {
+    let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let source = tmp.path().join("Folder with spaces");
+    fs::create_dir_all(source.join("nested")).map_err(|e| e.to_string())?;
+    let original = b"ReformANY real archive roundtrip";
+    fs::write(source.join("nested").join("sample.txt"), original).map_err(|e| e.to_string())?;
+    for format in ["zip", "7z", "tar"] {
+        let archive = create(ArchiveCreate {
+            paths: vec![source.to_string_lossy().into_owned()],
+            destination: None, name: format!("portable-{format}"), format: format.into(),
+            password: None, split_megabytes: None, level: 5,
+        })?;
+        let extracted = extract(ArchiveExtract {
+            path: archive.output_paths.first().ok_or("Archive missing")?.clone(),
+            destination: None, password: None,
+        })?;
+        let restored = Path::new(&extracted).join("Folder with spaces").join("nested").join("sample.txt");
+        if fs::read(restored).map_err(|e| format!("{format} roundtrip: {e}"))? != original {
+            return Err(format!("{format} roundtrip bytes differ"));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

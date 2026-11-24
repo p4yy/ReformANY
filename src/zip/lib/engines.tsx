@@ -12,7 +12,7 @@ export interface EngineMeta {
 export const ENGINES: EngineMeta[] = [
   { id: "builtin", name: "Image / PDF tools", use: "Raster images, PDF preview and text extraction. Ships inside ReformANY." },
   { id: "ffmpeg", name: "FFmpeg + FFprobe", use: "Audio & Video conversion and every Media Tool.", install: "winget install --id Gyan.FFmpeg -e" },
-  { id: "sevenzip", name: "7-Zip", use: "Create and extract ZIP, 7Z and TAR archives.", install: "winget install --id 7zip.7zip -e" },
+  { id: "sevenzip", name: "7-Zip", use: "Bundled on Windows: 7Z, TAR and additional archive extraction. Standard ZIP is built in.", install: "winget install --id 7zip.7zip -e" },
   { id: "winrar", name: "WinRAR", use: "Create RAR archives. Extraction works without it.", install: "winget install --id RARLab.WinRAR -e" },
   { id: "calibre", name: "Calibre", use: "E-book conversion to EPUB.", install: "winget install --id calibre.calibre -e" },
   { id: "libreoffice", name: "LibreOffice", use: "Office documents to PDF.", install: "winget install --id TheDocumentFoundation.LibreOffice -e" },

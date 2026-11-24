@@ -17,10 +17,11 @@ pub struct EngineStatus {
 /// Prefer audited executables shipped alongside the installed application.
 /// No network lookup or download is performed at runtime.
 fn bundled_binary(name: &str) -> Option<PathBuf> {
-    if !matches!(name, "ffmpeg" | "ffprobe") { return None; }
+    if !matches!(name, "ffmpeg" | "ffprobe" | "7z") { return None; }
     let executable = if cfg!(windows) { format!("{name}.exe") } else { name.to_owned() };
     let app_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
     [
+        app_dir.join("installer").join("media-bundle").join(&executable),
         app_dir.join("engines").join(&executable),
         app_dir.join(&executable),
     ].into_iter().find(|path| path.is_file())
@@ -37,12 +38,13 @@ fn portable_binary(name: &str) -> Option<PathBuf> {
     use std::sync::OnceLock;
     static FFMPEG: OnceLock<Option<PathBuf>> = OnceLock::new();
     static FFPROBE: OnceLock<Option<PathBuf>> = OnceLock::new();
+    static SEVEN_ZIP: OnceLock<Option<PathBuf>> = OnceLock::new();
     fn unpack(name: &str, bytes: &[u8]) -> Option<PathBuf> {
         let local = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
         let folder = local.join("ReformANY").join("portable-engines").join(env!("CARGO_PKG_VERSION"));
         fs::create_dir_all(&folder).ok()?;
-        let final_path = folder.join(format!("{name}.exe"));
+        let final_path = folder.join(name);
         let expected = Sha256::digest(bytes);
         let valid = (|| {
             let mut existing = File::open(&final_path).ok()?;
@@ -66,12 +68,18 @@ fn portable_binary(name: &str) -> Option<PathBuf> {
         Some(final_path)
     }
     match name {
-        "ffmpeg" => FFMPEG.get_or_init(|| unpack("ffmpeg", include_bytes!(
+        "ffmpeg" => FFMPEG.get_or_init(|| unpack("ffmpeg.exe", include_bytes!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/ffmpeg.exe")
         ))).clone(),
-        "ffprobe" => FFPROBE.get_or_init(|| unpack("ffprobe", include_bytes!(
+        "ffprobe" => FFPROBE.get_or_init(|| unpack("ffprobe.exe", include_bytes!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/ffprobe.exe")
         ))).clone(),
+        "7z" => SEVEN_ZIP.get_or_init(|| {
+            unpack("7z.dll", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/7z.dll")))?;
+            unpack("7zip-LICENSE.txt", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/7zip-LICENSE.txt")))?;
+            unpack("7zip-SOURCE.txt", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/7zip-SOURCE.txt")))?;
+            unpack("7z.exe", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/installer/media-bundle/7z.exe")))
+        }).clone(),
         _ => None,
     }
 }
@@ -136,7 +144,7 @@ fn working_binary(name: &str) -> bool {
     let Some(path) = find_binary(name) else { return false; };
     let mut command = Command::new(path);
     hide_subprocess_window(&mut command);
-    command.arg("-version").stdin(Stdio::null())
+    command.arg(if name == "7z" || name == "7zz" { "i" } else { "-version" }).stdin(Stdio::null())
         .stdout(Stdio::null()).stderr(Stdio::null());
     let Ok(mut child) = command.spawn() else { return false; };
     let start = std::time::Instant::now();
@@ -158,7 +166,7 @@ pub fn engine_status() -> EngineStatus {
     EngineStatus {
         ffmpeg: working_binary("ffmpeg"),
         ffprobe: working_binary("ffprobe"),
-        seven_zip: seven_zip().is_some(),
+        seven_zip: working_binary("7z") || working_binary("7zz"),
         winrar: find_binary("rar").is_some(),
     }
 }
