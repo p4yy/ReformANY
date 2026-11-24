@@ -29,6 +29,10 @@ Note: `npm run tauri build` is configured to produce a Windows NSIS installer. A
 - [ ] Convert duplicate basenames without overwriting earlier output.
 - [ ] Test corrupt images, animated GIF/WebP/APNG rejection, multipage TIFF rejection, folder scanning cap, permission failures, nonexistent output directory, and 150 MB limit.
 - [ ] Run multiple conversions and cancel while queued.
+- [ ] Switch the queue between Sequential and Balanced; restart the app and confirm the native setting persists and controls the expected one- or two-worker limit.
+- [ ] Add a watched folder for each supported image input/output route; verify a new top-level file converts, nested files are ignored, originals remain untouched, and duplicate/same-format rules are rejected.
+- [ ] Restart ReformANY and confirm watched-folder rules resume; remove a rule and verify that monitoring stops.
+- [ ] Verify watcher completion/failure notifications and output destinations, including fixed-folder and source-folder modes.
 - [ ] Inspect DPI scaling, keyboard interactions, dark theme and focus states.
 
 ## Runtime constraints
