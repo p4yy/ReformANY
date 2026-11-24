@@ -3,7 +3,7 @@ import { Monitor, Moon, Orbit, PanelLeft, Sun, Volume2 } from "lucide-react";
 import { ToastViewport, toast } from "../components/Toasts";
 import { LogoMark } from "../components/ui";
 import { useActivity } from "../lib/activity";
-import { installCloseToTray, isTauri, win, pickPaths, invoke } from "../lib/bridge";
+import { EVT, installCloseToTray, isTauri, listen, win, pickPaths, invoke } from "../lib/bridge";
 import { useSettings } from "../lib/settings";
 import { play } from "../lib/sound";
 import { cx, reducedMotion } from "../lib/util";
@@ -42,6 +42,13 @@ const PAGES: Record<PageId, ComponentType> = {
   appearance: PrefsAppearance,
   files: PrefsFiles,
   engines: PrefsEngines,
+};
+
+type NativeWatchEvent = {
+  path: string;
+  status: "processing" | "completed" | "failed";
+  outputPath: string | null;
+  error: string | null;
 };
 
 const WORKSPACE = NAV.filter((n) => n.group === "workspace");
@@ -190,6 +197,30 @@ export default function AppShell() {
     installCloseToTray(() => live.current.settings.closeToTray).then((u) => (dead ? u() : (off = u)));
     return () => {
       dead = true;
+      off();
+    };
+  }, []);
+
+  // Watch notifications belong to the app shell, not a settings page that may be unmounted.
+  useEffect(() => {
+    if (!isTauri) return;
+    let alive = true;
+    let off = () => {};
+    void listen<NativeWatchEvent>(EVT.watchJob, (event) => {
+      if (!alive) return;
+      if (event.status === "completed" && event.outputPath) {
+        toast({ tone: "success", title: "Automatic conversion complete", body: event.outputPath });
+      } else if (event.status === "failed") {
+        toast({ tone: "danger", title: "Automatic conversion failed", body: event.error || event.path });
+      }
+    }).then((unlisten) => {
+      if (alive) off = unlisten;
+      else unlisten();
+    }).catch((error) => {
+      if (alive) toast({ tone: "danger", title: "Folder monitor notifications unavailable", body: String(error) });
+    });
+    return () => {
+      alive = false;
       off();
     };
   }, []);
