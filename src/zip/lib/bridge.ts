@@ -9,8 +9,9 @@ import { renderPdfPageImageBatches, renderPdfPageImages } from './pdf';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 export const CMD = {
-  runJob: 'run_job', engineStatus: 'engine_status', loadSettings: 'load_settings', saveSettings: 'save_settings',
-  setOrbitVolume: 'set_orbit_volume', orbitContext: 'orbit_context', orbitAction: 'orbit_action',
+  runJob: 'run_job', engineStatus: 'engine_status', loadSettings: 'load_settings',
+  saveSettings: 'save_settings', setOrbitVolume: 'set_orbit_volume',
+  orbitContext: 'orbit_context', orbitAction: 'orbit_action',
   hideOrbit: 'hide_orbit', openPanel: 'open_panel',
   getQueuePolicy: 'get_queue_policy', setQueuePolicy: 'set_queue_policy',
   getWatchRules: 'get_watch_rules', addWatchRule: 'add_watch_rule', removeWatchRule: 'remove_watch_rule',
@@ -143,24 +144,24 @@ async function runRealJob(req: JobRequest, onProgress: (p: number, note?: string
       if (kind.startsWith('media.')) {
         const action = ({
           normalize: 'normalize-audio', rotate: 'rotate-video', 'flip-h': 'flip-video',
-          'flip-v': 'flip-vertical', 'strip': 'strip-metadata', 'merge': 'merge-media',
-        } as Record<string, string>)[kind.slice(6)];
-        if (!action) throw new Error(`Unsupported media action: ${kind}`);
-        return each('media_edit', path => ({ job: { path, action, destination: dest, options } }));
+          'flip-v': 'flip-vertical', 'strip-meta': 'strip-metadata',
+        } as Record<string, string>)[kind.slice(6)] || kind.slice(6);
+        const result = await raw<string>('media_edit', { job: { paths: inputs, action, destination: dest } });
+        onProgress(1);
+        return [result];
       }
-      throw new Error(`Unsupported conversion job: ${kind}`);
+      throw new Error(`Unsupported job type: ${kind}. No file was changed.`);
   }
 }
-
-export async function runJob(
-  req: JobRequest,
-  onProgress: (p: number, note?: string) => void = () => {},
-): Promise<JobResult> {
-  if (!isTauri) {
-    for (let i = 0; i < 24; i++) { await sleep(45); onProgress((i + 1) / 24, 'Browser preview only'); }
-    return { simulated: true, outputs: [] };
+export async function runJob(req: JobRequest, onProgress: (p: number, note?: string) => void): Promise<JobResult> {
+  if (isTauri) {
+    const outputs = await runRealJob(req, onProgress);
+    if (outputs.length === 0) throw new Error('The engine returned no converted files.');
+    onProgress(1, `${outputs.length} output${outputs.length === 1 ? '' : 's'} saved`);
+    return { simulated: false, outputs };
   }
-  return { simulated: false, outputs: await runRealJob(req, onProgress) };
+  for (let i = 0; i < 24; i++) { await sleep(45); onProgress((i + 1) / 24, 'Browser preview only'); }
+  return { simulated: true, outputs: [] };
 }
 
 async function orbitAction(args: Record<string, unknown>): Promise<unknown> {
@@ -198,7 +199,7 @@ async function orbitAction(args: Record<string, unknown>): Promise<unknown> {
       if (!result.completed || !completed.length) throw new Error('Image conversion failed.');
       return completed;
     }
-    if (['mp4','mov','webm','avi','mkv','wmv','mp3','wav','m4a','flac','ogg','opus','aiff','wma'].includes(ext)) {
+    if (['mp4','mov','mkv','avi','webm','wmv','mp3','wav','m4a','flac','ogg','opus','aiff','wma'].includes(ext)) {
       return raw('media_convert', { job: { path, target, destination: null, profile: 'high', startSeconds: null, durationSeconds: null } });
     }
     if (ext === 'pdf') {
