@@ -70,6 +70,7 @@ For plain text extracted from PDFs, scanned pages require separate OCR software;
 - Conversion and previews are local; there are no first-party file uploads or account requirements.
 - Original files are preserved, and outputs are staged and saved with collision protection rather than overwriting existing files.
 - Password-protected media and archive support varies by format and engine. Archive encryption does not apply to raw file parts.
+- **Auto Convert watched folders** is limited to top-level PNG, JPG/JPEG, WebP, BMP and TIFF files. Each rule can write PDF, PNG, JPEG, WebP, BMP or TIFF; input and output formats must differ. Monitoring is non-recursive, supports up to ten rules, and runs only while the desktop application is running.
 - Windows 11 currently has a tested **classic** file/folder context-menu entry; it may appear under **Show more options**. Native top-level integration requires a trusted signed Windows package and remains unshipped.
 - Automated Windows source checks, unit tests and installer checks are not substitutes for real-user tests on actual files, peripherals and Explorer.
 
