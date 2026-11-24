@@ -351,15 +351,32 @@ mod tests {
         let extracted=temp.path().join("WindowsExtract");
         let mut cmd=std::process::Command::new("powershell.exe");
         cmd.args(["-NoProfile","-NonInteractive","-Command",
-            "Expand-Archive -LiteralPath $env:REFORMANY_TEST_ZIP -DestinationPath $env:REFORMANY_TEST_OUT -Force"])
+            "Expand-Archive -LiteralPath $env:REFORMANY_TEST_ZIP -DestinationPath $env:REFORMANY_TEST_OUT -Force -PassThru"])
             .env("REFORMANY_TEST_ZIP",&archive)
             .env("REFORMANY_TEST_OUT",&extracted);
         let result=cmd.output().unwrap();
         assert!(result.status.success(),"Windows ZIP extractor rejected normal archive: {}",
             String::from_utf8_lossy(&result.stderr));
-        let copy=fs::read(extracted.join("vid.mp4")).unwrap();
+
+        // Expand-Archive may report files at different relative depths depending
+        // on the PowerShell version and destination semantics. Verify the two
+        // archive members by their unique leaf names, not an assumed root path.
+        let files=WalkDir::new(&extracted).follow_links(false).into_iter()
+            .filter_map(Result::ok).filter(|entry|entry.file_type().is_file())
+            .collect::<Vec<_>>();
+        let listing=files.iter().map(|entry|entry.path().display().to_string())
+            .collect::<Vec<_>>().join(", ");
+        let video=files.iter().find(|entry|entry.file_name().to_string_lossy()=="vid.mp4")
+            .map(|entry|entry.path().to_path_buf())
+            .unwrap_or_else(||panic!("Windows ZIP extractor did not produce vid.mp4; extracted files: {listing}; stdout: {}",
+                String::from_utf8_lossy(&result.stdout)));
+        let empty=files.iter().find(|entry|entry.file_name().to_string_lossy()=="empty.txt")
+            .map(|entry|entry.path().to_path_buf())
+            .unwrap_or_else(||panic!("Windows ZIP extractor did not produce empty.txt; extracted files: {listing}; stdout: {}",
+                String::from_utf8_lossy(&result.stdout)));
+        let copy=fs::read(video).unwrap();
         assert_eq!(Sha256::digest(&copy),Sha256::digest(&data));
-        assert_eq!(fs::metadata(extracted.join("empty.txt")).unwrap().len(),0);
+        assert_eq!(fs::metadata(empty).unwrap().len(),0);
         let source_metadata=fs::metadata(&source).unwrap();
         let expected=safe_modified_time(&source_metadata);
         let zip=ZipArchive::new(File::open(&archive).unwrap()).unwrap();
