@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CMD, invoke, isTauri } from "./bridge";
 import { setOrbitAudio } from "./sound";
 
@@ -154,15 +154,24 @@ const SettingsContext = createContext<Ctx | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(load);
-  const hydrated = useRef(false);
+  const [nativeReady, setNativeReady] = useState(!isTauri);
 
-  // Desktop: the Rust-side store is the source of truth once it answers.
+  // Hydrate native preferences before writing them. Even when the native store
+  // has no extra fields, sync the persisted WebView settings once it is ready.
   useEffect(() => {
     if (!isTauri) return;
+    let alive = true;
     invoke<unknown>(CMD.loadSettings)
-      .then((remote) => remote && setSettings((s) => merge({ ...s, ...(remote as object) })))
+      .then((remote) => {
+        if (alive && remote) setSettings((s) => merge({ ...s, ...(remote as object) }));
+      })
       .catch(() => {})
-      .finally(() => (hydrated.current = true));
+      .finally(() => {
+        if (alive) setNativeReady(true);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -171,8 +180,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    if (isTauri && hydrated.current) invoke(CMD.saveSettings, { settings }).catch(() => {});
-  }, [settings]);
+    if (isTauri && nativeReady) invoke(CMD.saveSettings, { settings }).catch(() => {});
+  }, [settings, nativeReady]);
 
   // Theme
   useEffect(() => {
