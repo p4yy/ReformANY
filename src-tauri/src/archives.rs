@@ -71,8 +71,8 @@ fn creation_args(job: &ArchiveCreate, output: &Path) -> Result<(PathBuf, Vec<OsS
     if job.paths.is_empty() || job.paths.len() > 300 {
         return Err("Choose between 1 and 300 files or folders".into());
     }
-    if !(1..=9).contains(&job.level) {
-        return Err("Compression level must be between 1 and 9".into());
+    if job.level > 9 {
+        return Err("Compression level must be between 0 and 9".into());
     }
     if let Some(size) = job.split_megabytes {
         if !(1..=4096).contains(&size) {
@@ -129,7 +129,21 @@ fn creation_args(job: &ArchiveCreate, output: &Path) -> Result<(PathBuf, Vec<OsS
     Ok((tool, args))
 }
 
+pub(crate) fn validate_archive_destination(paths: &[String], output: &Path) -> Result<(), String> {
+    let output = output.canonicalize().map_err(|e| e.to_string())?;
+    for source in paths {
+        let path = Path::new(source);
+        if path.is_dir() && output.starts_with(path.canonicalize().map_err(|e| e.to_string())?) {
+            return Err("Choose an output folder outside the folders being archived".into());
+        }
+    }
+    Ok(())
+}
+
 fn create(job: ArchiveCreate) -> Result<ArchiveCreated, String> {
+    if job.paths.is_empty() || job.paths.len() > 300 {
+        return Err("Choose between 1 and 300 files or folders".into());
+    }
     let format = archive_format(&job.format)?;
     if job.format == "zip" && job.split_megabytes.is_none() {
         validate_archive_name(&job.name)?;
@@ -155,6 +169,7 @@ fn create(job: ArchiveCreate) -> Result<ArchiveCreated, String> {
     for source in &job.paths { verify_input(Path::new(source), true)?; }
     let first = Path::new(&job.paths[0]);
     let directory = output_dir(first, job.destination.as_deref())?;
+    validate_archive_destination(&job.paths, &directory)?;
     let staging = tempfile::Builder::new().prefix(".reformany-archive-")
         .tempdir_in(&directory).map_err(|e| e.to_string())?;
     let internal = staging.path().join(format!("payload.{format}"));

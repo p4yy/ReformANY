@@ -57,9 +57,9 @@ export async function selectLocalFiles(options: { multiple?: boolean; directory?
   activeSourcePath = initial[0];
   let paths = initial;
   if (options.directory) {
-    const expanded = await invoke<{ paths: string[]; warnings: string[] }>('expand_inputs', { paths: initial });
+    const expanded = await invoke<{ paths: string[]; truncated: boolean }>('expand_inputs', { paths: initial });
     paths = expanded.paths;
-    if (expanded.warnings.length) window.dispatchEvent(new CustomEvent('reformany:notice', { detail: expanded.warnings.join(' · ') }));
+    if (expanded.truncated) window.dispatchEvent(new CustomEvent('reformany:notice', { detail: 'Folder scan reached its safety limit.' }));
   }
   if (options.accept && !options.directory) {
     const matches = options.accept.split(',').map(item => item.trim().replace(/^\./, '').toLowerCase()).filter(Boolean);

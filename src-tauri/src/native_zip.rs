@@ -11,9 +11,12 @@ const MAX_ENTRIES: usize = 20_000;
 const MAX_EXPANDED: u64 = 4 * 1024 * 1024 * 1024;
 
 fn zip_options<'a>(password: Option<&'a str>, level: u8) -> zip::write::FileOptions<'a, 'a, ()> {
-    let options = SimpleFileOptions::default()
-        .compression_method(CompressionMethod::Deflated)
-        .compression_level(Some(i64::from(level)));
+    let options = if level == 0 {
+        SimpleFileOptions::default().compression_method(CompressionMethod::Stored)
+    } else {
+        SimpleFileOptions::default().compression_method(CompressionMethod::Deflated)
+            .compression_level(Some(i64::from(level)))
+    };
     if let Some(password) = password {
         options.with_aes_encryption(AesMode::Aes256, password)
     } else {
@@ -41,9 +44,10 @@ pub fn create_native_zip(
     if paths.is_empty() || paths.len() > 300 {
         return Err("Select between 1 and 300 sources".into());
     }
-    if !(1..=9).contains(&level) { return Err("Invalid compression level".into()); }
+    if level > 9 { return Err("Invalid compression level".into()); }
     for path in paths { verify_input(Path::new(path), true)?; }
     let output_dir = output_dir(Path::new(&paths[0]), destination)?;
+    crate::archives::validate_archive_destination(paths, &output_dir)?;
     let staging = tempfile::Builder::new().prefix(".reformany-zip-")
         .tempdir_in(&output_dir).map_err(|e| e.to_string())?;
     let archive_path = staging.path().join("archive.zip");
@@ -55,10 +59,10 @@ pub fn create_native_zip(
         let path = Path::new(source);
         let base = path.file_name().and_then(|s| s.to_str()).ok_or("Invalid input name")?;
         let files: Vec<PathBuf> = if path.is_dir() {
-            WalkDir::new(path).follow_links(false).max_depth(32)
+            WalkDir::new(path).follow_links(false)
                 .into_iter().map(|e| e.map(|entry| entry.into_path())
                     .map_err(|error| format!("Cannot scan folder: {error}")))
-                .collect::<Result<Vec<_>,_>>()?
+                .take(MAX_ENTRIES + 1).collect::<Result<Vec<_>,_>>()?
         } else {
             vec![path.to_path_buf()]
         };
@@ -152,7 +156,7 @@ pub fn repack_native_zip(
     if password.len() < 8 || password.len() > 1024 {
         return Err("Choose a ZIP password between 8 and 1024 characters".into());
     }
-    if !(1..=9).contains(&level) {
+    if level > 9 {
         return Err("Invalid ZIP compression level".into());
     }
     let input = Path::new(source);
@@ -247,7 +251,7 @@ pub fn extract_native_zip(
             let mut output = File::create(&target).map_err(|e| e.to_string())?;
             let copied = std::io::copy(&mut member, &mut output)
                 .map_err(|e| format!("Failed to extract ZIP entry: {e}"))?;
-            if copied > member.size() { return Err("Archive entry exceeded its declared size".into()); }
+            if copied != member.size() { return Err("Archive entry differs from its declared size".into()); }
             output.flush().map_err(|e| e.to_string())?;
         }
     }
@@ -285,6 +289,22 @@ pub fn extract_native_zip(
 mod tests {
     use super::*;
 
+
+    #[test]
+    fn folder_zip_store_roundtrip_and_rejects_recursive_destination() {
+        let temp = tempfile::tempdir().unwrap();
+        let input = temp.path().join("photos.2026");
+        fs::create_dir_all(input.join("nested/empty")).unwrap();
+        fs::write(input.join("nested/test.txt"), b"real bytes").unwrap();
+        let paths = vec![input.to_string_lossy().into_owned()];
+        assert!(create_native_zip(&paths, "bad", Some(&input.to_string_lossy()), None, 5).is_err());
+        let zip = create_native_zip(&paths, "stored", None, None, 0).unwrap();
+        let extracted = extract_native_zip(&zip, None, None).unwrap();
+        assert_eq!(fs::read(Path::new(&extracted).join("photos.2026/nested/test.txt")).unwrap(), b"real bytes");
+        assert!(Path::new(&extracted).join("photos.2026/nested/empty").is_dir());
+        let mut archive = ZipArchive::new(File::open(zip).unwrap()).unwrap();
+        assert_eq!(archive.by_name("photos.2026/nested/test.txt").unwrap().compression(), CompressionMethod::Stored);
+    }
 
     #[test]
     fn repacks_existing_zip_members_not_the_zip_file() {

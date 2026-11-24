@@ -131,6 +131,7 @@ export default function Images() {
             items={items}
             setItems={setItems}
             accept={IMAGE_EXT}
+            expandImageFolders
             maxBytes={150 * MB}
             title="Drop images to convert"
             formats="PNG · JPEG · WebP · BMP · GIF · TIFF · ICO · TGA · QOI · SVG"
@@ -160,7 +161,7 @@ export default function Images() {
           <Card title="Fine-tune" icon={SlidersHorizontal}>
             <div className="grid gap-4">
               <DestinationField dest={dest} id="img-dest" />
-              <Field label="JPEG quality" htmlFor="img-quality" hint="Also applies to WebP. Lossless formats ignore it.">
+              <Field label="JPEG quality" htmlFor="img-quality" hint="Native WebP is lossless; quality applies to JPEG.">
                 <Slider id="img-quality" label="JPEG quality" value={quality} onChange={setQuality} min={30} max={100} format={(v) => `${v}%`} />
               </Field>
               <Field label="Background" hint={BACKGROUNDS.find((b) => b.value === bg)?.label ?? `Custom ${bg}`}>

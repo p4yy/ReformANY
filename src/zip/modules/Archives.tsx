@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Combine, FileArchive, PackageOpen, ShieldCheck, SquareSplitHorizontal, TriangleAlert } from "lucide-react";
 import { DropZone, inputsOf, type QueueItem } from "../components/DropZone";
-import { Card, Check, Chips, DestinationField, Field, JobBar, Note, PageHeader, SaveList, Segmented, useDestination, useJob } from "../components/ui";
+import { Card, Chips, DestinationField, Field, JobBar, Note, PageHeader, SaveList, Segmented, useDestination, useJob } from "../components/ui";
 import { isTauri } from "../lib/bridge";
 import { joinParts, splitFile, type NamedBlob } from "../lib/converters";
 import { EnginePill, useEngines } from "../lib/engines";
@@ -21,13 +21,16 @@ function Create() {
   const [password, setPassword] = useState("");
   const fallback = items[0] ? stem(items[0].name) : "archive";
   const canEncrypt = format !== "tar";
+  const engine = format === "zip" ? "builtin" : format === "rar" ? "winrar" : "sevenzip";
+  const engineName = format === "zip" ? "Native ZIP" : format === "rar" ? "WinRAR" : "7-Zip";
+  const unavailable = isTauri && format !== "zip" && engines.get(engine)?.state !== "ready";
   return (
     <>
       <div className="bento stagger">
         <DropZone items={items} setItems={setItems} accept={["*"]} title="Drop files and folders to pack" formats="ANY FILE TYPE" />
-        <Card title="Archive" icon={FileArchive} aside={<EnginePill state={engines.get(format === "rar" ? "winrar" : "sevenzip")} name={format === "rar" ? "WinRAR" : "7-Zip"} />}>
+        <Card title="Archive" icon={FileArchive} aside={<EnginePill state={engines.get(engine)} name={engineName} />}>
           <div className="grid gap-4">
-            <Field label="Format" hint={format === "rar" ? "Creating RAR needs WinRAR. ZIP and 7Z need only 7-Zip." : format === "tar" ? "TAR bundles without compressing and cannot be encrypted." : undefined}>
+            <Field label="Format" hint={format === "rar" ? "RAR creation requires installed WinRAR. Standard ZIP is built in." : format === "tar" ? "TAR bundles without compressing and cannot be encrypted." : undefined}>
               <Chips ariaLabel="Archive format" value={format} onChange={setFormat} options={["zip", "7z", "tar", "rar"].map((v) => ({ value: v, label: v.toUpperCase() }))} />
             </Field>
             <Field label="Compression">
@@ -47,7 +50,8 @@ function Create() {
           </div>
         </Card>
       </div>
-      <JobBar job={job} label={`Create ${format.toUpperCase()}`} icon={FileArchive} disabled={!items.length}
+      <JobBar job={job} label={`Create ${format.toUpperCase()}`} icon={FileArchive} disabled={!items.length || unavailable}
+        warning={unavailable ? `${engineName} is not available. Install it in Engines or choose ZIP.` : undefined}
         hint={items.length ? `${plural(items.length, "item")} → ${name || fallback}.${format}` : "Add files to pack."}
         onRun={() => void job.run({
           title: `${name || fallback}.${format}`,
@@ -63,7 +67,6 @@ function Extract() {
   const dest = useDestination();
   const engines = useEngines();
   const [items, setItems] = useState<QueueItem[]>([]);
-  const [ownFolder, setOwnFolder] = useState(true);
   const [password, setPassword] = useState("");
   return (
     <>
@@ -72,7 +75,7 @@ function Extract() {
         <Card title="Unpack" icon={PackageOpen} aside={<EnginePill state={engines.get("sevenzip")} name="7-Zip" />}>
           <div className="grid gap-4">
             <DestinationField dest={dest} id="ext-dest" />
-            <Check checked={ownFolder} onChange={setOwnFolder}>Give each archive its own folder</Check>
+            <Note>Each archive is extracted into its own new folder.</Note>
             <Field label="Password (if protected)" htmlFor="ext-pass">
               <input id="ext-pass" type="password" className="field" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
@@ -85,7 +88,7 @@ function Extract() {
         onRun={() => void job.run({
           title: `Extract ${plural(items.length, "archive")}`,
           detail: listNames(items.map((i) => i.name)),
-          request: { kind: "archive.extract", inputs: inputsOf(items), options: { ownFolder, password, destination: { mode: dest.mode, path: dest.path } } },
+          request: { kind: "archive.extract", inputs: inputsOf(items), options: { password, destination: { mode: dest.mode, path: dest.path } } },
         })} />
     </>
   );
@@ -124,7 +127,7 @@ function Split() {
               <p className="mono mt-1.5 text-[0.78125rem] text-ink [overflow-wrap:anywhere]">
                 {file ? `${file.name}.001 … .${String(Math.max(count, 1)).padStart(3, "0")}` : "name.ext.001 … .00N"}
               </p>
-              <p className="mono mt-0.5 text-[0.78125rem] text-soft [overflow-wrap:anywhere]">{file ? `${file.name}.manifest.json` : "name.ext.manifest.json"}</p>
+              <p className="mono mt-0.5 text-[0.78125rem] text-soft [overflow-wrap:anywhere]">{file ? `${file.name}${isTauri ? ".reformany.parts.json" : ".manifest.json"}` : isTauri ? "name.ext.reformany.parts.json" : "name.ext.manifest.json"}</p>
               <p className="mt-2 text-[0.75rem] text-soft">{count ? `${plural(count, "part")} of up to ${formatBytes(partBytes)}` : "Parts are numbered from .001."}</p>
             </div>
             <Note>The manifest stores the original name, size and SHA-256 so Join can prove the rebuilt file is identical.</Note>
@@ -156,7 +159,7 @@ function Join() {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [out, setOut] = useState<(NamedBlob & { sha256: string | null; verified: boolean | null }) | null>(null);
   const parts = items.filter((i) => /\.\d{3}$/.test(i.name)).length;
-  const manifest = items.some((i) => i.name.endsWith(".manifest.json"));
+  const manifest = items.some((i) => i.name.endsWith(isTauri ? ".reformany.parts.json" : ".manifest.json"));
   return (
     <>
       <div className="bento stagger">
@@ -171,7 +174,7 @@ function Join() {
               <span className="pill" data-tone={manifest ? "ok" : undefined}>{manifest ? "Manifest found" : "No manifest"}</span>
             </div>
             <Note>Parts are joined in numeric order. With a manifest, the rebuilt file’s SHA-256 is compared against the original.</Note>
-            {!manifest && parts > 0 && <Note warn>Without the manifest the file can still be rebuilt, but it cannot be verified.</Note>}
+            {!manifest && parts > 0 && <Note warn>{isTauri ? "Select the original .reformany.parts.json manifest to rebuild safely." : "Without the manifest the file can still be rebuilt, but it cannot be verified."}</Note>}
             {out && (
               <div className="rounded-[0.625rem] border border-line bg-app p-3" role="status">
                 <p className={`flex items-center gap-2 font-semibold ${out.verified === false ? "text-danger" : "text-bright"}`}>
@@ -184,7 +187,7 @@ function Join() {
           </div>
         </Card>
       </div>
-      <JobBar job={job} label="Join and verify" icon={Combine} disabled={!parts}
+      <JobBar job={job} label="Join and verify" icon={Combine} disabled={!parts || (isTauri && !manifest)}
         hint={parts ? `${plural(parts, "part")}${manifest ? " + manifest" : ""}` : "Add the .001, .002 … parts to rebuild the file."}
         onRun={() => void job.run({
           title: `Join ${plural(parts, "part")}`,

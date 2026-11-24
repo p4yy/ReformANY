@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type SetStateAction } from "react";
 import { ArrowDown, Download, FilePlus2, FolderInput, GripVertical, LoaderCircle, X } from "lucide-react";
-import { EVT, isTauri, listen, pickPaths } from "../lib/bridge";
+import { EVT, invoke, isTauri, listen, pickPaths } from "../lib/bridge";
 import { downloadBlob, extOf, familyOf, formatBytes, uid } from "../lib/util";
 import { toast } from "./Toasts";
 
@@ -35,6 +35,7 @@ export function DropZone({
   title,
   formats,
   compact,
+  expandImageFolders = false,
 }: {
   items: QueueItem[];
   setItems: Dispatch<SetStateAction<QueueItem[]>>;
@@ -45,6 +46,7 @@ export function DropZone({
   title: string;
   formats: string;
   compact?: boolean;
+  expandImageFolders?: boolean;
 }) {
   const [state, setState] = useState<"idle" | "over" | "reject">("idle");
   const [overRow, setOverRow] = useState<string | null>(null);
@@ -81,18 +83,31 @@ export function DropZone({
     [accept, any, maxBytes, multiple, setItems],
   );
 
+  const addPaths = useCallback(async (paths: string[]) => {
+    try {
+      if (expandImageFolders) {
+        const expanded = await invoke<{ paths: string[]; truncated: boolean }>("expand_inputs", { paths });
+        if (expanded.truncated) toast({ tone: "warn", title: "Folder scan limit reached", body: "Up to 300 images are accepted per batch." });
+        if (!expanded.paths.length) toast({ tone: "warn", title: "No supported images found" });
+        add(fromPaths(expanded.paths));
+      } else add(fromPaths(paths));
+    } catch (e) {
+      toast({ tone: "danger", title: "Cannot add files", body: String(e) });
+    }
+  }, [add, expandImageFolders]);
+
   // Desktop: the webview reports dropped paths through a Tauri event.
   useEffect(() => {
     let off = () => {};
     let dead = false;
     listen<{ paths: string[] }>(EVT.fileDrop, (p) => {
-      if (zone.current?.offsetParent && p?.paths?.length) add(fromPaths(p.paths));
+      if (zone.current?.offsetParent && p?.paths?.length) void addPaths(p.paths);
     }).then((u) => (dead ? u() : (off = u)));
     return () => {
       dead = true;
       off();
     };
-  }, [add]);
+  }, [addPaths]);
 
   const isFiles = (e: DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
   const onEnter = (e: DragEvent) => {
@@ -131,8 +146,10 @@ export function DropZone({
 
   const browse = async (directory: boolean) => {
     if (isTauri) {
-      const picked = await pickPaths({ multiple, directory, extensions: any ? undefined : accept });
-      if (picked) add(fromPaths(picked));
+      try {
+        const picked = await pickPaths({ multiple, directory, extensions: any ? undefined : accept });
+        if (picked) await addPaths(picked);
+      } catch (e) { toast({ tone: "danger", title: "Cannot open file picker", body: String(e) }); }
       return;
     }
     (directory ? dirInput : fileInput).current?.click();

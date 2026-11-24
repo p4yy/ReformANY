@@ -222,11 +222,11 @@ pub fn inspect_files(paths: Vec<String>) -> Vec<FileInfo> {
 fn output_format(target: &str) -> Result<(ImageFormat, &'static str), String> {
     match target {
         "png" => Ok((ImageFormat::Png, "png")),
-        "jpeg" => Ok((ImageFormat::Jpeg, "jpg")),
+        "jpeg" | "jpg" => Ok((ImageFormat::Jpeg, "jpg")),
         "webp" => Ok((ImageFormat::WebP, "webp")),
         "bmp" => Ok((ImageFormat::Bmp, "bmp")),
         "gif" => Ok((ImageFormat::Gif, "gif")),
-        "tiff" => Ok((ImageFormat::Tiff, "tiff")),
+        "tiff" | "tif" => Ok((ImageFormat::Tiff, "tiff")),
         "ico" => Ok((ImageFormat::Ico, "ico")),
         "tga" => Ok((ImageFormat::Tga, "tga")),
         "qoi" => Ok((ImageFormat::Qoi, "qoi")),

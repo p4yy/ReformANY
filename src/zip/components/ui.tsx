@@ -393,7 +393,11 @@ export function useJob(module: string) {
         let dry = false;
         let summary = "";
         if (spec.real && !isTauri) summary = (await spec.real(onProgress)) || "";
-        else if (spec.request) dry = (await runJob(spec.request, onProgress)).simulated;
+        else if (spec.request) {
+          const result = await runJob(spec.request, onProgress);
+          dry = result.simulated;
+          if (!dry) summary = `Saved: ${result.outputs.join(" · ")}`;
+        }
         else if (spec.real) summary = (await spec.real(onProgress)) || "";
         setState({ status: "done", progress: 1, dry, note: dry ? DRY_NOTE : summary || "Finished" });
         activity.add({ module, title: spec.title, detail: dry ? `${spec.detail} · dry run, nothing written` : summary || spec.detail, status: dry ? "dry" : "done" });

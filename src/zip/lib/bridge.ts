@@ -73,19 +73,23 @@ async function runRealJob(req: JobRequest, onProgress: (p: number, note?: string
       const target = String(options.format ?? 'png');
       const matte = String(options.background ?? 'white');
       const files = inputs.map(path => ({ id: uid(), path }));
+      const errors: string[] = [];
       const result = await nativeConvertImages(files, {
         target, quality: Number(options.quality ?? 86),
         matte: matte === 'keep' || matte === 'null' ? 'white' : matte === '#11140e' ? 'black' : matte,
-        maxDimension: Number(options.maxEdge || 0) || undefined,
+        maxDimension: target === 'ico' ? Math.min(256, Number(options.maxEdge || 256)) : Number(options.maxEdge || 0) || undefined,
         rotation: Number(options.rotate ?? 0), grayscale: Boolean(options.grayscale),
         destination: dest,
       }, update => {
         if (update.outputPath) saved.push(update.outputPath);
-        if (update.status === 'failed') onProgress(0, update.error ?? 'Conversion failed');
-        else onProgress(Math.min(0.98, (saved.length / files.length)), update.status);
+        if (update.status === 'failed' || update.status === 'cancelled') {
+          const source = files.find(f => f.id === update.id)?.path ?? 'Image';
+          errors.push(`${source.split(/[\\/]/).pop()}: ${update.error ?? update.status}`);
+        }
+        onProgress(Math.min(0.98, (saved.length + errors.length) / files.length), update.error ?? update.status);
       });
       if (!result.completed || result.failed) {
-        throw new Error(`${result.completed} converted; ${result.failed} failed. Check input formats and permissions.`);
+        throw new Error(`${result.completed} converted; ${result.failed} failed. ${errors.join(' · ')}${saved.length ? ` · Saved: ${saved.join(' · ')}` : ''}`);
       }
       return saved;
     }
@@ -102,7 +106,7 @@ async function runRealJob(req: JobRequest, onProgress: (p: number, note?: string
       const name = String(options.name || 'Archive');
       const result = await raw<{ outputPaths: string[] }>('archive_create', { job: {
         paths: inputs, destination: dest, name,
-        format: options.format || 'zip', level: Number(options.level ?? 5),
+        format: options.format || 'zip', level: ({ store: 0, fast: 1, normal: 5, max: 9 } as Record<string, number>)[String(options.level)] ?? 5,
         password: options.password || null, splitMegabytes: null,
       } });
       onProgress(1);
@@ -113,10 +117,10 @@ async function runRealJob(req: JobRequest, onProgress: (p: number, note?: string
     case 'archive.split':
       return each('file_split', path => ({ path, destination: dest,
         partMegabytes: Math.max(1, Math.ceil(Number(options.partBytes) / 1048576)) }),
-        (r: unknown) => (r as { outputPaths?: string[] }).outputPaths ?? []);
+        (r: unknown) => { const split = r as { manifestPath: string; parts: string[] }; return [...split.parts, split.manifestPath]; });
     case 'archive.join': {
-      const manifest = inputs.find(p => p.endsWith('.manifest.json'));
-      if (!manifest) throw new Error('Select the original .manifest.json file to verify and join its parts.');
+      const manifest = inputs.find(p => p.toLowerCase().endsWith('.reformany.parts.json'));
+      if (!manifest) throw new Error('Select the original .reformany.parts.json file to verify and join its parts.');
       return [await raw<string>('file_join', { manifestPath: manifest, destination: dest })];
     }
     case 'doc.images_to_pdf':
@@ -191,12 +195,23 @@ async function orbitAction(args: Record<string, unknown>): Promise<unknown> {
   if (action.startsWith('to-')) {
     const target = action.slice(3).replace(/^docx-editable$/, 'docx-edit').replace(/^docx-layout$/, 'docx-layout').replace(/^h-265$/, 'mp4_h265');
     const ext = fmt(path);
+    if (['zip','7z','tar','rar'].includes(target)) {
+      const source = await raw<{ directory: boolean; name: string }>('ui_file_stat', { path });
+      if (!source.directory && ['zip','7z','tar','rar','gz','tgz','bz2','xz'].includes(ext)) {
+        return raw('archive_repack', { path, target, destination: null });
+      }
+      return raw('archive_create', { job: {
+        paths: [path], destination: null, name: source.name,
+        format: target, password: null, splitMegabytes: null, level: 5,
+      } });
+    }
     if (['png','jpg','jpeg','webp','gif','bmp','tiff','tif','ico','tga','qoi','svg','avif'].includes(ext)) {
       if (target === 'pdf') return raw('images_to_pdf', { paths: [path], destination: null });
       const completed: string[] = [];
-      const result = await nativeConvertImages([{ id: uid(), path }], { target, quality: 86, matte: 'white', rotation: 0, grayscale: false },
-        ev => { if (ev.outputPath) completed.push(ev.outputPath); });
-      if (!result.completed || !completed.length) throw new Error('Image conversion failed.');
+      const errors: string[] = [];
+      const result = await nativeConvertImages([{ id: uid(), path }], { target, quality: 86, matte: 'white', rotation: 0, grayscale: false, maxDimension: target === 'ico' ? 256 : undefined },
+        ev => { if (ev.outputPath) completed.push(ev.outputPath); if (ev.error) errors.push(ev.error); });
+      if (!result.completed || !completed.length) throw new Error(errors.join(' · ') || 'Image conversion did not produce a file.');
       return completed;
     }
     if (['mp4','mov','mkv','avi','webm','wmv','mp3','wav','m4a','flac','ogg','opus','aiff','wma'].includes(ext)) {
@@ -228,10 +243,6 @@ async function orbitAction(args: Record<string, unknown>): Promise<unknown> {
       }
       throw new Error(`PDF → ${target.toUpperCase()} is not supported by the installed local engine.`);
     }
-    if (['zip','7z','tar','rar'].includes(target)) return raw('archive_create', { job: {
-      paths: [path], destination: null, name: path.split(/[\\/]/).pop() || 'Archive',
-      format: target, password: null, splitMegabytes: null, level: 5,
-    } });
     return raw('text_convert', { path, target, destination: null });
   }
   throw new Error(`Orbit action ${action} is not available for this source. Nothing was changed.`);
