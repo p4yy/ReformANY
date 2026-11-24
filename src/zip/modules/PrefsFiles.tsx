@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, FolderOpen, FolderSync, HelpCircle, ListOrdered, Plus, Rows3, Trash2, Zap } from "lucide-react";
 import { toast } from "../components/Toasts";
 import { Card, EmptyState, Field, PageHeader } from "../components/ui";
-import { CMD, EVT, invoke, isTauri, listen, pickPaths } from "../lib/bridge";
+import { CMD, invoke, isTauri, pickPaths } from "../lib/bridge";
 import { useSettings, type Settings } from "../lib/settings";
 import { middleEllipsis } from "../lib/util";
 
@@ -21,14 +21,6 @@ type NativeWatchRule = {
   target: string;
   destination: string | null;
 };
-type NativeWatchEvent = {
-  id: string;
-  path: string;
-  status: "processing" | "completed" | "failed";
-  outputPath: string | null;
-  error: string | null;
-};
-
 const canonicalFormat = (format: string) => format === "jpg" ? "jpeg" : format;
 
 export default function PrefsFiles() {
@@ -52,7 +44,6 @@ export default function PrefsFiles() {
     }
 
     let alive = true;
-    let dispose: (() => void) | undefined;
 
     void Promise.all([
       invoke<NativeWatchRule[]>(CMD.getWatchRules),
@@ -68,23 +59,8 @@ export default function PrefsFiles() {
       if (alive) setLoading(false);
     });
 
-    void listen<NativeWatchEvent>(EVT.watchJob, (event) => {
-      if (!alive) return;
-      if (event.status === "completed" && event.outputPath) {
-        toast({ tone: "success", title: "Automatic conversion complete", body: event.outputPath });
-      } else if (event.status === "failed") {
-        toast({ tone: "danger", title: "Automatic conversion failed", body: event.error || event.path });
-      }
-    }).then((unlisten) => {
-      if (alive) dispose = unlisten;
-      else unlisten();
-    }).catch((error) => {
-      if (alive) toast({ tone: "danger", title: "Watcher notifications unavailable", body: String(error) });
-    });
-
     return () => {
       alive = false;
-      dispose?.();
     };
   }, [update]);
 
