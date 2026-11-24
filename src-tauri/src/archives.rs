@@ -301,11 +301,18 @@ fn check_listing(binary: &Path, source: &Path, password: Option<&str>) -> Result
             total = total.saturating_add(size);
             if total > MAX_UNPACKED_BYTES { return Err("Archive exceeds the 4 GB extraction limit".into()); }
         }
-        if line.starts_with("Symbolic Link = ") || line.starts_with("Hard Link = ") {
+        // 7-Zip emits these fields in technical listings even when the
+        // value is empty. Only a non-empty target is an actual archive link.
+        if line.strip_prefix("Symbolic Link = ").is_some_and(|target| !target.trim().is_empty())
+            || line.strip_prefix("Hard Link = ").is_some_and(|target| !target.trim().is_empty())
+        {
             return Err("Links in archives are blocked to protect the destination".into());
         }
         if let Some(attributes) = line.strip_prefix("Attributes = ") {
-            if attributes.contains("L") && attributes.trim() != "LZ" {
+            // Inspect the attribute token, not the entire display string:
+            // permission/metadata suffixes can contain unrelated letters.
+            let token = attributes.split_whitespace().next().unwrap_or("");
+            if token.starts_with('L') && token != "LZ" {
                 return Err("Archive contains a link-like entry and cannot be safely extracted".into());
             }
         }
@@ -469,11 +476,11 @@ pub(crate) fn portable_archive_self_test() -> Result<(), String> {
             paths: vec![source.to_string_lossy().into_owned()],
             destination: None, name: format!("portable-{format}"), format: format.into(),
             password: None, split_megabytes: None, level: 5,
-        })?;
+        }).map_err(|error| format!("{format} creation: {error}"))?;
         let extracted = extract(ArchiveExtract {
             path: archive.output_paths.first().ok_or("Archive missing")?.clone(),
             destination: None, password: None,
-        })?;
+        }).map_err(|error| format!("{format} extraction: {error}"))?;
         let restored = Path::new(&extracted).join("Folder with spaces").join("nested").join("sample.txt");
         if fs::read(restored).map_err(|e| format!("{format} roundtrip: {e}"))? != original {
             return Err(format!("{format} roundtrip bytes differ"));

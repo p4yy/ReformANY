@@ -162,7 +162,7 @@ pub fn run() {
     // per-user cache, to prove this portable exe can truly encode offline.
     if command == "--portable-self-test" {
         let mut stage = "resolve embedded FFmpeg";
-        let mut success = (|| -> Result<(), String> {
+        let success = (|| -> Result<(), String> {
             let ffmpeg = external::find_binary("ffmpeg")
                 .ok_or("Embedded FFmpeg missing from executable and application resources")?;
             stage = "resolve embedded FFprobe";
