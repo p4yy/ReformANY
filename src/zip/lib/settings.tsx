@@ -9,14 +9,6 @@ export const MOD_KEYS: ModKey[] = ["Shift", "Control", "Alt"];
 export const MOD_LABEL: Record<ModKey, string> = { Shift: "Shift", Control: "Ctrl", Alt: "Alt" };
 export const SECTION_LABEL: Record<Section, string> = { convert: "Convert", tools: "Tools", actions: "Actions" };
 
-export interface WatchRule {
-  id: string;
-  folder: string;
-  match: string;
-  action: string;
-  enabled: boolean;
-}
-
 export interface Settings {
   theme: "system" | "light" | "dark";
   language: "en" | "de" | "es" | "fr";
@@ -34,7 +26,6 @@ export interface Settings {
   outputMode: "source" | "fixed" | "ask";
   outputPath: string;
   queueMode: "sequential" | "balanced";
-  watchRules: WatchRule[];
   sidebarCollapsed: boolean;
 }
 
@@ -57,15 +48,55 @@ export const DEFAULTS: Settings = {
   outputMode: "source",
   outputPath: "",
   queueMode: "balanced",
-  watchRules: [],
   sidebarCollapsed: false,
 };
 
 const KEY = "reformany.settings.v1";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+function enumValue<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value) ? value as T : fallback;
+}
+
+function booleanValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function boundedNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(min, Math.min(max, Math.round(value)))
+    : fallback;
+}
+
+/** Treat persisted WebView data as untrusted input and discard obsolete local-only fields. */
 function merge(raw: unknown): Settings {
-  const p = (raw && typeof raw === "object" ? raw : {}) as Partial<Settings>;
-  return { ...DEFAULTS, ...p, language: "en", orbitKeys: { ...ORBIT_KEY_DEFAULTS, ...(p.orbitKeys ?? {}) } };
+  const p = isRecord(raw) ? raw : {};
+  const rawKeys = isRecord(p.orbitKeys) ? p.orbitKeys : {};
+  return {
+    theme: enumValue(p.theme, ["system", "light", "dark"], DEFAULTS.theme),
+    language: "en",
+    accent: "sage",
+    showIntro: booleanValue(p.showIntro, DEFAULTS.showIntro),
+    closeToTray: booleanValue(p.closeToTray, DEFAULTS.closeToTray),
+    orbitSounds: booleanValue(p.orbitSounds, DEFAULTS.orbitSounds),
+    orbitVolume: boundedNumber(p.orbitVolume, DEFAULTS.orbitVolume, 0, 100),
+    orbitStartSection: enumValue(p.orbitStartSection, SECTIONS, DEFAULTS.orbitStartSection),
+    orbitScrollSections: booleanValue(p.orbitScrollSections, DEFAULTS.orbitScrollSections),
+    orbitKeys: {
+      convert: enumValue(rawKeys.convert, MOD_KEYS, ORBIT_KEY_DEFAULTS.convert),
+      tools: enumValue(rawKeys.tools, MOD_KEYS, ORBIT_KEY_DEFAULTS.tools),
+      actions: enumValue(rawKeys.actions, MOD_KEYS, ORBIT_KEY_DEFAULTS.actions),
+    },
+    shakeEnabled: booleanValue(p.shakeEnabled, DEFAULTS.shakeEnabled),
+    shakeSensitivity: boundedNumber(p.shakeSensitivity, DEFAULTS.shakeSensitivity, 1, 10),
+    pointerRing: booleanValue(p.pointerRing, DEFAULTS.pointerRing),
+    outputMode: enumValue(p.outputMode, ["source", "fixed", "ask"], DEFAULTS.outputMode),
+    outputPath: typeof p.outputPath === "string" ? p.outputPath.slice(0, 32768) : DEFAULTS.outputPath,
+    queueMode: enumValue(p.queueMode, ["sequential", "balanced"], DEFAULTS.queueMode),
+    sidebarCollapsed: booleanValue(p.sidebarCollapsed, DEFAULTS.sidebarCollapsed),
+  };
 }
 
 function load(): Settings {
@@ -73,7 +104,7 @@ function load(): Settings {
     const raw = localStorage.getItem(KEY);
     if (raw) return merge(JSON.parse(raw));
   } catch {
-    /* storage unavailable */
+    /* storage unavailable or invalid JSON */
   }
   return DEFAULTS;
 }
@@ -167,7 +198,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [settings.orbitSounds, settings.orbitVolume]);
 
-  const update = useCallback((patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch })), []);
+  const update = useCallback((patch: Partial<Settings>) => setSettings((s) => merge({ ...s, ...patch })), []);
   const t = useCallback((key: string) => DICT[settings.language][key] ?? DICT.en[key] ?? key, [settings.language]);
   const value = useMemo(() => ({ settings, update, t }), [settings, update, t]);
 
