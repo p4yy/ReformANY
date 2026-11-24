@@ -334,9 +334,10 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn normal_zip_extracts_using_windows_explorer_engine() {
-        // Expand-Archive is PowerShell's Windows ZIP extraction path; unlike
-        // AES-enabled 7-Zip, it must consume ordinary ReformANY ZIPs.
+    fn normal_zip_extracts_using_windows_builtin_zip_api() {
+        // Exercise the built-in Windows/.NET ZIP API used by PowerShell's
+        // archive tooling. Ordinary ReformANY ZIPs must remain interoperable
+        // with Windows without requiring an external archive application.
         use sha2::{Digest,Sha256};
         let temp=tempfile::tempdir().unwrap();
         let source=temp.path().join("vid.mp4");
@@ -351,7 +352,7 @@ mod tests {
         let extracted=temp.path().join("WindowsExtract");
         let mut cmd=std::process::Command::new("powershell.exe");
         cmd.args(["-NoProfile","-NonInteractive","-Command",
-            "$ErrorActionPreference = 'Stop'; $zip = $env:REFORMANY_TEST_ZIP; $out = $env:REFORMANY_TEST_OUT; Write-Output \"ZIP=$zip OUT=$out\"; if (!(Test-Path -LiteralPath $zip -PathType Leaf)) { throw 'Test ZIP path is missing' }; New-Item -ItemType Directory -Path $out -Force | Out-Null; $items = @(Expand-Archive -LiteralPath $zip -DestinationPath $out -Force -PassThru -ErrorAction Stop); if ($items.Count -ne 2) { throw \"Expected two extracted files, got $($items.Count)\" }; $items | ForEach-Object { Write-Output $_.FullName }"])
+            "$ErrorActionPreference = 'Stop'; try { $zip = $env:REFORMANY_TEST_ZIP; $out = $env:REFORMANY_TEST_OUT; Write-Output \"ZIP=$zip OUT=$out\"; if (!(Test-Path -LiteralPath $zip -PathType Leaf)) { throw 'Test ZIP path is missing' }; Add-Type -AssemblyName System.IO.Compression.FileSystem; New-Item -ItemType Directory -Path $out -Force | Out-Null; [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $out); $items = @(Get-ChildItem -LiteralPath $out -File -Recurse); if ($items.Count -ne 2) { throw \"Expected two extracted files, got $($items.Count)\" }; $items | ForEach-Object { Write-Output $_.FullName }; exit 0 } catch { Write-Error $_; exit 1 }"])
             .env("REFORMANY_TEST_ZIP",&archive)
             .env("REFORMANY_TEST_OUT",&extracted);
         let result=cmd.output().unwrap();
