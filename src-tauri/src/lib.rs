@@ -161,36 +161,52 @@ pub fn run() {
     // Headless production probe: use only embedded engines, with a fresh
     // per-user cache, to prove this portable exe can truly encode offline.
     if command == "--portable-self-test" {
-        let ffmpeg = external::find_binary("ffmpeg");
-        let ffprobe = external::find_binary("ffprobe");
-        let success = (|| -> Result<(), String> {
-            let ffmpeg = ffmpeg.ok_or("Embedded FFmpeg missing")?;
-            let ffprobe = ffprobe.ok_or("Embedded FFprobe missing")?;
+        let mut stage = "resolve embedded FFmpeg";
+        let mut success = (|| -> Result<(), String> {
+            let ffmpeg = external::find_binary("ffmpeg")
+                .ok_or("Embedded FFmpeg missing from executable and application resources")?;
+            stage = "resolve embedded FFprobe";
+            let ffprobe = external::find_binary("ffprobe")
+                .ok_or("Embedded FFprobe missing from executable and application resources")?;
+            stage = "create portable test workspace";
             let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
             let audio = dir.path().join("portable-audio.wav");
             let mut encode = std::process::Command::new(&ffmpeg);
             external::hide_subprocess_window(&mut encode);
+            stage = "encode WAV with embedded FFmpeg";
             let outcome = encode.args([
                 "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
                 "anullsrc=r=44100:cl=mono", "-t", "0.2",
                 "-c:a", "pcm_s16le", "-y",
-            ]).arg(&audio).status().map_err(|e| e.to_string())?;
-            if !outcome.success() || std::fs::metadata(&audio).map_or(true, |m| m.len() < 44) {
-                return Err("Bundled FFmpeg could not encode actual WAV audio".into());
+            ]).arg(&audio).output().map_err(|e| format!("Cannot launch {}: {e}", ffmpeg.display()))?;
+            if !outcome.status.success() || std::fs::metadata(&audio).map_or(true, |m| m.len() < 44) {
+                return Err(format!("Bundled FFmpeg WAV encode failed ({}): {}",
+                    outcome.status, String::from_utf8_lossy(&outcome.stderr)));
             }
             let mut probe = std::process::Command::new(&ffprobe);
             external::hide_subprocess_window(&mut probe);
+            stage = "probe WAV with embedded FFprobe";
             let outcome = probe.args(["-v", "error", "-show_entries",
                 "stream=codec_name", "-of", "default=noprint_wrappers=1"])
-                .arg(&audio).output().map_err(|e| e.to_string())?;
+                .arg(&audio).output().map_err(|e| format!("Cannot launch {}: {e}", ffprobe.display()))?;
             if !outcome.status.success() || !String::from_utf8_lossy(&outcome.stdout).contains("pcm_s16le") {
-                return Err("Bundled FFprobe could not inspect encoded audio".into());
+                return Err(format!("Bundled FFprobe failed ({}): {}",
+                    outcome.status, String::from_utf8_lossy(&outcome.stderr)));
             }
-            archives::portable_archive_self_test()?;
+            stage = "create and extract ZIP, 7Z and TAR archives";
+            archives::portable_archive_self_test()
+                .map_err(|error| format!("Archive roundtrip failed: {error}"))?;
             let image = dir.path().join("sample.png");
             image::RgbImage::from_pixel(12, 8, image::Rgb([35, 100, 190])).save(&image).map_err(|e| e.to_string())?;
             for target in ["jpeg", "webp", "bmp", "tiff"] {
-                let result = conversion::convert_watched_image(&image, target, None)?;
+                stage = match target {
+                    "jpeg" => "convert image to JPEG",
+                    "webp" => "convert image to WebP",
+                    "bmp" => "convert image to BMP",
+                    _ => "convert image to TIFF",
+                };
+                let result = conversion::convert_watched_image(&image, target, None)
+                    .map_err(|error| format!("{target} conversion failed: {error}"))?;
                 if image::image_dimensions(&result).map_err(|e| e.to_string())? != (12, 8) {
                     return Err(format!("Invalid dimensions in {target} output"));
                 }
@@ -199,7 +215,13 @@ pub fn run() {
         })();
         match success {
             Ok(()) => { println!("PASS: portable EXE verifies real audio, image and folder archive conversions offline."); return; }
-            Err(error) => { eprintln!("FAIL: portable EXE: {error}"); std::process::exit(1); }
+            Err(error) => {
+                let report = format!("Stage: {stage}\\nError: {error}\\n");
+                let log = std::env::temp_dir().join("ReformANY-portable-self-test.log");
+                let _ = std::fs::write(&log, &report);
+                eprintln!("FAIL: portable EXE at {stage}: {error}");
+                std::process::exit(1);
+            }
         }
     }
     if command == "--portable-register-context" || command == "--portable-remove-context" {

@@ -247,7 +247,14 @@ jobs:
             # instead of reading a stale $LASTEXITCODE before it finishes.
             $selfTest = Start-Process -FilePath $exe -ArgumentList '--portable-self-test' -PassThru -Wait
             if ($selfTest.ExitCode -ne 0) {
-              throw "Standalone EXE failed offline encode/probe self-test (exit $($selfTest.ExitCode))"
+              $diagnostic = Join-Path $env:TEMP 'ReformANY-portable-self-test.log'
+              if (Test-Path -LiteralPath $diagnostic) {
+                Write-Host 'Portable self-test diagnostic:'
+                Get-Content -LiteralPath $diagnostic
+              } else {
+                Write-Warning 'Portable self-test did not write a diagnostic file.'
+              }
+              throw "Standalone EXE failed offline conversion self-test (exit $($selfTest.ExitCode))"
             }
             foreach ($engine in @('ffmpeg.exe', 'ffprobe.exe')) {
               if (!(Test-Path -LiteralPath (Join-Path $clean "ReformANY/portable-engines/0.3.0/$engine"))) {
